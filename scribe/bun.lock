@@ -8,6 +8,7 @@
         "@duckdb/node-api": "1.5.2-r.1",
         "@modelcontextprotocol/sdk": "^1.11.0",
         "yaml": "^2.7.0",
+        "zod": "^4.3.6",
       },
       "devDependencies": {
         "@types/bun": "^1.2.0",
