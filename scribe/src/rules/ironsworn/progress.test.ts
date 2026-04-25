@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { rollProgress, tickProgress, TICKS_PER_MARK } from "./progress.js";
+import { rollProgress, tickProgress, TICKS_PER_MARK, classifyBand } from "./progress.js";
 import { ProgressTrack } from "../../state/character.js";
 
 const makeTrack = (rank: ProgressTrack["rank"], ticks: number = 0): ProgressTrack => ({
@@ -8,6 +8,24 @@ const makeTrack = (rank: ProgressTrack["rank"], ticks: number = 0): ProgressTrac
   kind: "vow",
   ticks,
   completed: false,
+});
+
+describe("classifyBand", () => {
+  it("strong_hit when score beats both dice", () => {
+    expect(classifyBand(6, 4, 5)).toBe("strong_hit");
+  });
+  it("weak_hit when score beats exactly one", () => {
+    expect(classifyBand(5, 4, 5)).toBe("weak_hit");
+    expect(classifyBand(5, 5, 4)).toBe("weak_hit");
+  });
+  it("miss when score beats neither", () => {
+    expect(classifyBand(5, 5, 5)).toBe("miss");
+    expect(classifyBand(4, 5, 6)).toBe("miss");
+  });
+  it("tie to a die is not a beat (strict >)", () => {
+    expect(classifyBand(5, 5, 3)).toBe("weak_hit"); // beats second only
+    expect(classifyBand(5, 5, 5)).toBe("miss");     // ties both = miss
+  });
 });
 
 describe("TICKS_PER_MARK", () => {

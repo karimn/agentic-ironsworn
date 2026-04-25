@@ -22,29 +22,27 @@ export function tickProgress(track: ProgressTrack, marks: number = 1): ProgressT
   return { ...track, ticks: newTicks };
 }
 
+export function classifyBand(
+  score: number,
+  c1: number,
+  c2: number,
+): "strong_hit" | "weak_hit" | "miss" {
+  if (score > c1 && score > c2) return "strong_hit";
+  if (score > c1 || score > c2) return "weak_hit";
+  return "miss";
+}
+
 export function rollProgress(track: ProgressTrack): ProgressRollResult {
   const progressScore = Math.min(Math.floor(track.ticks / 4), 10);
   const c1 = roll("d10").total;
   const c2 = roll("d10").total;
   const challengeDice: [number, number] = [c1, c2];
 
-  const beatsFirst = progressScore > c1;
-  const beatsSecond = progressScore > c2;
-
-  let band: "strong_hit" | "weak_hit" | "miss";
-  if (beatsFirst && beatsSecond) {
-    band = "strong_hit";
-  } else if (beatsFirst || beatsSecond) {
-    band = "weak_hit";
-  } else {
-    band = "miss";
-  }
-
   return {
     track,
     progressScore,
     challengeDice,
-    band,
+    band: classifyBand(progressScore, c1, c2),
     match: c1 === c2,
   };
 }

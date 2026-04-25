@@ -45,4 +45,10 @@ describe("burnMomentum", () => {
     const result = burnMomentum(char);
     expect(result.after.momentum).toBe(0);
   });
+
+  it("does not mutate the input character", () => {
+    const char = makeChar(7, 2);
+    burnMomentum(char);
+    expect(char.momentum).toBe(7); // original unchanged
+  });
 });
