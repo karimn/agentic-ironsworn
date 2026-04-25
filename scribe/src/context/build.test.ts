@@ -55,6 +55,11 @@ describe("buildContext", () => {
     expect(typeof ctx.userPrefix).toBe("string");
   });
 
+  it("omits Recent Scenes section when no scenes database exists", async () => {
+    const ctx = await buildContext(campaignDir, "test");
+    expect(ctx.userPrefix).not.toContain("## Recent Scenes");
+  });
+
   it("includes open threads when present", async () => {
     const { openThread } = await import("../state/threads.js");
     await openThread(campaignDir, "The Iron Vow", "vow", "Must find the keep.");

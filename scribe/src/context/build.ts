@@ -68,10 +68,9 @@ async function buildCharacterSection(campaignPath: string): Promise<string> {
   return `## Character State\n${JSON.stringify(digest, null, 2)}`;
 }
 
-async function buildRecentScenesSection(
-  campaignPath: string,
-): Promise<{ section: string; ids: Set<string> }> {
-  const scenes = await getRecentScenes(campaignPath);
+function buildRecentScenesSection(
+  scenes: RecentScene[],
+): { section: string; ids: Set<string> } {
   if (scenes.length === 0) {
     return { section: "", ids: new Set() };
   }
@@ -163,18 +162,11 @@ export async function buildContext(
   let allSceneTexts: string[] = [];
 
   try {
-    const { section, ids } = await buildRecentScenesSection(campaignPath);
+    const recentRows = await getRecentScenes(campaignPath);
+    const { section, ids } = buildRecentScenesSection(recentRows);
     recentIds = ids;
-    if (section) {
-      // collect text for NPC matching
-      try {
-        const scenes = await getRecentScenes(campaignPath);
-        allSceneTexts.push(...scenes.map((s) => s.text));
-      } catch {
-        // ignore
-      }
-      sections.push(section);
-    }
+    allSceneTexts.push(...recentRows.map((s) => s.text));
+    if (section) sections.push(section);
   } catch {
     // omit if no scenes.duckdb or query fails
   }
