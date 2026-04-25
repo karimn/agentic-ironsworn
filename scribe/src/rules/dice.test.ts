@@ -46,4 +46,29 @@ describe("roll", () => {
     expect(() => roll("invalid")).toThrow();
     expect(() => roll("d0")).toThrow();
   });
+
+  it("produces all values in range over many rolls", () => {
+    const seen = new Set<number>();
+    for (let i = 0; i < 10_000; i++) seen.add(roll("d6").rolls[0]);
+    expect(seen.size).toBe(6);
+    expect(Math.min(...seen)).toBe(1);
+    expect(Math.max(...seen)).toBe(6);
+  });
+
+  it("handles d1 (always returns 1)", () => {
+    const r = roll("d1");
+    expect(r.rolls).toHaveLength(1);
+    expect(r.rolls[0]).toBe(1);
+    expect(r.total).toBe(1);
+  });
+
+  it("trims whitespace from notation", () => {
+    const r = roll(" d6 ");
+    expect(r.rolls).toHaveLength(1);
+  });
+
+  it("accepts uppercase D", () => {
+    const r = roll("D6");
+    expect(r.rolls).toHaveLength(1);
+  });
 });
