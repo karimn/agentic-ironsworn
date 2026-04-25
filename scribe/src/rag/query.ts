@@ -26,15 +26,13 @@ const DB_PATH = (() => {
 // Lazy singleton DB instance
 // ---------------------------------------------------------------------------
 
-let _instance: DuckDBInstance | null = null;
+let _instancePromise: Promise<DuckDBInstance> | null = null;
 
-async function getInstance(): Promise<DuckDBInstance> {
-  if (_instance === null) {
-    _instance = await DuckDBInstance.create(DB_PATH, {
-      access_mode: "READ_ONLY",
-    });
+function getInstance(): Promise<DuckDBInstance> {
+  if (_instancePromise === null) {
+    _instancePromise = DuckDBInstance.create(DB_PATH, { access_mode: "READ_ONLY" });
   }
-  return _instance;
+  return _instancePromise;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,20 +81,37 @@ function toNum(value: unknown): number {
 // ---------------------------------------------------------------------------
 
 async function getEmbedding(query: string): Promise<number[]> {
-  const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "nomic-embed-text", input: query }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "nomic-embed-text", input: query }),
+    });
+  } catch (e) {
+    const err = e as Error;
+    throw new Error(`Ollama unavailable at ${OLLAMA_BASE_URL}: ${err.message}`);
+  }
 
   if (!response.ok) {
-    throw new Error(
-      `Ollama embed request failed: ${response.status} ${response.statusText}`,
-    );
+    throw new Error(`Ollama embed failed: ${response.status} ${response.statusText}`);
   }
 
   const data = (await response.json()) as { embeddings: number[][] };
-  return data.embeddings[0]!;
+
+  if (!data.embeddings || !Array.isArray(data.embeddings[0])) {
+    throw new Error("Unexpected Ollama response shape");
+  }
+
+  if (data.embeddings[0].length !== 768) {
+    throw new Error(`Expected 768-dim embedding, got ${data.embeddings[0].length}`);
+  }
+
+  if (!data.embeddings[0].every((v) => typeof v === "number" && isFinite(v))) {
+    throw new Error("Invalid embedding values from Ollama");
+  }
+
+  return data.embeddings[0];
 }
 
 // ---------------------------------------------------------------------------
