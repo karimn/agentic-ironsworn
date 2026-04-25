@@ -76,27 +76,24 @@ function extract_json_array(text::AbstractString)
     depth = 0
     in_string = false
     escape_next = false
-    for i in start:lastindex(text)
+    i = start
+    while i <= lastindex(text)
         c = text[i]
         if escape_next
             escape_next = false
-            continue
-        end
-        if c == '\\'
+        elseif c == '\\'
             escape_next = in_string
-            continue
-        end
-        if c == '"'
+        elseif c == '"'
             in_string = !in_string
-            continue
+        elseif !in_string
+            if c == '['
+                depth += 1
+            elseif c == ']'
+                depth -= 1
+                depth == 0 && return text[start:i]
+            end
         end
-        in_string && continue
-        if c == '['
-            depth += 1
-        elseif c == ']'
-            depth -= 1
-            depth == 0 && return text[start:i]
-        end
+        i = nextind(text, i)
     end
     error("Unterminated JSON array in response")
 end
@@ -162,10 +159,10 @@ end
 # Claude API call
 # ---------------------------------------------------------------------------
 
-function call_claude(client, prompt::String, n_items::Int)
+function call_claude(client, prompt::String, n_items::Int; tokens_per_item::Int=400)
     resp = create(client.messages;
                   model     = MODEL,
-                  max_tokens = max(4096, n_items * 400),
+                  max_tokens = max(4096, n_items * tokens_per_item),
                   messages  = [Message("user", prompt)])
     raw_text = resp.content[1].text
     json_str = extract_json_array(raw_text)
@@ -210,7 +207,7 @@ end
 
 function process_oracle_batch(client, batch)
     prompt  = build_oracle_prompt(batch)
-    parsed  = call_claude(client, prompt, length(batch))
+    parsed  = call_claude(client, prompt, length(batch); tokens_per_item=1200)
     results = Dict{String,Any}[]
     n_got   = length(parsed)
     if n_got < length(batch)

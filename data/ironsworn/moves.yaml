@@ -1,0 +1,563 @@
+- effects_by_band:
+    strong_hit:
+      - amount: 2
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - amount: 1
+        kind: "take_momentum"
+  name: "GATHER INFORMATION"
+  stat_options:
+    - "wits"
+  stat_hint: "Roll +wits to uncover clues and investigate. Add +1 if asking questions within a community or of someone with whom you share a bond."
+  outcomes:
+    strong_hit: "You discover something helpful and specific. The path you must follow or action you must take to make progress is made clear. Envision what you learn (Ask the Oracle if unsure), and take +2 momentum."
+    miss: "Your investigation unearths a dire threat or reveals an unwelcome truth that undermines your quest. Pay the Price."
+    weak_hit: "The information complicates your quest or introduces a new danger. Envision what you discover (Ask the Oracle if unsure), and take +1 momentum."
+  roll_type: "action"
+  trigger: "When you search an area, ask questions, conduct an investigation, or follow a track"
+- effects_by_band:
+    strong_hit:
+      - amount: 2
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - amount: 1
+        kind: "take_momentum"
+  name: "SECURE AN ADVANTAGE"
+  stat_options:
+    - "edge"
+    - "heart"
+    - "iron"
+    - "shadow"
+    - "wits"
+  stat_hint: "Choose the stat matching your approach: edge for speed/agility/precision, heart for charm/loyalty/courage, iron for aggressive action/strength/endurance, shadow for deception/stealth/trickery, wits for expertise/insight/observation."
+  outcomes:
+    strong_hit: "You gain advantage. Choose one: Take control—Make another move now (not a progress move); when you do, add +1. Prepare to act—Take +2 momentum."
+    miss: "You fail or your assumptions betray you. Pay the Price."
+    weak_hit: "Your advantage is short-lived. Take +1 momentum."
+  roll_type: "action"
+  trigger: "When you assess a situation, make preparations, or attempt to gain leverage"
+- effects_by_band:
+    strong_hit:
+      - kind: "clear_debility"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - amount: 1
+        kind: "consume_supply"
+  name: "HEAL"
+  stat_options:
+    - "wits"
+    - "iron"
+  stat_hint: "Roll +wits normally. If mending your own wounds, roll +wits or +iron, whichever is lower."
+  outcomes:
+    strong_hit: "Your care is helpful. If you (or the ally under your care) have the wounded condition, you may clear it. Then, take or give up to +2 health."
+    miss: "Your aid is ineffective. Pay the Price."
+    weak_hit: "As above, but you must suffer -1 supply or -1 momentum (your choice)."
+  roll_type: "action"
+  trigger: "When you treat an injury or ailment"
+- effects_by_band:
+    strong_hit:
+      - amount: -2
+        kind: "consume_supply"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - amount: 1
+        kind: "lose_momentum"
+  name: "RESUPPLY"
+  stat_options:
+    - "wits"
+  stat_hint: "Roll +wits to find resources through hunting, foraging, or scavenging."
+  outcomes:
+    strong_hit: "You bolster your resources. Take +2 supply."
+    miss: "You find nothing helpful. Pay the Price."
+    weak_hit: "Take up to +2 supply, but suffer -1 momentum for each."
+  roll_type: "action"
+  trigger: "When you hunt, forage, or scavenge"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - kind: "pay_the_price"
+    weak_hit: []
+  name: "MAKE CAMP"
+  stat_options:
+    - "supply"
+  stat_hint: "Roll +supply, which represents your access to provisions and gear."
+  outcomes:
+    strong_hit: "You and your allies may each choose two from Recuperate, Partake, Relax, Focus, or Prepare."
+    miss: "You take no comfort. Pay the Price."
+    weak_hit: "Choose one benefit from Recuperate, Partake, Relax, Focus, or Prepare."
+  roll_type: "action"
+  trigger: "When you rest and recover for several hours in the wild"
+- effects_by_band:
+    strong_hit:
+      - kind: "mark_progress"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "mark_progress"
+      - amount: 1
+        kind: "consume_supply"
+  name: "UNDERTAKE A JOURNEY"
+  stat_options:
+    - "wits"
+  stat_hint: "Roll +wits for each segment of your journey. Add +1 if setting off from a community with which you share a bond."
+  outcomes:
+    strong_hit: "You reach a waypoint. If the waypoint is unknown to you, envision it (Ask the Oracle if unsure). Then, choose one: You make good use of your resources—Mark progress. You move at speed—Mark progress and take +1 momentum, but suffer -1 supply."
+    miss: "You are waylaid by a perilous event. Pay the Price."
+    weak_hit: "You reach a waypoint and mark progress, but suffer -1 supply."
+  roll_type: "progress"
+  trigger: "When you travel across hazardous or unfamiliar lands"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "take_momentum"
+    miss: []
+    weak_hit: []
+  name: "REACH YOUR DESTINATION"
+  stat_options: []
+  stat_hint: "This is a progress move. Compare your progress score to challenge dice. Momentum is ignored on this roll."
+  outcomes:
+    strong_hit: "The situation at your destination favors you. Choose one: Make another move now (not a progress move), and add +1. Take +1 momentum."
+    miss: "You have gone hopelessly astray, your objective is lost to you, or you were misled about your destination. If your journey continues, clear all but one filled progress, and raise the journey's rank by one (if not already epic)."
+    weak_hit: "You arrive but face an unforeseen hazard or complication. Envision what you find (Ask the Oracle if unsure)."
+  roll_type: "progress"
+  trigger: "When your journey comes to an end"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit: []
+  name: "COMPEL"
+  stat_options:
+    - "heart"
+    - "iron"
+    - "shadow"
+  stat_hint: "Choose based on approach: heart for charm/pacify/barter/convince (add +1 if you share a bond), iron for threaten/incite, shadow for lie/swindle."
+  outcomes:
+    strong_hit: "They'll do what you want or share what they know. Take +1 momentum. If you use this exchange to Gather Information, make that move now and add +1."
+    miss: "They refuse or make a demand which costs you greatly. Pay the Price."
+    weak_hit: "As above, but they ask something of you in return. Envision what they want (Ask the Oracle if unsure)."
+  roll_type: "action"
+  trigger: "When you attempt to persuade someone to do something"
+- effects_by_band:
+    strong_hit: []
+    miss: []
+    weak_hit: []
+  name: "SOJOURN"
+  stat_options:
+    - "heart"
+  stat_hint: "Roll +heart. Add +1 if you share a bond with the community."
+  outcomes:
+    strong_hit: "You and your allies may each choose two recovery actions. On a subsequent roll +heart (add +1 if you share a bond), on strong hit take +2 more for that action; on miss, lose all benefits for that action."
+    miss: "Outcomes not fully specified in provided text."
+    weak_hit: "Choose one recovery action. If you share a bond, choose one more. On a subsequent roll +heart (add +1 if you share a bond), on strong hit take +2 more for that action; on miss, lose all benefits for that action."
+  roll_type: "action"
+  trigger: "When you spend time in a community seeking assistance"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - amount: 1
+        kind: "take_momentum"
+  name: "DRAW THE CIRCLE"
+  stat_options:
+    - "heart"
+  stat_hint: "Roll +heart. Add +1 if you share a bond with this community."
+  outcomes:
+    strong_hit: "Take +1 momentum. You may also choose up to three boasts and take +1 momentum for each."
+    miss: "You begin the duel at a disadvantage. Your foe has initiative. Pay the Price."
+    weak_hit: "You may choose one boast (Grant first strike, Bare yourself, Hold no iron, Bloody yourself, or To the death) in exchange for +1 momentum."
+  roll_type: "action"
+  trigger: "When you challenge someone to a formal duel, or accept a challenge"
+- effects_by_band:
+    strong_hit:
+      - kind: "mark_progress"
+      - amount: 2
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "pay_the_price"
+  name: "Forge a Bond"
+  stat_options:
+    - "heart"
+  stat_hint: "Roll +heart to represent your emotional connection and commitment to the relationship."
+  outcomes:
+    strong_hit: "Make note of the bond, mark a tick on your bond progress track, and choose one: Take +1 spirit or Take +2 momentum."
+    miss: "You are refused. Pay the Price."
+    weak_hit: "They ask something more of you first. Envision what it is (Ask the Oracle if unsure), do it (or Swear an Iron Vow), and mark the bond. If you decline or fail, Pay the Price."
+  roll_type: "action"
+  trigger: "When you spend significant time with a person or community, stand together to face hardships, or make sacrifices for their cause"
+- effects_by_band:
+    strong_hit:
+      - amount: 2
+        kind: "take_momentum"
+    miss: []
+    weak_hit: []
+  name: "Secure an Advantage (Aid an Ally)"
+  stat_options:
+    - "edge"
+    - "heart"
+    - "iron"
+    - "shadow"
+    - "wits"
+  stat_hint: "Use the stat most appropriate to your supporting action and approach."
+  outcomes:
+    strong_hit: "Your ally makes the choice between +2 momentum or making an immediate move with a +1 add. In combat, you and your ally both take or retain initiative."
+    miss: "Your attempt fails."
+    weak_hit: "Your ally gains a lesser benefit or the advantage is partial."
+  roll_type: "action"
+  trigger: "When your bond is tested through conflict, betrayal, or circumstance"
+- effects_by_band:
+    strong_hit:
+      - kind: "mark_progress"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "mark_progress"
+  name: "Strike"
+  stat_options:
+    - "iron"
+    - "edge"
+  stat_hint: "Use iron for close quarters combat, edge for ranged attacks."
+  outcomes:
+    strong_hit: "Inflict +1 harm. You retain initiative."
+    miss: "Your attack fails and you must Pay the Price. Your foe has initiative."
+    weak_hit: "Inflict your harm and lose initiative."
+  roll_type: "action"
+  trigger: "When you have initiative and attack"
+- effects_by_band:
+    strong_hit:
+      - kind: "mark_progress"
+      - amount: 1
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "mark_progress"
+      - kind: "pay_the_price"
+  name: "Clash"
+  stat_options:
+    - "iron"
+    - "edge"
+  stat_hint: "Use iron for close quarters combat, edge for ranged exchanges."
+  outcomes:
+    strong_hit: "Inflict your harm and choose one: You bolster your position (Take +1 momentum) or You find an opening (Inflict +1 harm). You have the initiative."
+    miss: "You are outmatched and must Pay the Price. Your foe has initiative."
+    weak_hit: "Inflict your harm, but then Pay the Price. Your foe has initiative."
+  roll_type: "action"
+  trigger: "When your foe has initiative and you fight back"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "pay_the_price"
+  name: "Turn the Tide"
+  stat_options:
+    - "edge"
+    - "heart"
+    - "iron"
+    - "shadow"
+    - "wits"
+  stat_hint: "Use the stat most appropriate to your desperate action."
+  outcomes:
+    strong_hit: "You steal initiative and add +1 to your move. Take +1 momentum on a hit."
+    miss: "You must suffer a dire outcome. Pay the Price."
+    weak_hit: "You fail to score a hit and must suffer a dire outcome. Pay the Price."
+  roll_type: "action"
+  trigger: "Once per fight, when you risk it all"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "pay_the_price"
+  name: "End the Fight"
+  stat_options:
+    - "edge"
+    - "heart"
+    - "iron"
+    - "shadow"
+    - "wits"
+  stat_hint: "Use any stat appropriate to your decisive action."
+  outcomes:
+    strong_hit: "This foe is no longer in the fight. They are killed, out of action, flee, or surrender as appropriate to the situation and your intent."
+    miss: "You have lost this fight. Pay the Price."
+    weak_hit: "As above, but you must also choose one: It's worse than you thought (Endure Harm), You are overcome (Endure Stress), Your victory is short-lived (new danger appears), You suffer collateral damage (something of value is lost), You'll pay for it (objective falls out of reach), or Others won't forget (marked for vengeance)."
+  roll_type: "progress"
+  trigger: "When you make a move to take decisive action and score a strong hit"
+- effects_by_band:
+    strong_hit:
+      - amount: 2
+        kind: "take_momentum"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - kind: "pay_the_price"
+  name: "Battle"
+  stat_options:
+    - "edge"
+    - "heart"
+    - "iron"
+    - "shadow"
+    - "wits"
+  stat_hint: "Choose based on your strategy: edge for speed/range, heart for courage/allies, iron for close combat, shadow for trickery, wits for tactics."
+  outcomes:
+    strong_hit: "You achieve your objective unconditionally. Take +2 momentum."
+    miss: "You are defeated and the objective is lost to you. Pay the Price."
+    weak_hit: "You achieve your objective, but not without cost. Pay the Price."
+  roll_type: "action"
+  trigger: "When you fight a battle and it happens in a blur"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "take_momentum"
+    miss:
+      - amount: 1
+        kind: "lose_momentum"
+    weak_hit: []
+  name: "Endure Harm"
+  stat_options:
+    - "health"
+    - "iron"
+  stat_hint: "Roll +health or +iron, whichever is higher."
+  outcomes:
+    strong_hit: "Choose one: Shake it off (If your health is greater than 0, suffer -1 momentum in exchange for +1 health) or Embrace the pain (Take +1 momentum)."
+    miss: "Also suffer -1 momentum. If you are at 0 health, you must mark wounded or maimed (if currently unmarked) or roll on the consequences table."
+    weak_hit: "You press on."
+  roll_type: "action"
+  trigger: "When you face physical damage"
+- effects_by_band:
+    strong_hit: []
+    miss: []
+    weak_hit:
+      - kind: "inflict_debility"
+  name: "Face Death"
+  stat_options:
+    - "heart"
+  stat_hint: "Roll +heart to represent your will to live and your bond to the mortal world."
+  outcomes:
+    strong_hit: "Death rejects you. You are cast back into the mortal world."
+    miss: "You are dead."
+    weak_hit: "Choose one: You die, but not before making a noble sacrifice (envision your final moments) or Death desires something of you in exchange for your life (Swear an Iron Vow of formidable or extreme difficulty; you return cursed and may only clear the cursed debility by completing the quest)."
+  roll_type: "action"
+  trigger: "When you are brought to the brink of death, and glimpse the world beyond"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - amount: 1
+        kind: "lose_momentum"
+    weak_hit: []
+  name: "Companion Endure Harm"
+  stat_options:
+    - "heart"
+  stat_hint: "Roll +heart or +your companion's health, whichever is higher."
+  outcomes:
+    strong_hit: "Your companion rallies. Give them +1 health."
+    miss: "Also suffer -1 momentum. If your companion's health is 0, they are gravely wounded and out of action. Without aid, they die in an hour or two. If you roll a 1 on your action die with your companion's health at 0, they are now dead."
+    weak_hit: "Your companion is battered. If their health is 0, they cannot assist you until they gain at least +1 health."
+  roll_type: "action"
+  trigger: "When your companion faces physical damage"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "lose_momentum"
+      - kind: "take_harm"
+    miss:
+      - amount: 1
+        kind: "lose_momentum"
+      - kind: "inflict_debility"
+    weak_hit: []
+  name: "ENDURE STRESS"
+  stat_options:
+    - "heart"
+    - "spirit"
+  stat_hint: "Roll the higher of heart or spirit"
+  outcomes:
+    strong_hit: "Choose one: Shake it off (if spirit > 0, suffer -1 momentum for +1 spirit) or Embrace the darkness (take +1 momentum)"
+    miss: "Suffer -1 momentum. If at 0 spirit, mark shaken or corrupted (if unmarked) or roll on desolation table"
+    weak_hit: "You press on"
+  roll_type: "action"
+  trigger: "When you face mental shock or despair"
+- effects_by_band:
+    strong_hit: []
+    miss: []
+    weak_hit:
+      - kind: "inflict_debility"
+  name: "IRONSWORN"
+  stat_options:
+    - "heart"
+  stat_hint: "Roll heart only"
+  outcomes:
+    strong_hit: "You resist and press on"
+    miss: "You succumb to despair or horror and are lost"
+    weak_hit: "Choose one: Your spirit or sanity breaks but you make a noble sacrifice, or you see a dread vision and Swear an Iron Vow (formidable or extreme) to prevent it. If you fail or refuse, you are lost. Otherwise you return tormented and may only clear it by completing the quest."
+  roll_type: "action"
+  trigger: "When you are brought to the brink of desolation"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - kind: "inflict_debility"
+      - kind: "consume_supply"
+    weak_hit: []
+  name: "OUT OF SUPPLY"
+  stat_options: []
+  stat_hint: "No roll required"
+  outcomes:
+    strong_hit: ""
+    miss: ""
+    weak_hit: ""
+  roll_type: "progress"
+  trigger: "When your supply is exhausted"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - kind: "lose_momentum"
+      - kind: "mark_progress"
+    weak_hit: []
+  name: "FACE A SETBACK"
+  stat_options: []
+  stat_hint: "No roll required"
+  outcomes:
+    strong_hit: ""
+    miss: ""
+    weak_hit: ""
+  roll_type: "progress"
+  trigger: "When your momentum is at its minimum (-6), and you suffer additional -momentum"
+- effects_by_band:
+    strong_hit:
+      - kind: "take_momentum"
+    miss:
+      - kind: "lose_momentum"
+    weak_hit: []
+  name: "SWEAR AN IRON VOW"
+  stat_options:
+    - "heart"
+    - "iron"
+  stat_hint: "Determined by approach and circumstances"
+  outcomes:
+    strong_hit: "Your path is clear"
+    miss: "You face a serious obstacle which prevents undertaking this quest. You may also choose to Forsake Your Vow"
+    weak_hit: "More investigation may be required to identify your next steps"
+  roll_type: "action"
+  trigger: "When you swear upon iron to complete a quest"
+- effects_by_band:
+    strong_hit:
+      - kind: "mark_progress"
+    miss: []
+    weak_hit: []
+  name: "REACH A MILESTONE"
+  stat_options: []
+  stat_hint: "No roll required"
+  outcomes:
+    strong_hit: "Mark progress based on quest rank (troublesome=3, dangerous=2, formidable=1, extreme=2 ticks, epic=1 tick)"
+    miss: ""
+    weak_hit: ""
+  roll_type: "progress"
+  trigger: "When you make significant progress in your quest by overcoming a critical obstacle"
+- effects_by_band:
+    strong_hit:
+      - kind: "gain_xp"
+    miss: []
+    weak_hit:
+      - kind: "gain_xp"
+  name: "FULFILL YOUR VOW"
+  stat_options: []
+  stat_hint: "Progress move using filled boxes, momentum ignored"
+  outcomes:
+    strong_hit: "Your quest is complete. Mark experience based on rank (troublesome=1, dangerous=2, formidable=3, extreme=4, epic=5)"
+    miss: "Your quest is undone. Choose: Recommit (clear all but one filled progress and raise rank by one) or Forsake Your Vow"
+    weak_hit: "There is more to be done or you discover the truth of your quest. Mark less experience (troublesome=0, dangerous=1, formidable=2, extreme=3, epic=4). You may Swear an Iron Vow to set things right for +1"
+  roll_type: "progress"
+  trigger: "When you achieve what you believe to be the fulfillment of your vow"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - kind: "suffer_stress"
+    weak_hit: []
+  name: "FORSAKE YOUR VOW"
+  stat_options:
+    - "spirit"
+  stat_hint: "Suffer spirit loss equal to quest rank"
+  outcomes:
+    strong_hit: ""
+    miss: ""
+    weak_hit: ""
+  roll_type: "action"
+  trigger: "When you renounce your quest, betray your promise, or the goal is lost to you"
+- effects_by_band:
+    strong_hit: []
+    miss: []
+    weak_hit: []
+  name: "ADVANCE"
+  stat_options: []
+  stat_hint: "Spend 3 experience for new asset or 2 experience to upgrade"
+  outcomes:
+    strong_hit: "Add a new asset or upgrade an existing asset"
+    miss: ""
+    weak_hit: ""
+  roll_type: "progress"
+  trigger: "When you focus on your skills, receive training, find inspiration, earn a reward, or gain a companion"
+- effects_by_band:
+    strong_hit: []
+    miss:
+      - kind: "pay_the_price"
+    weak_hit: []
+  name: "PAY THE PRICE"
+  stat_options: []
+  stat_hint: "Narrative consequence determined by choice or oracle roll"
+  outcomes:
+    strong_hit: ""
+    miss: ""
+    weak_hit: ""
+  roll_type: "progress"
+  trigger: "When you suffer the outcome of a move"
+- effects_by_band:
+    strong_hit: []
+    miss: []
+    weak_hit: []
+  name: "ASK THE ORACLE"
+  stat_options: []
+  stat_hint: "This move does not use stats. Instead, you choose a method (draw a conclusion, ask a yes/no question, pick two, or spark an idea) and may roll on the odds table."
+  outcomes:
+    strong_hit: "On a match, an extreme result or twist has occurred."
+    miss: "The answer is revealed according to the odds table you selected."
+    weak_hit: "The answer is revealed according to the odds table you selected."
+  roll_type: "progress"
+  trigger: "When you seek to resolve questions, discover details in the world, determine how other characters respond, or trigger encounters or events"
+- effects_by_band:
+    strong_hit:
+      - amount: 1
+        kind: "mark_progress"
+    miss:
+      - kind: "pay_the_price"
+    weak_hit:
+      - amount: 1
+        kind: "take_momentum"
+  name: "SWEAR AN IRON VOW"
+  stat_options:
+    - "edge"
+    - "heart"
+    - "iron"
+    - "shadow"
+    - "wits"
+  stat_hint: "Choose a stat based on how you approach the oath ceremony and what aspect of yourself you commit to the vow."
+  outcomes:
+    strong_hit: "You are emboldened and it is clear what you must do next."
+    miss: "An unexpected danger or obstacle stands in your way."
+    weak_hit: "Your next steps are unclear. This may typically lead to new scenes and new moves."
+  roll_type: "action"
+  trigger: "When you swear an iron vow"
