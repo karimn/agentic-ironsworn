@@ -46,19 +46,8 @@ function get_anthropic_key()
     prefs_path = joinpath(@__DIR__, "..", "TomeRAG.jl", "LocalPreferences.toml")
     key = ""
     if isfile(prefs_path)
-        data = try
-            open(prefs_path) do io
-                # Simple TOML parse for the TomeRAG section.
-                YAML.load(io)   # LocalPreferences.toml is TOML not YAML — use Pkg.TOML
-            end
-        catch
-            nothing
-        end
-    end
-    # Use Pkg.TOML (always available)
-    if isfile(prefs_path)
         toml = Pkg.TOML.parsefile(prefs_path)
-        key = get(get(toml, "TomeRAG", Dict()), "anthropic_api_key", "")
+        key  = get(get(toml, "TomeRAG", Dict()), "anthropic_api_key", "")
     end
     if isempty(key)
         key = get(ENV, "ANTHROPIC_API_KEY", "")
