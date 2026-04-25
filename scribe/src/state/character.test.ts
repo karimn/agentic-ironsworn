@@ -11,6 +11,7 @@ import {
   consumeSupply,
   inflictDebility,
   clearDebility,
+  overrideField,
   computeMomentumReset,
   DEBILITIES,
   Character,
@@ -35,7 +36,7 @@ let campaignDir: string;
 
 beforeEach(async () => {
   campaignDir = await mkdtemp(join(tmpdir(), "scribe-test-"));
-  await saveCharacter(campaignDir, { ...SAMPLE });
+  await saveCharacter(campaignDir, structuredClone(SAMPLE));
 });
 
 afterEach(async () => {
@@ -112,5 +113,21 @@ describe("computeMomentumReset", () => {
       debilities: { ...SAMPLE.debilities, maimed: true, corrupted: true },
     };
     expect(computeMomentumReset(char)).toBe(0);
+  });
+});
+
+describe("overrideField", () => {
+  it("sets a nested field by dot-path", async () => {
+    const { after } = await overrideField(campaignDir, "stats.edge", 4);
+    expect(after.stats.edge).toBe(4);
+  });
+
+  it("sets a top-level field", async () => {
+    const { after } = await overrideField(campaignDir, "bonds", 3);
+    expect((after as any).bonds).toBe(3);
+  });
+
+  it("throws on missing intermediate segment", async () => {
+    await expect(overrideField(campaignDir, "notAField.sub", "x")).rejects.toThrow();
   });
 });

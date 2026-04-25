@@ -136,8 +136,8 @@ function setNestedField(obj: Record<string, unknown>, path: string, value: unkno
   let current: Record<string, unknown> = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    if (typeof current[part] !== "object" || current[part] === null) {
-      throw new Error(`Path segment "${part}" is not an object`);
+    if (current[part] === undefined || current[part] === null || typeof current[part] !== "object") {
+      throw new Error(`Path segment "${part}" does not exist or is not an object`);
     }
     current = current[part] as Record<string, unknown>;
   }
