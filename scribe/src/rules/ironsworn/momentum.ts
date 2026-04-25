@@ -9,11 +9,12 @@ export interface BurnResult {
 }
 
 export function burnMomentum(character: Character): BurnResult {
+  const before = structuredClone(character);
   const momentumBefore = character.momentum;
   const resetTo = character.momentumReset;
   const after: Character = { ...character, momentum: resetTo };
   return {
-    before: character,
+    before,
     after,
     momentumBefore,
     momentumAfter: resetTo,

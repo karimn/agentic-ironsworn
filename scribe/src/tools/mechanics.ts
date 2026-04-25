@@ -4,7 +4,7 @@ import { roll } from "../rules/dice.js";
 import { resolveMove } from "../rules/ironsworn/moves.js";
 import { rollProgress } from "../rules/ironsworn/progress.js";
 import { rollOracle, rollYesNo } from "../rules/ironsworn/oracles.js";
-import { loadCharacter, saveCharacter } from "../state/character.js";
+import { loadCharacter, saveCharacter, appendJournal } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -52,6 +52,12 @@ export function register(server: McpServer, campaignPath: string): void {
         if (burn_momentum && outcome.burnOffered) {
           const burnResult = burnMomentum(character);
           await saveCharacter(campaignPath, burnResult.after);
+          await appendJournal(campaignPath, {
+            timestamp: new Date().toISOString(),
+            kind: "burnMomentum",
+            before: burnResult.before,
+            after: burnResult.after,
+          });
           return {
             content: [{ type: "text", text: JSON.stringify({ ...outcome, momentumBurned: true }) }],
           };
