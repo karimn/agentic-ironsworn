@@ -64,7 +64,10 @@ function getDb(campaignPath: string): Promise<DuckDBInstance> {
   const cached = _dbPromises.get(campaignPath);
   if (cached !== undefined) return cached;
 
-  const promise = initDb(campaignPath);
+  const promise = initDb(campaignPath).catch((e) => {
+    _dbPromises.delete(campaignPath);
+    throw e;
+  });
   _dbPromises.set(campaignPath, promise);
   return promise;
 }

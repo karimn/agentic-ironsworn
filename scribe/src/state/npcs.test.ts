@@ -11,7 +11,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await rm(campaignDir, { recursive: true });
+  await rm(campaignDir, { recursive: true, force: true });
 });
 
 describe("npcFilePath", () => {
