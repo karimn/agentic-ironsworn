@@ -219,6 +219,12 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
 // Public API
 // ---------------------------------------------------------------------------
 
+// NOTE: This is the insert-only stage of upsertLore. Calling it with an
+// existing id will currently throw a PRIMARY KEY violation, and `updated`
+// is hardcoded to false. The full upsert behavior (SELECT-then-INSERT-or-
+// UPDATE with rename → alias migration) is added in a later task; the
+// function name and result shape are stable from day one so callers
+// added in subsequent tasks don't need to change.
 export async function upsertLore(
   campaignPath: string,
   input: UpsertLoreInput,
