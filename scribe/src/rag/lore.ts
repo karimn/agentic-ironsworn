@@ -440,6 +440,12 @@ export async function linkLore(
 
 export interface LoreGraph {
   root: LoreEntity;
+  /**
+   * All entities reachable within `depth` hops, including the root.
+   * Note: `relations` on each node is always `[]` — use the `edges` array
+   * for connectivity. To get a node's full relations, call `getLore` on it
+   * separately.
+   */
   nodes: LoreEntity[];
   edges: Array<{
     from_id: string;
@@ -449,6 +455,17 @@ export interface LoreGraph {
   }>;
 }
 
+/**
+ * BFS expansion of edges from a root entity to a configurable depth.
+ *
+ * @param campaignPath  Per-campaign DB directory.
+ * @param identifier    Root entity (id, canonical, or alias).
+ * @param depth         Number of hops to traverse from the root. Default 1.
+ * @returns The graph with root, all reachable nodes (relations field
+ *          empty — see `LoreGraph.nodes`), and deduplicated edges.
+ *          Returns null if the root cannot be resolved.
+ * @throws  If `depth < 1`.
+ */
 export async function getLoreGraph(
   campaignPath: string,
   identifier: string,
