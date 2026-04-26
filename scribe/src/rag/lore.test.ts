@@ -435,6 +435,7 @@ describe("provenance", () => {
     expect(entries[0].source_kind).toBe("manual");
   });
 
+
   it("records explicit provenance with source and excerpt", async () => {
     if (!(await ollamaAvailable())) return;
     await upsertLore(campaignDir, {
@@ -492,5 +493,60 @@ describe("provenance", () => {
     const entries = await listProvenance(campaignDir, "relation", "a|b|rel");
     expect(entries).toHaveLength(1);
     expect(entries[0].source_kind).toBe("manual");
+  });
+});
+
+describe("integration: rename preserves graph", () => {
+  it("renaming an entity keeps relations intact and resolves both names", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    // Build a small graph using the original name
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+    await upsertLore(campaignDir, {
+      canonical: "Iron Vow",
+      type: "concept",
+      summary: "An oath sworn on iron.",
+    });
+    await upsertLore(campaignDir, {
+      canonical: "The Elves",
+      type: "faction",
+      summary: "Feral Firstborn.",
+    });
+    await linkLore(campaignDir, { from: "Iron Vow", to: "Elven Iron", relation: "sworn_on" });
+    await linkLore(campaignDir, { from: "The Elves", to: "Elven Iron", relation: "left_behind" });
+
+    // Rename
+    await upsertLore(campaignDir, {
+      id: "elven-iron",
+      canonical: "Veth Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+
+    // Resolution by both names still works
+    const byNew = await getLore(campaignDir, "Veth Iron");
+    const byOld = await getLore(campaignDir, "Elven Iron");
+    expect(byNew?.id).toBe("elven-iron");
+    expect(byOld?.id).toBe("elven-iron");
+    expect(byNew?.canonical).toBe("Veth Iron");
+    expect(byNew?.aliases).toContain("Elven Iron");
+
+    // Relations survive the rename — both incoming edges are still there
+    expect(byNew?.relations).toHaveLength(2);
+    const incomingFromIds = byNew!.relations!
+      .filter((r) => r.direction === "to")
+      .map((r) => r.entity.id)
+      .sort();
+    expect(incomingFromIds).toEqual(["iron-vow", "the-elves"]);
+
+    // Graph traversal works from either name
+    const graphByNew = await getLoreGraph(campaignDir, "Veth Iron", 1);
+    const graphByOld = await getLoreGraph(campaignDir, "Elven Iron", 1);
+    expect(graphByNew?.nodes.length).toBe(graphByOld?.nodes.length);
+    expect(graphByNew?.edges.length).toBe(2);
   });
 });
