@@ -490,14 +490,21 @@ export async function linkLore(
     const fromId = await resolveId(conn, input.from);
     const toId = await resolveId(conn, input.to);
     const now = new Date().toISOString();
+    const overwriteMetadata = input.metadata !== undefined;
     const metadataJson = JSON.stringify(input.metadata ?? {});
+
+    // Symmetric with upsertLore: when caller omits metadata, preserve existing
+    // on conflict. When caller supplies metadata (even {}), overwrite.
+    const metadataConflictClause = overwriteMetadata
+      ? "metadata = EXCLUDED.metadata"
+      : "metadata = lore_relations.metadata";
 
     await conn.run(
       `INSERT INTO lore_relations (from_id, to_id, relation, notes, metadata, created_at)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT (from_id, to_id, relation) DO UPDATE SET
          notes = COALESCE(EXCLUDED.notes, lore_relations.notes),
-         metadata = EXCLUDED.metadata`,
+         ${metadataConflictClause}`,
       [fromId, toId, input.relation, input.notes ?? null, metadataJson, now],
     );
 
@@ -528,6 +535,7 @@ export interface LoreGraph {
     to_id: string;
     relation: string;
     notes?: string;
+    metadata: Record<string, unknown>;
   }>;
 }
 
@@ -568,7 +576,7 @@ export async function getLoreGraph(
       const params = Array.from(frontier);
 
       const result = await conn.runAndReadAll(
-        `SELECT from_id, to_id, relation, notes
+        `SELECT from_id, to_id, relation, notes, metadata
          FROM lore_relations
          WHERE from_id IN (${placeholders}) OR to_id IN (${placeholders})`,
         [...params, ...params],
@@ -583,7 +591,13 @@ export async function getLoreGraph(
 
         const edgeKey = `${fromId}|${toId}|${relation}`;
         if (!edges.some((e) => `${e.from_id}|${e.to_id}|${e.relation}` === edgeKey)) {
-          edges.push({ from_id: fromId, to_id: toId, relation, notes });
+          edges.push({
+            from_id: fromId,
+            to_id: toId,
+            relation,
+            notes,
+            metadata: parseJsonObject(row["metadata"]),
+          });
         }
 
         for (const id of [fromId, toId]) {

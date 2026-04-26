@@ -335,6 +335,23 @@ describe("getLoreGraph", () => {
     const graph = await getLoreGraph(campaignDir, "nope", 1);
     expect(graph).toBeNull();
   });
+
+  it("includes metadata on edges", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+    await linkLore(campaignDir, {
+      from: "A",
+      to: "B",
+      relation: "rel",
+      metadata: { weight: 0.5 },
+    });
+
+    const graph = await getLoreGraph(campaignDir, "A", 1);
+    expect(graph).not.toBeNull();
+    expect(graph!.edges).toHaveLength(1);
+    expect(graph!.edges[0].metadata).toEqual({ weight: 0.5 });
+  });
 });
 
 describe("metadata", () => {
@@ -384,6 +401,23 @@ describe("metadata", () => {
 
     const a = await getLore(campaignDir, "a");
     expect(a!.relations![0].metadata).toEqual({ weight: 0.7 });
+  });
+
+  it("preserves relation metadata when linkLore is called again without metadata", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+    await linkLore(campaignDir, {
+      from: "a",
+      to: "b",
+      relation: "rel",
+      metadata: { weight: 0.7 },
+    });
+    // Re-link without metadata — the prior weight should be preserved
+    await linkLore(campaignDir, { from: "a", to: "b", relation: "rel" });
+
+    const a = await getLore(campaignDir, "a");
+    expect(a!.relations[0].metadata).toEqual({ weight: 0.7 });
   });
 });
 
