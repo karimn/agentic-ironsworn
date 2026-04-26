@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { upsertLore, getLore, searchLore } from "./lore.js";
+import { upsertLore, getLore, searchLore, linkLore } from "./lore.js";
 
 async function ollamaAvailable(): Promise<boolean> {
   try {
@@ -191,5 +191,105 @@ describe("searchLore", () => {
     if (!(await ollamaAvailable())) return;
     const results = await searchLore(campaignDir, "anything", 5);
     expect(results).toEqual([]);
+  });
+});
+
+describe("linkLore + getLore relations", () => {
+  it("creates a typed relation between two entities", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+    await upsertLore(campaignDir, {
+      canonical: "Iron Vow",
+      type: "concept",
+      summary: "An oath sworn on iron.",
+    });
+
+    await linkLore(campaignDir, {
+      from: "Iron Vow",
+      to: "elven-iron",
+      relation: "sworn_on",
+      notes: "The metal that binds the oath.",
+    });
+
+    const vow = await getLore(campaignDir, "iron-vow");
+    expect(vow?.relations).toBeDefined();
+    expect(vow!.relations).toHaveLength(1);
+    const rel = vow!.relations![0];
+    expect(rel.direction).toBe("from");
+    expect(rel.relation).toBe("sworn_on");
+    expect(rel.entity.canonical).toBe("Elven Iron");
+    expect(rel.notes).toBe("The metal that binds the oath.");
+  });
+
+  it("shows incoming relations on the target", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+    await upsertLore(campaignDir, {
+      canonical: "Iron Vow",
+      type: "concept",
+      summary: "An oath sworn on iron.",
+    });
+    await linkLore(campaignDir, {
+      from: "Iron Vow",
+      to: "Elven Iron",
+      relation: "sworn_on",
+    });
+
+    const iron = await getLore(campaignDir, "elven-iron");
+    expect(iron!.relations).toHaveLength(1);
+    expect(iron!.relations![0].direction).toBe("to");
+    expect(iron!.relations![0].entity.canonical).toBe("Iron Vow");
+  });
+
+  it("resolves from/to identifiers via aliases", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Veth Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      aliases: ["elven iron"],
+    });
+    await upsertLore(campaignDir, {
+      canonical: "Iron Vow",
+      type: "concept",
+      summary: "An oath sworn on iron.",
+    });
+
+    await linkLore(campaignDir, {
+      from: "iron vow",
+      to: "elven iron", // alias
+      relation: "sworn_on",
+    });
+
+    const iron = await getLore(campaignDir, "veth-iron");
+    expect(iron!.relations).toHaveLength(1);
+  });
+
+  it("ignores duplicate relations (idempotent)", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+
+    await linkLore(campaignDir, { from: "a", to: "b", relation: "rel" });
+    await linkLore(campaignDir, { from: "a", to: "b", relation: "rel" });
+
+    const a = await getLore(campaignDir, "a");
+    expect(a!.relations).toHaveLength(1);
+  });
+
+  it("throws when an endpoint cannot be resolved", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await expect(
+      linkLore(campaignDir, { from: "a", to: "missing", relation: "rel" }),
+    ).rejects.toThrow();
   });
 });

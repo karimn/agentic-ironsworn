@@ -21,6 +21,13 @@ export type LoreType =
   | "event"
   | "truth";
 
+export interface LoreRelation {
+  direction: "from" | "to";
+  relation: string;
+  entity: { id: string; canonical: string; type: LoreType };
+  notes?: string;
+}
+
 export interface LoreEntity {
   id: string;
   canonical: string;
@@ -28,6 +35,14 @@ export interface LoreEntity {
   type: LoreType;
   summary: string;
   content: Record<string, unknown>;
+  relations?: LoreRelation[];
+}
+
+export interface LinkLoreInput {
+  from: string;
+  to: string;
+  relation: string;
+  notes?: string;
 }
 
 export interface UpsertLoreInput {
@@ -374,6 +389,53 @@ export async function searchLore(
   }
 }
 
+async function resolveId(
+  conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
+  identifier: string,
+): Promise<string> {
+  const needle = identifier.toLowerCase();
+  const result = await conn.runAndReadAll(
+    `SELECT id FROM lore_entities
+     WHERE lower(id) = ?
+        OR lower(canonical) = ?
+        OR EXISTS (
+             SELECT 1 FROM unnest(aliases) AS t(alias)
+             WHERE lower(alias) = ?
+           )
+     LIMIT 1`,
+    [needle, needle, needle],
+  );
+  const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+  if (rows.length === 0) {
+    throw new Error(`Lore entity not found: "${identifier}"`);
+  }
+  return String(rows[0]["id"]);
+}
+
+export async function linkLore(
+  campaignPath: string,
+  input: LinkLoreInput,
+): Promise<{ from_id: string; to_id: string; relation: string }> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const fromId = await resolveId(conn, input.from);
+    const toId = await resolveId(conn, input.to);
+    const now = new Date().toISOString();
+
+    await conn.run(
+      `INSERT INTO lore_relations (from_id, to_id, relation, notes, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (from_id, to_id, relation) DO NOTHING`,
+      [fromId, toId, input.relation, input.notes ?? null, now],
+    );
+
+    return { from_id: fromId, to_id: toId, relation: input.relation };
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function getLore(
   campaignPath: string,
   identifier: string,
@@ -400,7 +462,56 @@ export async function getLore(
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     if (rows.length === 0) return null;
 
-    return rowToEntity(rows[0]);
+    const entity = rowToEntity(rows[0]);
+
+    // Outgoing
+    const outgoing = await conn.runAndReadAll(
+      `SELECT r.relation, r.notes,
+              e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
+       FROM lore_relations r
+       JOIN lore_entities e ON e.id = r.to_id
+       WHERE r.from_id = ?`,
+      [entity.id],
+    );
+
+    // Incoming
+    const incoming = await conn.runAndReadAll(
+      `SELECT r.relation, r.notes,
+              e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
+       FROM lore_relations r
+       JOIN lore_entities e ON e.id = r.from_id
+       WHERE r.to_id = ?`,
+      [entity.id],
+    );
+
+    const relations: LoreRelation[] = [];
+    for (const row of outgoing.getRowObjectsJS() as Record<string, unknown>[]) {
+      relations.push({
+        direction: "from",
+        relation: String(row["relation"]),
+        entity: {
+          id: String(row["other_id"]),
+          canonical: String(row["other_canonical"]),
+          type: String(row["other_type"]) as LoreType,
+        },
+        notes: row["notes"] ? String(row["notes"]) : undefined,
+      });
+    }
+    for (const row of incoming.getRowObjectsJS() as Record<string, unknown>[]) {
+      relations.push({
+        direction: "to",
+        relation: String(row["relation"]),
+        entity: {
+          id: String(row["other_id"]),
+          canonical: String(row["other_canonical"]),
+          type: String(row["other_type"]) as LoreType,
+        },
+        notes: row["notes"] ? String(row["notes"]) : undefined,
+      });
+    }
+
+    entity.relations = relations;
+    return entity;
   } finally {
     conn.closeSync();
   }
