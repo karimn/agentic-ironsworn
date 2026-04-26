@@ -367,7 +367,7 @@ export async function searchLore(
           ? row["score"]
           : typeof row["score"] === "bigint"
             ? Number(row["score"])
-            : 0,
+            : Number.NaN,
     }));
   } finally {
     conn.closeSync();

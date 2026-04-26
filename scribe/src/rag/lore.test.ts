@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { upsertLore, getLore } from "./lore.js";
-import { searchLore } from "./lore.js";
+import { upsertLore, getLore, searchLore } from "./lore.js";
 
 async function ollamaAvailable(): Promise<boolean> {
   try {
