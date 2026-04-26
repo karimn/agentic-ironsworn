@@ -42,4 +42,41 @@ describe("upsertLore + getLore", () => {
     expect(entity!.aliases).toEqual([]);
     expect(entity!.content).toEqual({});
   });
+
+  it("resolves by canonical name (case-insensitive)", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+
+    const byCanonical = await getLore(campaignDir, "Elven Iron");
+    expect(byCanonical?.id).toBe("elven-iron");
+
+    const byMixedCase = await getLore(campaignDir, "elven IRON");
+    expect(byMixedCase?.id).toBe("elven-iron");
+  });
+
+  it("resolves by alias", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Veth Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      aliases: ["elven iron", "elf-iron"],
+    });
+
+    const byAlias = await getLore(campaignDir, "elven iron");
+    expect(byAlias?.canonical).toBe("Veth Iron");
+
+    const byOtherAlias = await getLore(campaignDir, "Elf-Iron");
+    expect(byOtherAlias?.canonical).toBe("Veth Iron");
+  });
+
+  it("returns null when nothing matches", async () => {
+    if (!(await ollamaAvailable())) return;
+    const missing = await getLore(campaignDir, "nonexistent-thing");
+    expect(missing).toBeNull();
+  });
 });

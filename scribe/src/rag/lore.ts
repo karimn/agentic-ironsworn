@@ -265,15 +265,21 @@ export async function getLore(
   identifier: string,
 ): Promise<LoreEntity | null> {
   const instance = await getDb(campaignPath);
+  const needle = identifier.toLowerCase();
 
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
       `SELECT id, canonical, aliases, type, summary, content
        FROM lore_entities
-       WHERE id = ?
+       WHERE lower(id) = ?
+          OR lower(canonical) = ?
+          OR EXISTS (
+               SELECT 1 FROM unnest(aliases) AS t(alias)
+               WHERE lower(alias) = ?
+             )
        LIMIT 1`,
-      [identifier],
+      [needle, needle, needle],
     );
 
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
