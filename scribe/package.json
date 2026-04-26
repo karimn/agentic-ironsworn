@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/server.ts",
+    "sheet": "bun run ../scripts/sheet.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
