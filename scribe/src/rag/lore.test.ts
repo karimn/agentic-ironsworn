@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { upsertLore, getLore } from "./lore.js";
+import { searchLore } from "./lore.js";
 
 async function ollamaAvailable(): Promise<boolean> {
   try {
@@ -148,5 +149,48 @@ describe("upsertLore — update and rename", () => {
 
     expect(result.aliases.filter((a) => a.toLowerCase() === "elf-iron")).toHaveLength(1);
     expect(result.aliases).toContain("Iron of the Firstborn");
+  });
+});
+
+describe("searchLore", () => {
+  it("returns ranked entities by semantic similarity", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron excavated from elven ruins. Tracks broken vows.",
+    });
+    await upsertLore(campaignDir, {
+      canonical: "Tempest Hills",
+      type: "place",
+      summary: "Windswept highlands in the western Ironlands.",
+    });
+
+    const results = await searchLore(campaignDir, "metal used for oaths", 5);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].canonical).toBe("Elven Iron");
+  });
+
+  it("filters by type when provided", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "A material used in vows.",
+    });
+    await upsertLore(campaignDir, {
+      canonical: "Iron Vow",
+      type: "concept",
+      summary: "An oath sworn on iron.",
+    });
+
+    const onlyMaterials = await searchLore(campaignDir, "iron", 5, "material");
+    expect(onlyMaterials.every((r) => r.type === "material")).toBe(true);
+  });
+
+  it("returns empty array when no entities exist", async () => {
+    if (!(await ollamaAvailable())) return;
+    const results = await searchLore(campaignDir, "anything", 5);
+    expect(results).toEqual([]);
   });
 });

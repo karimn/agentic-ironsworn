@@ -317,6 +317,63 @@ export async function upsertLore(
   }
 }
 
+export interface LoreSearchHit {
+  id: string;
+  canonical: string;
+  type: LoreType;
+  summary: string;
+  score: number;
+}
+
+export async function searchLore(
+  campaignPath: string,
+  query: string,
+  k = 5,
+  type?: LoreType,
+): Promise<LoreSearchHit[]> {
+  const [embedding, instance] = await Promise.all([
+    getEmbedding(query),
+    getDb(campaignPath),
+  ]);
+
+  const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+
+  const conn = await instance.connect();
+  try {
+    const sql = type
+      ? `SELECT id, canonical, type, summary,
+                array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
+         FROM lore_entities
+         WHERE type = ?
+         ORDER BY score DESC
+         LIMIT ?`
+      : `SELECT id, canonical, type, summary,
+                array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
+         FROM lore_entities
+         ORDER BY score DESC
+         LIMIT ?`;
+
+    const params = type ? [type, k] : [k];
+    const result = await conn.runAndReadAll(sql, params);
+    const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+
+    return rows.map((row) => ({
+      id: String(row["id"] ?? ""),
+      canonical: String(row["canonical"] ?? ""),
+      type: String(row["type"] ?? "concept") as LoreType,
+      summary: String(row["summary"] ?? ""),
+      score:
+        typeof row["score"] === "number"
+          ? row["score"]
+          : typeof row["score"] === "bigint"
+            ? Number(row["score"])
+            : 0,
+    }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function getLore(
   campaignPath: string,
   identifier: string,
