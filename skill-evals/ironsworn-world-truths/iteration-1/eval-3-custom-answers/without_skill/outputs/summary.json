@@ -1,0 +1,31 @@
+{
+  "truths_recorded": [
+    "The Crossing Was Exile",
+    "Fungal Iron Networks",
+    "Legacies of Exile",
+    "The Thornwall",
+    "The Rot Beneath",
+    "The Whisper Covenant",
+    "The Silent War",
+    "The Twice-Born",
+    "The Mycelial Accord",
+    "The Wandering Colonies",
+    "The Sentinels"
+  ],
+  "entities_created": [
+    "Ledgerkeepers",
+    "Vow-Breakers",
+    "The Firstborn Creditors",
+    "The Old World",
+    "Iron-Bearing Fungi",
+    "Sentinels",
+    "Ledger of Debts"
+  ],
+  "links_made": 15,
+  "all_11_covered": true,
+  "open_question_format_used": true,
+  "world_summary_present": false,
+  "world_summary_note": "World summary was NOT offered spontaneously — only written as part of the eval capture. Baseline model skipped the world summary step entirely.",
+  "convention_warning": "Truth canonical names do not follow 'Truth N — Category' format. Custom thematic names used throughout. Would not align with established lore graph conventions.",
+  "key_observation": "Without the skill, the open-question format was correctly adopted when the player explicitly requested it — but this was player-driven, not GM-initiated. The GM did not proactively offer a summary after all 11 truths."
+}

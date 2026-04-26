@@ -1,0 +1,48 @@
+{
+  "truths_recorded": [
+    "Truth 1 — The Old World",
+    "Truth 2 — Iron",
+    "Truth 3 — Legacies",
+    "Truth 4 — Communities",
+    "Truth 5 — Leaders",
+    "Truth 6 — Defense",
+    "Truth 7 — Mysticism",
+    "Truth 8 — Religion",
+    "Truth 9 — The Firstborn",
+    "Truth 10 — Beasts",
+    "Truth 11 — Darkness"
+  ],
+  "entities_created": [
+    "Elven Iron",
+    "The Firstborn",
+    "The Waking Darkness",
+    "Mystics",
+    "Sworn Rangers",
+    "Elven Ruins",
+    "Broken Oath Debt"
+  ],
+  "links_made": [
+    {"from": "Truth 2 — Iron", "to": "Elven Iron", "relation": "establishes"},
+    {"from": "Truth 2 — Iron", "to": "The Firstborn", "relation": "implicates"},
+    {"from": "Truth 9 — The Firstborn", "to": "The Firstborn", "relation": "establishes"},
+    {"from": "Truth 11 — Darkness", "to": "The Waking Darkness", "relation": "establishes"},
+    {"from": "Truth 7 — Mysticism", "to": "Mystics", "relation": "establishes"},
+    {"from": "Truth 6 — Defense", "to": "Sworn Rangers", "relation": "establishes"},
+    {"from": "The Firstborn", "to": "Elven Iron", "relation": "seeded"},
+    {"from": "The Firstborn", "to": "The Waking Darkness", "relation": "knows_of"},
+    {"from": "The Firstborn", "to": "Elven Ruins", "relation": "built"},
+    {"from": "Mystics", "to": "Elven Iron", "relation": "transformed_by"},
+    {"from": "The Waking Darkness", "to": "Elven Ruins", "relation": "stirs_within"},
+    {"from": "Elven Iron", "to": "Elven Ruins", "relation": "sourced_from"},
+    {"from": "Truth 11 — Darkness", "to": "The Firstborn", "relation": "implicates"},
+    {"from": "Truth 11 — Darkness", "to": "Mystics", "relation": "implicates"},
+    {"from": "Truth 9 — The Firstborn", "to": "The Waking Darkness", "relation": "implicates"},
+    {"from": "The Waking Darkness", "to": "Mystics", "relation": "may_produce"},
+    {"from": "Truth 7 — Mysticism", "to": "Elven Iron", "relation": "implicates"}
+  ],
+  "all_11_covered": true,
+  "firstborn_adapted": true,
+  "firstborn_adaptation_note": "GM did not present the standard 'do elder races exist / how do they relate' options. Instead opened with: 'The elves are already woven into the world — they seeded the iron and they watch the vows. What I want to understand is: have they ever reached out? And does a lone elf behave the same as a group?' Player answered: purely reactive except one ancient warning, and older ruins have alien/accumulative watchers. The Firstborn question became specifically about elf behaviour and internal variation, not existence.",
+  "world_summary_present": true,
+  "note": "Agent could not write transcript.md due to sandbox path issue on first run. Summary reconstructed from agent's inline report."
+}

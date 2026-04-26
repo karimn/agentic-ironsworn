@@ -1,0 +1,49 @@
+{
+  "truths_recorded": [
+    "Truth 1 — The Old World",
+    "Truth 2 — Iron",
+    "Truth 3 — Legacies",
+    "Truth 4 — Communities",
+    "Truth 5 — Leaders",
+    "Truth 6 — Defense",
+    "Truth 7 — Mysticism",
+    "Truth 8 — Religion",
+    "Truth 9 — The Firstborn",
+    "Truth 10 — Beasts",
+    "Truth 11 — Darkness"
+  ],
+  "entities_created": [
+    "The Exile Crossing",
+    "The Fungal Network",
+    "Fungal Iron",
+    "The Prior Settlers",
+    "The Debt Ledger",
+    "Network-Touched Beasts",
+    "The Summoning Pattern"
+  ],
+  "links_made": [
+    "Truth 1 → The Exile Crossing (establishes)",
+    "Truth 2 → Fungal Iron (establishes)",
+    "Truth 2 → The Fungal Network (establishes)",
+    "Truth 3 → The Prior Settlers (establishes)",
+    "Truth 4 → The Prior Settlers (mirrors_layout_of)",
+    "Truth 5 → The Debt Ledger (establishes)",
+    "Truth 6 → The Debt Ledger (governed_by)",
+    "Truth 7 → The Fungal Network (channels)",
+    "Truth 8 → The Fungal Network (feeds_dead_into)",
+    "Truth 9 → The Fungal Network (reveals_identity_of)",
+    "Truth 10 → Network-Touched Beasts (establishes)",
+    "Truth 11 → The Summoning Pattern (establishes)",
+    "The Fungal Network → Fungal Iron (grows)",
+    "The Fungal Network → The Debt Ledger (enforces)",
+    "The Fungal Network → Network-Touched Beasts (partially_inhabits)",
+    "The Fungal Network → The Prior Settlers (summoned)",
+    "The Fungal Network → The Summoning Pattern (broadcasts)",
+    "The Debt Ledger → Fungal Iron (expressed_through)",
+    "The Summoning Pattern → The Prior Settlers (previously_claimed)",
+    "The Exile Crossing → The Debt Ledger (predates_but_rhymes_with)"
+  ],
+  "all_11_covered": true,
+  "open_question_format_used": true,
+  "world_summary_present": true
+}

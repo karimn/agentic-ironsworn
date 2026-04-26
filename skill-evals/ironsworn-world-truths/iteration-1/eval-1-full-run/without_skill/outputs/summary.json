@@ -1,0 +1,115 @@
+{
+  "truths_recorded": [
+    {
+      "category": "The Old World",
+      "option_chosen": "Fleeing Darkness",
+      "locked_summary": "Ancestors fled an ancient, nameless darkness that devoured Old World kingdoms. The darkness was escaped, not destroyed."
+    },
+    {
+      "category": "Iron",
+      "option_chosen": "Iron Wards Evil",
+      "locked_summary": "Cold iron repels the ancient darkness and its servants. Iron is used in all protective charms, doorways, and palisades. Vows sworn on iron are inviolable."
+    },
+    {
+      "category": "The Legacies",
+      "option_chosen": "Something Was Here Before",
+      "locked_summary": "The Ironlands had a prior civilisation — the First People — whose ruins dot the highlands and forests. Iron wards fail within those ruins."
+    },
+    {
+      "category": "The Land",
+      "option_chosen": "Harsh and Alive",
+      "locked_summary": "The Ironlands resist settlement with brutal winters, oversized predators, and treacherous rivers. The land appears to grow wilder as settlement expands."
+    },
+    {
+      "category": "The Horrors",
+      "option_chosen": "Both — In Conflict",
+      "locked_summary": "Two categories of horror: servants of the Old World darkness, and native terrors predating human settlement. They compete with each other at the edges of settled land."
+    },
+    {
+      "category": "Religion",
+      "option_chosen": "Spirits of the Land",
+      "locked_summary": "No gods crossed the ocean. The Ironlands have spirits in stones, rivers, trees, and storms. Bone-Singers commune with them. First People ruins are spirit-nodes."
+    },
+    {
+      "category": "Magic",
+      "option_chosen": "Magic is a Bargain",
+      "locked_summary": "All magic requires a price paid to spirits: memories, years of life, secrets, or impossible vows. Bone-Singers are visibly diminished by their practice."
+    },
+    {
+      "category": "The Firstborn",
+      "option_chosen": "Giants and Varou",
+      "locked_summary": "Giants are solitary, ancient, powerful, and irritated by settlers. Varou are wolf-blooded pack-runners with complex territorial codes settlers often violate."
+    },
+    {
+      "category": "Settlements",
+      "option_chosen": "Scattered Steadings",
+      "locked_summary": "No cities or towns. Only small steadings — a few families behind palisades. Nearest neighbours may be a full day away. Self-reliance is survival."
+    },
+    {
+      "category": "Leadership",
+      "option_chosen": "Fulfilled Vows",
+      "locked_summary": "Authority earned through completing iron vows. Oath-keepers command respect anywhere. Oath-breakers are socially diminished — a severe punishment in a sparse world."
+    },
+    {
+      "category": "Defense",
+      "option_chosen": "Every Person Fights",
+      "locked_summary": "No professional soldiers. Every adult is expected to carry iron and fight. The Ironsworn are the sharpest of ordinary people who have sworn great vows."
+    }
+  ],
+  "entities_created": [
+    {
+      "type": "world",
+      "name": "The Old World",
+      "description": "The civilisation left behind. Destroyed by the Ancient Darkness. Details suppressed or forgotten."
+    },
+    {
+      "type": "faction",
+      "name": "The Ancient Darkness",
+      "description": "Ancient nameless force that destroyed the Old World. Servants crossed the ocean alongside settlers. Repelled by cold iron."
+    },
+    {
+      "type": "faction",
+      "name": "The First People",
+      "description": "Unknown pre-settler civilisation. Left ruins in highlands and forests. Iron wards do not function within their ruins."
+    },
+    {
+      "type": "faction",
+      "name": "The Giants",
+      "description": "Ancient solitary beings of enormous power in the deep wilderness. Regard settlers as an irritating novelty."
+    },
+    {
+      "type": "faction",
+      "name": "The Varou",
+      "description": "Wolf-blooded pack-runners controlling deep forests under complex territorial codes."
+    },
+    {
+      "type": "concept",
+      "name": "Bone-Singers",
+      "description": "Magic practitioners who bargain with land spirits. Every working exacts a visible cost — premature aging, inexplicable scars."
+    },
+    {
+      "type": "concept",
+      "name": "Iron Vows",
+      "description": "Central social contract. Vows sworn on cold iron are inviolable. Fulfilling them grants authority; breaking them is social death."
+    },
+    {
+      "type": "place",
+      "name": "The Ruins of the First People",
+      "description": "Scattered pre-settler ruins. Spirit-world and living-world overlap here. Iron wards fail within them. Sacred and dangerous."
+    }
+  ],
+  "links_made": [
+    { "from": "The Ancient Darkness", "to": "The Old World", "relation": "destroyed" },
+    { "from": "The Ancient Darkness", "to": "Iron Vows", "relation": "cannot_unravel" },
+    { "from": "The Ancient Darkness", "to": "The First People", "relation": "may_have_known" },
+    { "from": "Iron Vows", "to": "Bone-Singers", "relation": "used_by" },
+    { "from": "Bone-Singers", "to": "The Ruins of the First People", "relation": "converge_at" },
+    { "from": "The First People", "to": "The Ruins of the First People", "relation": "built" },
+    { "from": "The Giants", "to": "The Ironlands", "relation": "inhabit" },
+    { "from": "The Varou", "to": "The Ironlands", "relation": "inhabit" },
+    { "from": "The First People", "to": "The Ironlands", "relation": "preceded_settlers_in" }
+  ],
+  "all_11_covered": true,
+  "adaptive_moment_present": true,
+  "world_summary_present": true
+}

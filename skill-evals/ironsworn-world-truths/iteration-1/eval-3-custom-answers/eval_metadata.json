@@ -1,0 +1,54 @@
+{
+  "eval_id": 3,
+  "eval_name": "custom-answers",
+  "prompt": "World truths time. I want to give completely custom answers — no preset options. Just ask me about each truth and I'll tell you what I want.",
+  "assertions": [
+    {
+      "id": "open_question_format",
+      "description": "GM presents each truth as an open question, not an A/B/C list",
+      "result": "pass"
+    },
+    {
+      "id": "all_11_truths_covered",
+      "description": "All 11 truth categories are addressed in order",
+      "result": "pass"
+    },
+    {
+      "id": "upsert_after_each_lock",
+      "description": "upsert_lore is called immediately after each truth is locked, not batched",
+      "result": "pass"
+    },
+    {
+      "id": "locked_format",
+      "description": "Each truth ends with bold Locked. followed by one crisp sentence",
+      "result": "pass"
+    },
+    {
+      "id": "adaptive_logic_followed",
+      "description": "Later truths build on earlier ones (Iron→Firstborn identity; Legacies→Communities layout; Darkness→Prior Settlers connection)",
+      "result": "pass"
+    },
+    {
+      "id": "thematic_coherence",
+      "description": "All 11 custom answers form a coherent, internally consistent world",
+      "result": "pass",
+      "notes": "Fungal network unifies Iron, Mysticism, Religion, Firstborn, Beasts, and Darkness into a single throughline. Exile shapes leadership and defense culture. Prior Settlers connect Legacies, Communities, and Darkness."
+    },
+    {
+      "id": "entities_created_post_11",
+      "description": "Referenced entities created and wired after all 11 truths",
+      "result": "pass",
+      "notes": "7 entities created, 20 graph links wired"
+    },
+    {
+      "id": "world_summary_read_back",
+      "description": "GM reads back all 11 locked sentences as a single paragraph and asks if anything feels wrong",
+      "result": "pass"
+    },
+    {
+      "id": "campaign_open_prompt",
+      "description": "Session ends with 'Where does [character] fit in? What vow starts us moving?'",
+      "result": "pass"
+    }
+  ]
+}

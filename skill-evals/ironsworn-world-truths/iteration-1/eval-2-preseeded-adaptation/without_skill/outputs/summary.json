@@ -1,0 +1,45 @@
+{
+  "truths_recorded": [
+    "The Iron",
+    "The Waking Darkness",
+    "The Old World",
+    "Iron Settlements",
+    "Leadership",
+    "Defense",
+    "Mysticism",
+    "Religion",
+    "The Firstborn Presence",
+    "Beasts",
+    "Horrors"
+  ],
+  "entities_created": [
+    "the-iron",
+    "the-waking-darkness",
+    "the-old-world",
+    "iron-settlements",
+    "leadership",
+    "defense",
+    "mysticism",
+    "religion",
+    "the-firstborn-presence",
+    "beasts",
+    "horrors",
+    "the-firstborn"
+  ],
+  "links_made": [
+    {"from": "The Iron", "to": "The Firstborn", "relation": "originates_from"},
+    {"from": "The Waking Darkness", "to": "The Firstborn", "relation": "contained_by"},
+    {"from": "The Iron", "to": "The Waking Darkness", "relation": "inadvertently_releases"},
+    {"from": "Mysticism", "to": "The Iron", "relation": "draws_power_from"},
+    {"from": "The Firstborn Presence", "to": "The Firstborn", "relation": "describes_behavior_of"},
+    {"from": "The Firstborn Presence", "to": "The Waking Darkness", "relation": "warns_against"},
+    {"from": "Beasts", "to": "The Iron", "relation": "transformed_by"},
+    {"from": "Horrors", "to": "The Iron", "relation": "caused_by"},
+    {"from": "Horrors", "to": "The Firstborn", "relation": "worst_examples_are"}
+  ],
+  "all_11_covered": true,
+  "firstborn_adapted": true,
+  "firstborn_adaptation_note": "The pre-seeded iron truth established elves as vow-trackers. The baseline GM connected both pre-seeded truths immediately and adapted the Firstborn question to focus on living elf behavior (Grieving Ones appearing at ruins with increasing urgency) rather than existence. Split into 'The Firstborn' (faction entity) and 'The Firstborn Presence' (truth entity). Note: truth canonical names did not follow the 'Truth N — Category' convention — named by thematic role instead.",
+  "world_summary_present": true,
+  "convention_warning": "Truth canonical names do not follow the established 'Truth N — Category' format. Baseline model used thematic names (The Iron, The Waking Darkness) rather than the structured format. This would break lore graph conventions."
+}
