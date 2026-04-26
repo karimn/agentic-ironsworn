@@ -6,18 +6,9 @@ import {
   searchLore,
   linkLore,
   getLoreGraph,
+  LORE_TYPES,
   type LoreType,
 } from "../rag/lore.js";
-
-const LORE_TYPES = [
-  "material",
-  "faction",
-  "place",
-  "concept",
-  "creature",
-  "event",
-  "truth",
-] as const;
 
 export function register(server: McpServer, campaignPath: string): void {
   const provenanceSchema = z
@@ -68,7 +59,7 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const entity = await getLore(campaignPath, identifier);
         return {
-          content: [{ type: "text", text: entity ? JSON.stringify(entity) : "Lore not found" }],
+          content: [{ type: "text", text: JSON.stringify(entity) }],
         };
       } catch (e) {
         return {
@@ -135,7 +126,7 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const graph = await getLoreGraph(campaignPath, identifier, depth ?? 1);
         return {
-          content: [{ type: "text", text: graph ? JSON.stringify(graph) : "Lore not found" }],
+          content: [{ type: "text", text: JSON.stringify(graph) }],
         };
       } catch (e) {
         return {

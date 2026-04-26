@@ -12,14 +12,17 @@ const OLLAMA_BASE_URL =
 // Public types
 // ---------------------------------------------------------------------------
 
-export type LoreType =
-  | "material"
-  | "faction"
-  | "place"
-  | "concept"
-  | "creature"
-  | "event"
-  | "truth";
+export const LORE_TYPES = [
+  "material",
+  "faction",
+  "place",
+  "concept",
+  "creature",
+  "event",
+  "truth",
+] as const;
+
+export type LoreType = (typeof LORE_TYPES)[number];
 
 export interface ProvenanceInput {
   source_kind: "manual" | "scene" | "document" | "extraction";
