@@ -117,7 +117,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "get_lore_graph",
-    "Get a lore entity and its connected entities up to N hops away.",
+    "Get a lore entity and its connected entities up to N hops away. Returns { root, nodes, edges } where root has full incoming/outgoing relations populated, but nodes[*].relations is always empty (use the edges array for connectivity, or call get_lore on a specific node id to get that node's full relations).",
     {
       identifier: z.string().describe("Root entity (id, canonical, or alias)"),
       depth: z.number().int().positive().optional().describe("Number of hops to traverse (default 1)"),

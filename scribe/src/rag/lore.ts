@@ -511,6 +511,11 @@ export async function linkLore(
       [fromId, toId, input.relation, input.notes ?? null, metadataJson, now],
     );
 
+    // Provenance is treated as a history log: every linkLore call records
+    // an entry, including no-op re-links where neither notes nor metadata
+    // changed. listProvenance returns this full history. If a future
+    // consumer needs only "facts that meaningfully changed", we can add a
+    // dedup pass at the recordProvenance layer; for now, history wins.
     await recordProvenance(
       conn,
       "relation",
