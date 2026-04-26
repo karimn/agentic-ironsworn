@@ -21,11 +21,30 @@ export type LoreType =
   | "event"
   | "truth";
 
+export interface ProvenanceInput {
+  source_kind: "manual" | "scene" | "document" | "extraction";
+  source_id?: string;
+  excerpt?: string;
+  confidence?: number;
+}
+
+export interface ProvenanceEntry {
+  id: string;
+  subject_kind: "entity" | "relation";
+  subject_id: string;
+  source_kind: string;
+  source_id: string | null;
+  excerpt: string | null;
+  confidence: number | null;
+  created_at: string;
+}
+
 export interface LoreRelation {
   direction: "from" | "to";
   relation: string;
   entity: { id: string; canonical: string; type: LoreType };
   notes?: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface LoreEntity {
@@ -35,6 +54,7 @@ export interface LoreEntity {
   type: LoreType;
   summary: string;
   content: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   relations: LoreRelation[];
 }
 
@@ -43,6 +63,8 @@ export interface LinkLoreInput {
   to: string;
   relation: string;
   notes?: string;
+  metadata?: Record<string, unknown>;
+  provenance?: ProvenanceInput;
 }
 
 export interface UpsertLoreInput {
@@ -51,7 +73,9 @@ export interface UpsertLoreInput {
   type: LoreType;
   summary: string;
   content?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   aliases?: string[];
+  provenance?: ProvenanceInput;
 }
 
 export interface UpsertLoreResult {
@@ -203,22 +227,24 @@ async function getEmbedding(text: string): Promise<number[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Row mapping helper
+// Row mapping helpers
 // ---------------------------------------------------------------------------
+
+function parseJsonObject(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "string" || raw.length === 0) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 function rowToEntity(row: Record<string, unknown>): LoreEntity {
   const aliasesRaw = row["aliases"];
   const aliases = Array.isArray(aliasesRaw) ? aliasesRaw.map(String) : [];
-
-  let content: Record<string, unknown> = {};
-  const contentRaw = row["content"];
-  if (typeof contentRaw === "string" && contentRaw.length > 0) {
-    try {
-      content = JSON.parse(contentRaw) as Record<string, unknown>;
-    } catch {
-      content = {};
-    }
-  }
 
   return {
     id: String(row["id"] ?? ""),
@@ -226,9 +252,40 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
     aliases,
     type: String(row["type"] ?? "concept") as LoreType,
     summary: String(row["summary"] ?? ""),
-    content,
+    content: parseJsonObject(row["content"]),
+    metadata: parseJsonObject(row["metadata"]),
     relations: [],  // populated by getLore after this; non-optional in the interface
   };
+}
+
+// ---------------------------------------------------------------------------
+// Provenance helper
+// ---------------------------------------------------------------------------
+
+async function recordProvenance(
+  conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
+  subjectKind: "entity" | "relation",
+  subjectId: string,
+  prov: ProvenanceInput | undefined,
+): Promise<void> {
+  const effective: ProvenanceInput = prov ?? { source_kind: "manual" };
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await conn.run(
+    `INSERT INTO lore_provenance
+       (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      subjectKind,
+      subjectId,
+      effective.source_kind,
+      effective.source_id ?? null,
+      effective.excerpt ?? null,
+      effective.confidence ?? null,
+      now,
+    ],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -255,17 +312,16 @@ export async function upsertLore(
 
   const conn = await instance.connect();
   try {
-    // Look up existing entity (if any)
     const existingResult = await conn.runAndReadAll(
-      `SELECT canonical, aliases FROM lore_entities WHERE id = ?`,
+      `SELECT canonical, aliases, metadata FROM lore_entities WHERE id = ?`,
       [id],
     );
     const existingRows = existingResult.getRowObjectsJS() as Record<string, unknown>[];
     const existing = existingRows[0];
 
-    // Build the merged alias list
     const incomingAliases = input.aliases ?? [];
     let mergedAliases: string[];
+    let metadataJson: string;
     let updated = false;
 
     if (existing) {
@@ -280,12 +336,11 @@ export async function upsertLore(
       const push = (name: string) => {
         const key = name.toLowerCase();
         if (key.length === 0) return;
-        if (key === input.canonical.toLowerCase()) return; // never alias the canonical
+        if (key === input.canonical.toLowerCase()) return;
         if (seen.has(key)) return;
         seen.add(key);
         acc.push(name);
       };
-
       for (const a of oldAliases) push(a);
       if (
         oldCanonical.length > 0 &&
@@ -294,8 +349,16 @@ export async function upsertLore(
         push(oldCanonical);
       }
       for (const a of incomingAliases) push(a);
-
       mergedAliases = acc;
+
+      // Metadata: incoming wins if provided; otherwise preserve existing.
+      if (input.metadata !== undefined) {
+        metadataJson = JSON.stringify(input.metadata);
+      } else {
+        metadataJson = typeof existing["metadata"] === "string"
+          ? (existing["metadata"] as string)
+          : "{}";
+      }
     } else {
       const seen = new Set<string>();
       mergedAliases = [];
@@ -306,6 +369,7 @@ export async function upsertLore(
         seen.add(key);
         mergedAliases.push(a);
       }
+      metadataJson = JSON.stringify(input.metadata ?? {});
     }
 
     const aliasesLiteral = `[${mergedAliases.map((a) => `'${a.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
@@ -314,18 +378,20 @@ export async function upsertLore(
       await conn.run(
         `UPDATE lore_entities
          SET canonical = ?, aliases = ${aliasesLiteral}, type = ?, summary = ?,
-             content = ?, embedding = ${embeddingLiteral}, updated_at = ?
+             content = ?, metadata = ?, embedding = ${embeddingLiteral}, updated_at = ?
          WHERE id = ?`,
-        [input.canonical, input.type, input.summary, contentJson, now, id],
+        [input.canonical, input.type, input.summary, contentJson, metadataJson, now, id],
       );
     } else {
       await conn.run(
         `INSERT INTO lore_entities
-           (id, canonical, aliases, type, summary, content, embedding, created_at, updated_at)
-         VALUES (?, ?, ${aliasesLiteral}, ?, ?, ?, ${embeddingLiteral}, ?, ?)`,
-        [id, input.canonical, input.type, input.summary, contentJson, now, now],
+           (id, canonical, aliases, type, summary, content, metadata, embedding, created_at, updated_at)
+         VALUES (?, ?, ${aliasesLiteral}, ?, ?, ?, ?, ${embeddingLiteral}, ?, ?)`,
+        [id, input.canonical, input.type, input.summary, contentJson, metadataJson, now, now],
       );
     }
+
+    await recordProvenance(conn, "entity", id, input.provenance);
 
     return { id, canonical: input.canonical, aliases: mergedAliases, updated };
   } finally {
@@ -424,12 +490,22 @@ export async function linkLore(
     const fromId = await resolveId(conn, input.from);
     const toId = await resolveId(conn, input.to);
     const now = new Date().toISOString();
+    const metadataJson = JSON.stringify(input.metadata ?? {});
 
     await conn.run(
-      `INSERT INTO lore_relations (from_id, to_id, relation, notes, created_at)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (from_id, to_id, relation) DO NOTHING`,
-      [fromId, toId, input.relation, input.notes ?? null, now],
+      `INSERT INTO lore_relations (from_id, to_id, relation, notes, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (from_id, to_id, relation) DO UPDATE SET
+         notes = COALESCE(EXCLUDED.notes, lore_relations.notes),
+         metadata = EXCLUDED.metadata`,
+      [fromId, toId, input.relation, input.notes ?? null, metadataJson, now],
+    );
+
+    await recordProvenance(
+      conn,
+      "relation",
+      `${fromId}|${toId}|${input.relation}`,
+      input.provenance,
     );
 
     return { from_id: fromId, to_id: toId, relation: input.relation };
@@ -525,7 +601,7 @@ export async function getLoreGraph(
     const allIds = Array.from(visited);
     const placeholders = allIds.map(() => "?").join(",");
     const nodesResult = await conn.runAndReadAll(
-      `SELECT id, canonical, aliases, type, summary, content
+      `SELECT id, canonical, aliases, type, summary, content, metadata
        FROM lore_entities
        WHERE id IN (${placeholders})`,
       allIds,
@@ -550,7 +626,7 @@ export async function getLore(
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
-      `SELECT id, canonical, aliases, type, summary, content
+      `SELECT id, canonical, aliases, type, summary, content, metadata
        FROM lore_entities
        WHERE lower(id) = ?
           OR lower(canonical) = ?
@@ -570,7 +646,7 @@ export async function getLore(
 
     // Outgoing
     const outgoing = await conn.runAndReadAll(
-      `SELECT r.relation, r.notes,
+      `SELECT r.relation, r.notes, r.metadata,
               e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
        FROM lore_relations r
        JOIN lore_entities e ON e.id = r.to_id
@@ -580,7 +656,7 @@ export async function getLore(
 
     // Incoming
     const incoming = await conn.runAndReadAll(
-      `SELECT r.relation, r.notes,
+      `SELECT r.relation, r.notes, r.metadata,
               e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
        FROM lore_relations r
        JOIN lore_entities e ON e.id = r.from_id
@@ -599,6 +675,7 @@ export async function getLore(
           type: String(row["other_type"]) as LoreType,
         },
         notes: row["notes"] ? String(row["notes"]) : undefined,
+        metadata: parseJsonObject(row["metadata"]),
       });
     }
     for (const row of incoming.getRowObjectsJS() as Record<string, unknown>[]) {
@@ -611,11 +688,49 @@ export async function getLore(
           type: String(row["other_type"]) as LoreType,
         },
         notes: row["notes"] ? String(row["notes"]) : undefined,
+        metadata: parseJsonObject(row["metadata"]),
       });
     }
 
     entity.relations = relations;
     return entity;
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function listProvenance(
+  campaignPath: string,
+  subjectKind: "entity" | "relation",
+  subjectId: string,
+): Promise<ProvenanceEntry[]> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const result = await conn.runAndReadAll(
+      `SELECT id, subject_kind, subject_id, source_kind, source_id,
+              excerpt, confidence, created_at
+       FROM lore_provenance
+       WHERE subject_kind = ? AND subject_id = ?
+       ORDER BY created_at ASC`,
+      [subjectKind, subjectId],
+    );
+
+    return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => ({
+      id: String(row["id"]),
+      subject_kind: String(row["subject_kind"]) as "entity" | "relation",
+      subject_id: String(row["subject_id"]),
+      source_kind: String(row["source_kind"]),
+      source_id: row["source_id"] ? String(row["source_id"]) : null,
+      excerpt: row["excerpt"] ? String(row["excerpt"]) : null,
+      confidence:
+        typeof row["confidence"] === "number"
+          ? row["confidence"]
+          : typeof row["confidence"] === "bigint"
+            ? Number(row["confidence"])
+            : null,
+      created_at: String(row["created_at"]),
+    }));
   } finally {
     conn.closeSync();
   }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { upsertLore, getLore, searchLore, linkLore, getLoreGraph } from "./lore.js";
+import { upsertLore, getLore, searchLore, linkLore, getLoreGraph, listProvenance } from "./lore.js";
 
 async function ollamaAvailable(): Promise<boolean> {
   try {
@@ -334,5 +334,129 @@ describe("getLoreGraph", () => {
     if (!(await ollamaAvailable())) return;
     const graph = await getLoreGraph(campaignDir, "nope", 1);
     expect(graph).toBeNull();
+  });
+});
+
+describe("metadata", () => {
+  it("stores and returns metadata on entities", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      metadata: { community: "iron-economy", confidence: 0.92 },
+    });
+
+    const entity = await getLore(campaignDir, "elven-iron");
+    expect(entity?.metadata).toEqual({ community: "iron-economy", confidence: 0.92 });
+  });
+
+  it("preserves metadata across rename when not overwritten", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      metadata: { community: "iron-economy" },
+    });
+
+    await upsertLore(campaignDir, {
+      id: "elven-iron",
+      canonical: "Veth Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+
+    const entity = await getLore(campaignDir, "veth-iron");
+    expect(entity?.metadata).toEqual({ community: "iron-economy" });
+  });
+
+  it("stores metadata on relations", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+    await linkLore(campaignDir, {
+      from: "a",
+      to: "b",
+      relation: "rel",
+      metadata: { weight: 0.7 },
+    });
+
+    const a = await getLore(campaignDir, "a");
+    expect(a!.relations![0].metadata).toEqual({ weight: 0.7 });
+  });
+});
+
+describe("provenance", () => {
+  it("records manual provenance by default for new entities", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+
+    const entries = await listProvenance(campaignDir, "entity", "elven-iron");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source_kind).toBe("manual");
+  });
+
+  it("records explicit provenance with source and excerpt", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      provenance: {
+        source_kind: "scene",
+        source_id: "scene-uuid-123",
+        excerpt: "She found the metal in the dig.",
+        confidence: 0.85,
+      },
+    });
+
+    const entries = await listProvenance(campaignDir, "entity", "elven-iron");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source_kind).toBe("scene");
+    expect(entries[0].source_id).toBe("scene-uuid-123");
+    expect(entries[0].excerpt).toBe("She found the metal in the dig.");
+    expect(entries[0].confidence).toBeCloseTo(0.85);
+  });
+
+  it("appends a new provenance entry on update (history retained)", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "First.",
+      provenance: { source_kind: "manual" },
+    });
+    await upsertLore(campaignDir, {
+      id: "elven-iron",
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Second.",
+      provenance: { source_kind: "scene", source_id: "s-1" },
+    });
+
+    const entries = await listProvenance(campaignDir, "entity", "elven-iron");
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    expect(entries.map((e) => e.source_kind).sort()).toEqual(["manual", "scene"]);
+  });
+
+  it("records provenance for relations using composite subject id", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+    await linkLore(campaignDir, {
+      from: "a",
+      to: "b",
+      relation: "rel",
+      provenance: { source_kind: "manual" },
+    });
+
+    const entries = await listProvenance(campaignDir, "relation", "a|b|rel");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].source_kind).toBe("manual");
   });
 });
