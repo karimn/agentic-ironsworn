@@ -35,7 +35,7 @@ export interface LoreEntity {
   type: LoreType;
   summary: string;
   content: Record<string, unknown>;
-  relations?: LoreRelation[];
+  relations: LoreRelation[];
 }
 
 export interface LinkLoreInput {
@@ -227,6 +227,7 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
     type: String(row["type"] ?? "concept") as LoreType,
     summary: String(row["summary"] ?? ""),
     content,
+    relations: [],  // populated by getLore after this; non-optional in the interface
   };
 }
 
@@ -402,6 +403,7 @@ async function resolveId(
              SELECT 1 FROM unnest(aliases) AS t(alias)
              WHERE lower(alias) = ?
            )
+     ORDER BY id
      LIMIT 1`,
     [needle, needle, needle],
   );
