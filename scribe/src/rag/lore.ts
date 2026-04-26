@@ -438,6 +438,91 @@ export async function linkLore(
   }
 }
 
+export interface LoreGraph {
+  root: LoreEntity;
+  nodes: LoreEntity[];
+  edges: Array<{
+    from_id: string;
+    to_id: string;
+    relation: string;
+    notes?: string;
+  }>;
+}
+
+export async function getLoreGraph(
+  campaignPath: string,
+  identifier: string,
+  depth = 1,
+): Promise<LoreGraph | null> {
+  if (depth < 1) {
+    throw new Error("getLoreGraph depth must be >= 1");
+  }
+
+  const root = await getLore(campaignPath, identifier);
+  if (root === null) return null;
+
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const visited = new Set<string>([root.id]);
+    let frontier = new Set<string>([root.id]);
+    const edges: LoreGraph["edges"] = [];
+
+    for (let hop = 0; hop < depth; hop++) {
+      if (frontier.size === 0) break;
+
+      const placeholders = Array.from(frontier).map(() => "?").join(",");
+      const params = Array.from(frontier);
+
+      const result = await conn.runAndReadAll(
+        `SELECT from_id, to_id, relation, notes
+         FROM lore_relations
+         WHERE from_id IN (${placeholders}) OR to_id IN (${placeholders})`,
+        [...params, ...params],
+      );
+
+      const next = new Set<string>();
+      for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
+        const fromId = String(row["from_id"]);
+        const toId = String(row["to_id"]);
+        const relation = String(row["relation"]);
+        const notes = row["notes"] ? String(row["notes"]) : undefined;
+
+        const edgeKey = `${fromId}|${toId}|${relation}`;
+        if (!edges.some((e) => `${e.from_id}|${e.to_id}|${e.relation}` === edgeKey)) {
+          edges.push({ from_id: fromId, to_id: toId, relation, notes });
+        }
+
+        for (const id of [fromId, toId]) {
+          if (!visited.has(id)) {
+            visited.add(id);
+            next.add(id);
+          }
+        }
+      }
+
+      frontier = next;
+    }
+
+    // Fetch all visited entities (without their relations to keep payload small)
+    const allIds = Array.from(visited);
+    const placeholders = allIds.map(() => "?").join(",");
+    const nodesResult = await conn.runAndReadAll(
+      `SELECT id, canonical, aliases, type, summary, content
+       FROM lore_entities
+       WHERE id IN (${placeholders})`,
+      allIds,
+    );
+    const nodes = (nodesResult.getRowObjectsJS() as Record<string, unknown>[]).map(
+      rowToEntity,
+    );
+
+    return { root, nodes, edges };
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function getLore(
   campaignPath: string,
   identifier: string,

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { upsertLore, getLore, searchLore, linkLore } from "./lore.js";
+import { upsertLore, getLore, searchLore, linkLore, getLoreGraph } from "./lore.js";
 
 async function ollamaAvailable(): Promise<boolean> {
   try {
@@ -291,5 +291,48 @@ describe("linkLore + getLore relations", () => {
     await expect(
       linkLore(campaignDir, { from: "a", to: "missing", relation: "rel" }),
     ).rejects.toThrow();
+  });
+});
+
+describe("getLoreGraph", () => {
+  it("returns root + immediate neighbors at depth 1", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+    await upsertLore(campaignDir, { canonical: "C", type: "concept", summary: "c" });
+    await linkLore(campaignDir, { from: "A", to: "B", relation: "rel" });
+    await linkLore(campaignDir, { from: "B", to: "C", relation: "rel" });
+
+    const graph = await getLoreGraph(campaignDir, "A", 1);
+    expect(graph).not.toBeNull();
+    expect(graph!.root.id).toBe("a");
+    const ids = new Set(graph!.nodes.map((n) => n.id));
+    expect(ids.has("a")).toBe(true);
+    expect(ids.has("b")).toBe(true);
+    expect(ids.has("c")).toBe(false);
+    expect(graph!.edges).toHaveLength(1);
+  });
+
+  it("traverses to depth 2", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, { canonical: "A", type: "concept", summary: "a" });
+    await upsertLore(campaignDir, { canonical: "B", type: "concept", summary: "b" });
+    await upsertLore(campaignDir, { canonical: "C", type: "concept", summary: "c" });
+    await linkLore(campaignDir, { from: "A", to: "B", relation: "rel" });
+    await linkLore(campaignDir, { from: "B", to: "C", relation: "rel" });
+
+    const graph = await getLoreGraph(campaignDir, "A", 2);
+    expect(graph).not.toBeNull();
+    const ids = new Set(graph!.nodes.map((n) => n.id));
+    expect(ids.has("a")).toBe(true);
+    expect(ids.has("b")).toBe(true);
+    expect(ids.has("c")).toBe(true);
+    expect(graph!.edges).toHaveLength(2);
+  });
+
+  it("returns null when root cannot be resolved", async () => {
+    if (!(await ollamaAvailable())) return;
+    const graph = await getLoreGraph(campaignDir, "nope", 1);
+    expect(graph).toBeNull();
   });
 });
