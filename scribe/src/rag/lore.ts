@@ -278,6 +278,7 @@ export async function getLore(
                SELECT 1 FROM unnest(aliases) AS t(alias)
                WHERE lower(alias) = ?
              )
+       ORDER BY id
        LIMIT 1`,
       [needle, needle, needle],
     );
