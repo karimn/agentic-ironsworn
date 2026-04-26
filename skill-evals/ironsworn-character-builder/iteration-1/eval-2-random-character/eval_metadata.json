@@ -1,0 +1,35 @@
+{
+  "eval_id": 2,
+  "eval_name": "random-character",
+  "prompt": "Just generate me a random Ironsworn character. Surprise me.",
+  "assertions": [
+    {
+      "id": "exactly_three_assets",
+      "description": "character has exactly 3 assets"
+    },
+    {
+      "id": "all_stats_valid",
+      "description": "stats sum to exactly 9 and each is between 1 and 3"
+    },
+    {
+      "id": "has_two_vows",
+      "description": "progressTracks contains at least two vow-kind tracks"
+    },
+    {
+      "id": "oracle_rolls_shown",
+      "description": "transcript shows oracle results being used to generate name and/or vow seeds (not just invented arbitrarily)"
+    },
+    {
+      "id": "character_sketch_present",
+      "description": "transcript ends with a narrative character sketch paragraph (not just stats)"
+    },
+    {
+      "id": "thematic_coherence",
+      "description": "assets fit together thematically with each other and with the vow (warrior assets + warrior vow, mystic assets + mystic vow, etc.)"
+    },
+    {
+      "id": "name_feels_ironsworn",
+      "description": "character name sounds like an Ironlander name (not generic fantasy or mundane modern)"
+    }
+  ]
+}

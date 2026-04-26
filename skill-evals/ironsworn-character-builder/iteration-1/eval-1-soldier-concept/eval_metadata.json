@@ -1,0 +1,39 @@
+{
+  "eval_id": 1,
+  "eval_name": "soldier-concept",
+  "prompt": "I want to make an Ironsworn character. She's a former soldier who left her war-band after a battle went wrong. I'm thinking something with iron as her highest stat, maybe a sword, and she has a hound. For her background vow, she wants to find the commander who betrayed her unit.",
+  "assertions": [
+    {
+      "id": "iron_is_3",
+      "description": "character.stats.iron equals 3 (player explicitly requested this)"
+    },
+    {
+      "id": "has_swordmaster",
+      "description": "assets array contains an asset named 'Swordmaster'"
+    },
+    {
+      "id": "has_hound",
+      "description": "assets array contains an asset named 'Hound'"
+    },
+    {
+      "id": "all_stats_valid",
+      "description": "stats sum to exactly 9 (3+2+2+1+1) and each is between 1 and 3"
+    },
+    {
+      "id": "has_two_vows",
+      "description": "progressTracks contains exactly two vow-kind tracks (background vow + inciting incident)"
+    },
+    {
+      "id": "background_vow_is_epic",
+      "description": "the background vow progress track has rank 'epic'"
+    },
+    {
+      "id": "betrayal_in_vow",
+      "description": "background vow text references betrayal, commander, or unit in some way"
+    },
+    {
+      "id": "all_steps_covered",
+      "description": "transcript shows GM addressed: name, stats, resources, assets, background vow, inciting incident"
+    }
+  ]
+}

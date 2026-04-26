@@ -1,0 +1,53 @@
+{
+  "eval_id": 1,
+  "eval_name": "soldier-concept",
+  "variant": "with_skill",
+  "expectations": [
+    {
+      "text": "character.stats.iron equals 3",
+      "passed": true,
+      "evidence": "stats.iron = 3 in character_sheet.json"
+    },
+    {
+      "text": "assets array contains 'Swordmaster'",
+      "passed": true,
+      "evidence": "assets[0].name = 'Swordmaster'"
+    },
+    {
+      "text": "assets array contains 'Hound'",
+      "passed": true,
+      "evidence": "assets[1].name = 'Hound'"
+    },
+    {
+      "text": "stats sum to exactly 9 and each is between 1 and 3",
+      "passed": true,
+      "evidence": "edge 1 + heart 2 + iron 3 + shadow 1 + wits 2 = 9"
+    },
+    {
+      "text": "progressTracks contains exactly two vow-kind tracks",
+      "passed": true,
+      "evidence": "Two progressTracks both with kind='vow'"
+    },
+    {
+      "text": "background vow has rank 'epic'",
+      "passed": true,
+      "evidence": "progressTracks[0].rank = 'epic'"
+    },
+    {
+      "text": "background vow text references betrayal/commander/unit",
+      "passed": true,
+      "evidence": "Vow: 'Find Valdris and make him answer for the betrayal at the gate'"
+    },
+    {
+      "text": "transcript shows all steps: name, stats, resources, assets, background vow, inciting incident",
+      "passed": true,
+      "evidence": "Transcript shows Step 0 through Step 8 including concept check, name roll, stat assignment, all assets, both vows, and NPC records"
+    }
+  ],
+  "summary": {
+    "passed": 8,
+    "failed": 0,
+    "total": 8,
+    "pass_rate": 1.0
+  }
+}

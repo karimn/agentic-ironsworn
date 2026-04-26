@@ -1,0 +1,39 @@
+{
+  "name": "Segura",
+  "stats": {
+    "edge": 3,
+    "heart": 1,
+    "iron": 2,
+    "shadow": 2,
+    "wits": 1
+  },
+  "momentum": 2,
+  "momentumReset": 2,
+  "health": 5,
+  "spirit": 5,
+  "supply": 5,
+  "debilities": {},
+  "assets": [
+    { "name": "Archer", "abilities": [true, false, false] },
+    { "name": "Wildblood", "abilities": [true, false, false] },
+    { "name": "Hawk", "abilities": [true, false, false] }
+  ],
+  "progressTracks": [
+    {
+      "name": "Find Davan Ashcroft and make him answer for the burning of Cindermere",
+      "kind": "vow",
+      "rank": "epic",
+      "ticks": 0
+    },
+    {
+      "name": "Protect Mira and learn who sent the hunters",
+      "kind": "vow",
+      "rank": "formidable",
+      "ticks": 0
+    }
+  ],
+  "bonds": 0,
+  "customState": {
+    "companion_name": "Fen"
+  }
+}

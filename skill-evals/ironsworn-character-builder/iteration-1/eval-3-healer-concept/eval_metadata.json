@@ -1,0 +1,35 @@
+{
+  "eval_id": 3,
+  "eval_name": "healer-concept",
+  "prompt": "I want to make a character. I know I want to be some kind of healer or herbalist type — bad at fighting, good at helping people. I'm not sure about the vows yet, can we figure those out together?",
+  "assertions": [
+    {
+      "id": "herbalist_selected",
+      "description": "assets contain 'Herbalist'"
+    },
+    {
+      "id": "low_iron",
+      "description": "stats.iron is 1 (player said 'bad at fighting')"
+    },
+    {
+      "id": "high_heart_or_wits",
+      "description": "stats.heart is 3 OR stats.wits is 3 (player said 'good at helping people' — heart for empathy, wits for expertise)"
+    },
+    {
+      "id": "all_stats_valid",
+      "description": "stats sum to exactly 9 and each is between 1 and 3"
+    },
+    {
+      "id": "vow_developed_collaboratively",
+      "description": "transcript shows at least 2 dialogue turns where the GM and player develop the vow together (GM asks questions, player answers, vow emerges — not just handed to them)"
+    },
+    {
+      "id": "has_two_vows",
+      "description": "progressTracks contains two vow-kind tracks (background vow + inciting incident)"
+    },
+    {
+      "id": "concept_reflected_in_assets",
+      "description": "at least one other asset beyond Herbalist fits a healer/helper archetype (e.g. Bonded, Storyweaver, Kindred, Animal Kin, Sighted)"
+    }
+  ]
+}

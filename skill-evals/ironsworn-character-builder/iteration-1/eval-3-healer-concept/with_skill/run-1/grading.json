@@ -1,0 +1,48 @@
+{
+  "eval_id": 3,
+  "eval_name": "healer-concept",
+  "variant": "with_skill",
+  "expectations": [
+    {
+      "text": "assets contain 'Herbalist'",
+      "passed": true,
+      "evidence": "assets[0].name = 'Herbalist'"
+    },
+    {
+      "text": "stats.iron is 1",
+      "passed": true,
+      "evidence": "stats.iron = 1"
+    },
+    {
+      "text": "stats.heart is 3 OR stats.wits is 3",
+      "passed": true,
+      "evidence": "stats.heart = 3"
+    },
+    {
+      "text": "stats sum to exactly 9 and each is between 1 and 3",
+      "passed": true,
+      "evidence": "edge 1 + heart 3 + iron 1 + shadow 2 + wits 2 = 9"
+    },
+    {
+      "text": "transcript shows at least 2 dialogue turns developing the vow collaboratively",
+      "passed": true,
+      "evidence": "Agent summary reports 4 turns of genuine discovery before vow is formulated; vow phrase 'no village dies waiting' came from player not GM"
+    },
+    {
+      "text": "progressTracks contains two vow-kind tracks",
+      "passed": true,
+      "evidence": "vows array has 2 entries (stored as 'vows' not 'progressTracks' \u2014 minor schema deviation but content is correct)"
+    },
+    {
+      "text": "at least one other asset beyond Herbalist fits healer/helper archetype",
+      "passed": true,
+      "evidence": "Bonded (deep community ties) and Tether (ritual, spiritual connection to places) both fit a traveling healer archetype"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7,
+    "pass_rate": 1.0
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "name": "Wren",
+  "stats": {
+    "edge": 1,
+    "heart": 2,
+    "iron": 1,
+    "shadow": 1,
+    "wits": 3
+  },
+  "resources": {
+    "health": 5,
+    "spirit": 5,
+    "supply": 5,
+    "momentum": 2,
+    "momentum_reset": 2,
+    "momentum_max": 10
+  },
+  "debilities": {
+    "wounded": false,
+    "shaken": false,
+    "unprepared": false,
+    "encumbered": false,
+    "maimed": false,
+    "corrupted": false,
+    "tormented": false,
+    "cursed": false
+  },
+  "assets": [
+    {
+      "name": "Healer",
+      "type": "Path",
+      "description": "Core herbalism and field medicine skills. Bonuses on Heal moves, ability to craft medicines and salves from supply."
+    },
+    {
+      "name": "Empath",
+      "type": "Path",
+      "description": "Read emotions, ease stress. Bonus when Forging a Bond or Aiding an Ally through emotional attunement."
+    },
+    {
+      "name": "Bonded",
+      "type": "Path",
+      "description": "Deep ties to community. Additional bonds at start; bonds provide extra momentum when called upon."
+    }
+  ],
+  "vows": [
+    {
+      "description": "Find a cure for the winter sickness that took Maren",
+      "rank": "Formidable",
+      "progress": 0,
+      "progress_max": 10,
+      "notes": "The illness claimed several villagers last winter, including Maren — Wren's herbalism teacher. Wren has a lead: a healer in the eastern foothills who may know something."
+    },
+    {
+      "description": "See my village through the coming winter",
+      "rank": "Troublesome",
+      "progress": 0,
+      "progress_max": 10,
+      "notes": "The village is still struggling after last winter's losses. Wren needs to gather resources, strengthen community bonds, and ensure people survive the season ahead."
+    }
+  ],
+  "bonds": [
+    {
+      "name": "Wren's village",
+      "notes": "Her home community — the people she heals and is leaving behind to protect."
+    },
+    {
+      "name": "Memory of Maren",
+      "notes": "The older woman who taught Wren herbalism, lost to the winter sickness. Her death drives Wren's Formidable vow."
+    }
+  ],
+  "background": "A village healer and herbalist, sharp and warm but not built for a fight. She kept most of her village alive through a brutal winter sickness, but the losses — especially her mentor Maren — haunt her. She is leaving home for the first time, following a trader's rumor east toward someone who might know more about the illness.",
+  "notes": "Baseline character creation run — no skill framework used. Vows emerged naturally from player-described backstory. Stat spread prioritizes Wits 3 / Heart 2 over Iron to reflect healer archetype."
+}

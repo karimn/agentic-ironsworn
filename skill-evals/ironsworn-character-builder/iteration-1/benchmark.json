@@ -1,0 +1,393 @@
+{
+  "metadata": {
+    "skill_name": "ironsworn-character-builder",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-04-26T20:14:01Z",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 127.4,
+        "tokens": 25200,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "character.stats.iron equals 3",
+          "passed": true,
+          "evidence": "stats.iron = 3 in character_sheet.json"
+        },
+        {
+          "text": "assets array contains 'Swordmaster'",
+          "passed": true,
+          "evidence": "assets[0].name = 'Swordmaster'"
+        },
+        {
+          "text": "assets array contains 'Hound'",
+          "passed": true,
+          "evidence": "assets[1].name = 'Hound'"
+        },
+        {
+          "text": "stats sum to exactly 9 and each is between 1 and 3",
+          "passed": true,
+          "evidence": "edge 1 + heart 2 + iron 3 + shadow 1 + wits 2 = 9"
+        },
+        {
+          "text": "progressTracks contains exactly two vow-kind tracks",
+          "passed": true,
+          "evidence": "Two progressTracks both with kind='vow'"
+        },
+        {
+          "text": "background vow has rank 'epic'",
+          "passed": true,
+          "evidence": "progressTracks[0].rank = 'epic'"
+        },
+        {
+          "text": "background vow text references betrayal/commander/unit",
+          "passed": true,
+          "evidence": "Vow: 'Find Valdris and make him answer for the betrayal at the gate'"
+        },
+        {
+          "text": "transcript shows all steps: name, stats, resources, assets, background vow, inciting incident",
+          "passed": true,
+          "evidence": "Transcript shows Step 0 through Step 8 including concept check, name roll, stat assignment, all assets, both vows, and NPC records"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 146.9,
+        "tokens": 29148,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "character has exactly 3 assets",
+          "passed": true,
+          "evidence": "assets array has 3 entries: Archer, Wildblood, Hawk"
+        },
+        {
+          "text": "stats sum to exactly 9 and each is between 1 and 3",
+          "passed": true,
+          "evidence": "edge 3 + heart 1 + iron 2 + shadow 2 + wits 1 = 9"
+        },
+        {
+          "text": "progressTracks contains at least two vow-kind tracks",
+          "passed": true,
+          "evidence": "Two progressTracks: epic vow (Davan Ashcroft) and formidable vow (protect Mira)"
+        },
+        {
+          "text": "transcript shows oracle results used to generate name and/or vow seeds",
+          "passed": true,
+          "evidence": "Transcript shows: roll_oracle('Ironlander Names') x2 producing 'Keelan'/'Segura'; roll_oracle('Action')+'Theme' \u2192 'Avenge'+'Betrayal' for vow seed; roll_oracle('Character Goal') for inciting incident"
+        },
+        {
+          "text": "transcript ends with a narrative character sketch paragraph",
+          "passed": true,
+          "evidence": "Character sketch paragraph present per agent summary, ending 'That was three days ago'"
+        },
+        {
+          "text": "assets fit together thematically with each other and with the vow",
+          "passed": true,
+          "evidence": "Archer + Wildblood + Hawk = hunter-scout archetype, all coherent; vow is about tracking down a specific betrayer, fitting the ranger-archetype"
+        },
+        {
+          "text": "character name sounds like an Ironlander name",
+          "passed": true,
+          "evidence": "'Segura' is an Ironlander name drawn from the names table in classic.json"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 149.6,
+        "tokens": 25276,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "assets contain 'Herbalist'",
+          "passed": true,
+          "evidence": "assets[0].name = 'Herbalist'"
+        },
+        {
+          "text": "stats.iron is 1",
+          "passed": true,
+          "evidence": "stats.iron = 1"
+        },
+        {
+          "text": "stats.heart is 3 OR stats.wits is 3",
+          "passed": true,
+          "evidence": "stats.heart = 3"
+        },
+        {
+          "text": "stats sum to exactly 9 and each is between 1 and 3",
+          "passed": true,
+          "evidence": "edge 1 + heart 3 + iron 1 + shadow 2 + wits 2 = 9"
+        },
+        {
+          "text": "transcript shows at least 2 dialogue turns developing the vow collaboratively",
+          "passed": true,
+          "evidence": "Agent summary reports 4 turns of genuine discovery before vow is formulated; vow phrase 'no village dies waiting' came from player not GM"
+        },
+        {
+          "text": "progressTracks contains two vow-kind tracks",
+          "passed": true,
+          "evidence": "vows array has 2 entries (stored as 'vows' not 'progressTracks' \u2014 minor schema deviation but content is correct)"
+        },
+        {
+          "text": "at least one other asset beyond Herbalist fits healer/helper archetype",
+          "passed": true,
+          "evidence": "Bonded (deep community ties) and Tether (ritual, spiritual connection to places) both fit a traveling healer archetype"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 72.4,
+        "tokens": 14185,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "character.stats.iron equals 3",
+          "passed": true,
+          "evidence": "stats.iron = 3 in character_sheet.json"
+        },
+        {
+          "text": "assets array contains 'Swordmaster'",
+          "passed": false,
+          "evidence": "assets[1].name = 'Sword' \u2014 not a real Ironsworn asset. Correct name is 'Swordmaster'"
+        },
+        {
+          "text": "assets array contains 'Hound'",
+          "passed": true,
+          "evidence": "assets[0].name = 'Hound'"
+        },
+        {
+          "text": "stats sum to exactly 9 and each is between 1 and 3",
+          "passed": true,
+          "evidence": "edge 1 + heart 2 + iron 3 + shadow 1 + wits 2 = 9"
+        },
+        {
+          "text": "progressTracks contains exactly two vow-kind tracks",
+          "passed": true,
+          "evidence": "Two progressTracks both with kind='vow'"
+        },
+        {
+          "text": "background vow has rank 'epic'",
+          "passed": true,
+          "evidence": "progressTracks[0].rank = 'epic'"
+        },
+        {
+          "text": "background vow text references betrayal/commander/unit",
+          "passed": true,
+          "evidence": "Vow: 'Find and confront the commander who betrayed my war-band'"
+        },
+        {
+          "text": "transcript shows all steps: name, stats, resources, assets, background vow, inciting incident",
+          "passed": true,
+          "evidence": "Baseline transcript covered all major steps though less structured; no explicit step-by-step framework"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 87.7,
+        "tokens": 14806,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "character has exactly 3 assets",
+          "passed": true,
+          "evidence": "3 assets: Ranger, Archer, Horse"
+        },
+        {
+          "text": "stats sum to exactly 9 and each is between 1 and 3",
+          "passed": true,
+          "evidence": "edge 3 + heart 2 + iron 2 + shadow 1 + wits 1 = 9"
+        },
+        {
+          "text": "progressTracks contains at least two vow-kind tracks",
+          "passed": true,
+          "evidence": "Two progress_tracks present (note: schema uses 'progress_tracks' not 'progressTracks', but content is correct)"
+        },
+        {
+          "text": "transcript shows oracle results used to generate name and/or vow seeds",
+          "passed": false,
+          "evidence": "Baseline report explicitly states 'No oracle rolls were made; all choices were editorial/thematic'"
+        },
+        {
+          "text": "transcript ends with a narrative character sketch paragraph",
+          "passed": true,
+          "evidence": "'notes' field contains a character description paragraph"
+        },
+        {
+          "text": "assets fit together thematically with each other and with the vow",
+          "passed": false,
+          "evidence": "'Ranger' is not a real Ironsworn asset (no such asset exists in classic.json). 'Archer' is a Combat Talent not a Path. The baseline hallucinated ability text for all three assets."
+        },
+        {
+          "text": "character name sounds like an Ironlander name",
+          "passed": true,
+          "evidence": "'Maren' is a reasonable Ironlander name"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 105.3,
+        "tokens": 15583,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "assets contain 'Herbalist'",
+          "passed": false,
+          "evidence": "assets[0].name = 'Healer' \u2014 not a real Ironsworn asset. The actual asset is 'Herbalist'. The baseline GM confused the two and used the wrong name."
+        },
+        {
+          "text": "stats.iron is 1",
+          "passed": true,
+          "evidence": "stats.iron = 1"
+        },
+        {
+          "text": "stats.heart is 3 OR stats.wits is 3",
+          "passed": true,
+          "evidence": "stats.wits = 3"
+        },
+        {
+          "text": "stats sum to exactly 9 and each is between 1 and 3",
+          "passed": false,
+          "evidence": "edge 1 + heart 2 + iron 1 + shadow 1 + wits 3 = 8, not 9. The baseline distributed only 8 points (missing one 2 from the 3/2/2/1/1 array)"
+        },
+        {
+          "text": "transcript shows at least 2 dialogue turns developing the vow collaboratively",
+          "passed": true,
+          "evidence": "Transcript shows the GM asked backstory questions and vow emerged from player's description of Maren's death; reasonable collaborative development"
+        },
+        {
+          "text": "progressTracks contains two vow-kind tracks",
+          "passed": true,
+          "evidence": "vows array has 2 entries"
+        },
+        {
+          "text": "at least one other asset beyond Herbalist fits healer/helper archetype",
+          "passed": false,
+          "evidence": "'Empath' is not a real Ironsworn asset. 'Bonded' is real and fits. Only 1 of 3 assets ('Bonded') is both real and concept-appropriate."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 141.3,
+        "stddev": 12.1132,
+        "min": 127.4,
+        "max": 149.6
+      },
+      "tokens": {
+        "mean": 26541.3333,
+        "stddev": 2257.7594,
+        "min": 25200,
+        "max": 29148
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7202,
+        "stddev": 0.1519,
+        "min": 0.5714,
+        "max": 0.875
+      },
+      "time_seconds": {
+        "mean": 88.4667,
+        "stddev": 16.4634,
+        "min": 72.4,
+        "max": 105.3
+      },
+      "tokens": {
+        "mean": 14858.0,
+        "stddev": 700.4491,
+        "min": 14185,
+        "max": 15583
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.28",
+      "time_seconds": "+52.8",
+      "tokens": "+11683"
+    }
+  },
+  "notes": []
+}

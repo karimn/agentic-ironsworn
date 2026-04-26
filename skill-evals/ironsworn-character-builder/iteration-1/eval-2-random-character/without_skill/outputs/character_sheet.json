@@ -1,0 +1,99 @@
+{
+  "name": "Maren",
+  "concept": "Wilderness scout and outrider",
+  "stats": {
+    "edge": 3,
+    "heart": 2,
+    "iron": 2,
+    "shadow": 1,
+    "wits": 1
+  },
+  "resources": {
+    "health": 5,
+    "spirit": 5,
+    "supply": 5,
+    "momentum": {
+      "current": 2,
+      "max": 10,
+      "reset": 2
+    }
+  },
+  "debilities": {
+    "conditions": {
+      "wounded": false,
+      "shaken": false,
+      "unprepared": false,
+      "encumbered": false
+    },
+    "banes": {
+      "maimed": false,
+      "corrupted": false
+    },
+    "burdens": {
+      "cursed": false,
+      "tormented": false
+    }
+  },
+  "assets": [
+    {
+      "name": "Ranger",
+      "type": "Path",
+      "description": "Wilderness survival expert; can Resupply through hunting and foraging; bonuses when moving through wilds.",
+      "abilities": [
+        { "unlocked": true, "text": "When you Resupply by hunting or foraging in the wild, add +1 and take +1 supply on a hit." },
+        { "unlocked": false, "text": "When you Undertake a Journey through wild terrain, add +1." },
+        { "unlocked": false, "text": "When you make a move aided by your knowledge of wilderness survival, add +1." }
+      ]
+    },
+    {
+      "name": "Archer",
+      "type": "Path",
+      "description": "Skilled at ranged combat with a bow; can reroll dice on ranged strikes.",
+      "abilities": [
+        { "unlocked": true, "text": "When you Strike or Clash at range, add +1. On a hit, you may also inflict 1 harm on another foe in the same location." },
+        { "unlocked": false, "text": "When you Enter the Fray by drawing your bow against a foe who is unaware of you or not yet in combat, add +2." },
+        { "unlocked": false, "text": "When you Resupply to recover arrows or bolts, add +2." }
+      ]
+    },
+    {
+      "name": "Horse",
+      "type": "Companion",
+      "companion_name": "Cinder",
+      "companion_description": "Dun-coated mare with a scarred flank from an old wolf attack. Patient, sure-footed, bonded with Maren over three years of ranging.",
+      "companion_health": 5,
+      "abilities": [
+        { "unlocked": true, "text": "When you Undertake a Journey, add +1." },
+        { "unlocked": false, "text": "When you Enter the Fray or Strike while mounted, add +1." },
+        { "unlocked": false, "text": "Once per fight, when you Endure Harm, your horse intervenes; you may take the hit to your horse's health instead of your own." }
+      ]
+    }
+  ],
+  "progress_tracks": [
+    {
+      "id": "background_vow",
+      "type": "Vow",
+      "subtype": "Background Vow",
+      "rank": "Extreme",
+      "title": "Avenge Harrow's Crossing",
+      "description": "Find and destroy the warband that burned Harrow's Crossing, so that its survivors may finally grieve and rebuild.",
+      "ticks": 0,
+      "ticks_per_progress": 2,
+      "boxes": 10,
+      "notes": "Maren swore this oath three years ago on iron. The warband flew no banner. Progress will come through gathering information, tracking the warband, and ultimately confronting its leader."
+    },
+    {
+      "id": "inciting_incident",
+      "type": "Vow",
+      "subtype": "Inciting Incident",
+      "rank": "Dangerous",
+      "title": "Rescue Pela",
+      "description": "Rescue Pela — a survivor of Harrow's Crossing — from a raider camp near the Thornwood before she is killed or moved. She is the only known witness who saw the warband leader's face.",
+      "ticks": 0,
+      "ticks_per_progress": 4,
+      "boxes": 10,
+      "notes": "Urgent. A traveling herbalist brought word at dusk. The camp is two days' ride east. Time is short."
+    }
+  ],
+  "bonds": [],
+  "notes": "Maren carries a piece of iron around her neck with her oath carved into it. She has crow-black hair cut short and carries a longbow she has used since age sixteen. She speaks little about Harrow's Crossing but the grief runs deep. Her most stable relationship is with her horse, Cinder."
+}

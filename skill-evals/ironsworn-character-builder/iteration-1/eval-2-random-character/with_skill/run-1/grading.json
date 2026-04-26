@@ -1,0 +1,48 @@
+{
+  "eval_id": 2,
+  "eval_name": "random-character",
+  "variant": "with_skill",
+  "expectations": [
+    {
+      "text": "character has exactly 3 assets",
+      "passed": true,
+      "evidence": "assets array has 3 entries: Archer, Wildblood, Hawk"
+    },
+    {
+      "text": "stats sum to exactly 9 and each is between 1 and 3",
+      "passed": true,
+      "evidence": "edge 3 + heart 1 + iron 2 + shadow 2 + wits 1 = 9"
+    },
+    {
+      "text": "progressTracks contains at least two vow-kind tracks",
+      "passed": true,
+      "evidence": "Two progressTracks: epic vow (Davan Ashcroft) and formidable vow (protect Mira)"
+    },
+    {
+      "text": "transcript shows oracle results used to generate name and/or vow seeds",
+      "passed": true,
+      "evidence": "Transcript shows: roll_oracle('Ironlander Names') x2 producing 'Keelan'/'Segura'; roll_oracle('Action')+'Theme' \u2192 'Avenge'+'Betrayal' for vow seed; roll_oracle('Character Goal') for inciting incident"
+    },
+    {
+      "text": "transcript ends with a narrative character sketch paragraph",
+      "passed": true,
+      "evidence": "Character sketch paragraph present per agent summary, ending 'That was three days ago'"
+    },
+    {
+      "text": "assets fit together thematically with each other and with the vow",
+      "passed": true,
+      "evidence": "Archer + Wildblood + Hawk = hunter-scout archetype, all coherent; vow is about tracking down a specific betrayer, fitting the ranger-archetype"
+    },
+    {
+      "text": "character name sounds like an Ironlander name",
+      "passed": true,
+      "evidence": "'Segura' is an Ironlander name drawn from the names table in classic.json"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7,
+    "pass_rate": 1.0
+  }
+}

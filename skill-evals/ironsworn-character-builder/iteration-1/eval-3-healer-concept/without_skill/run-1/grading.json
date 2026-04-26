@@ -1,0 +1,48 @@
+{
+  "eval_id": 3,
+  "eval_name": "healer-concept",
+  "variant": "without_skill",
+  "expectations": [
+    {
+      "text": "assets contain 'Herbalist'",
+      "passed": false,
+      "evidence": "assets[0].name = 'Healer' \u2014 not a real Ironsworn asset. The actual asset is 'Herbalist'. The baseline GM confused the two and used the wrong name."
+    },
+    {
+      "text": "stats.iron is 1",
+      "passed": true,
+      "evidence": "stats.iron = 1"
+    },
+    {
+      "text": "stats.heart is 3 OR stats.wits is 3",
+      "passed": true,
+      "evidence": "stats.wits = 3"
+    },
+    {
+      "text": "stats sum to exactly 9 and each is between 1 and 3",
+      "passed": false,
+      "evidence": "edge 1 + heart 2 + iron 1 + shadow 1 + wits 3 = 8, not 9. The baseline distributed only 8 points (missing one 2 from the 3/2/2/1/1 array)"
+    },
+    {
+      "text": "transcript shows at least 2 dialogue turns developing the vow collaboratively",
+      "passed": true,
+      "evidence": "Transcript shows the GM asked backstory questions and vow emerged from player's description of Maren's death; reasonable collaborative development"
+    },
+    {
+      "text": "progressTracks contains two vow-kind tracks",
+      "passed": true,
+      "evidence": "vows array has 2 entries"
+    },
+    {
+      "text": "at least one other asset beyond Herbalist fits healer/helper archetype",
+      "passed": false,
+      "evidence": "'Empath' is not a real Ironsworn asset. 'Bonded' is real and fits. Only 1 of 3 assets ('Bonded') is both real and concept-appropriate."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 3,
+    "total": 7,
+    "pass_rate": 0.5714
+  }
+}

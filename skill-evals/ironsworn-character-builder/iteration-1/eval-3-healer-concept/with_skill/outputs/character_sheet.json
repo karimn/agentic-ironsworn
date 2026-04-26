@@ -1,0 +1,72 @@
+{
+  "name": "Mira",
+  "stats": {
+    "edge": 1,
+    "heart": 3,
+    "iron": 1,
+    "shadow": 2,
+    "wits": 2
+  },
+  "health": 5,
+  "spirit": 5,
+  "supply": 5,
+  "momentum": 2,
+  "momentumReset": 2,
+  "bonds": 0,
+  "assets": [
+    {
+      "name": "Herbalist",
+      "abilities": [true, false, false]
+    },
+    {
+      "name": "Bonded",
+      "abilities": [true, false, false]
+    },
+    {
+      "name": "Tether",
+      "abilities": [true, false, false]
+    }
+  ],
+  "vows": [
+    {
+      "name": "I will forge bonds with every settlement in the Ironlands, until no lord can hold me captive and no village dies waiting.",
+      "kind": "vow",
+      "rank": "epic",
+      "progress": 0,
+      "notes": "Background vow. Rooted in the loss of an unnamed village Mira could not reach in time — a lord delayed her for his own household. Every bond forged advances this vow. Every arrival that matters is a step toward it."
+    },
+    {
+      "name": "I will reach Thornwall and stop the wasting sickness before the children are beyond help.",
+      "kind": "vow",
+      "rank": "formidable",
+      "progress": 0,
+      "notes": "Inciting incident. A messenger named Toryn found Mira on the road with news of a wasting sickness taking the children of Thornwall. Mira will Swear an Iron Vow formally at the start of session one."
+    }
+  ],
+  "npcs": [
+    {
+      "name": "Asha",
+      "description": "Mira's mentor and teacher. An elderly healer living in Ravenmoor. She taught Mira to read fever-signs, identify remedies, and survive the road. Mira returns when she can.",
+      "role": "mentor",
+      "location": "Ravenmoor"
+    },
+    {
+      "name": "Berta",
+      "description": "Headwoman of Thornwall. A pragmatic, capable leader who trusts Mira and has sheltered her on two previous visits. Her settlement is the site of the inciting incident — children are dying of a wasting sickness.",
+      "role": "ally",
+      "location": "Thornwall"
+    }
+  ],
+  "debilities": {
+    "wounded": false,
+    "shaken": false,
+    "unprepared": false,
+    "encumbered": false,
+    "maimed": false,
+    "corrupted": false,
+    "cursed": false,
+    "tormented": false
+  },
+  "experience": 0,
+  "notes": "A wandering healer who travels between settlements in the Ironlands. She carries quiet grief for lives she could not save. Her core is warmth and will (Heart 3), her tools are knowledge and reading the world (Wits 2). She is no fighter. She holds the room, not the sword."
+}
