@@ -271,7 +271,10 @@ export async function upsertLore(
       };
 
       for (const a of oldAliases) push(a);
-      if (oldCanonical.length > 0 && oldCanonical !== input.canonical) {
+      if (
+        oldCanonical.length > 0 &&
+        oldCanonical.toLowerCase() !== input.canonical.toLowerCase()
+      ) {
         push(oldCanonical);
       }
       for (const a of incomingAliases) push(a);

@@ -100,6 +100,7 @@ describe("upsertLore — update and rename", () => {
     expect(result.updated).toBe(true);
     const entity = await getLore(campaignDir, "elven-iron");
     expect(entity?.summary).toBe("Second version with more detail.");
+    expect(result.aliases).toEqual([]);
   });
 
   it("moves old canonical to aliases on rename", async () => {
