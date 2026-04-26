@@ -76,7 +76,9 @@ export function register(server: McpServer, campaignPath: string): void {
     {
       query: z.string().describe("Search query"),
       type: z.enum(LORE_TYPES).optional().describe("Optional type filter"),
-      k: z.number().int().positive().optional().describe("Number of results (default 5)"),
+      // Coerce: MCP transports occasionally deliver numerics as strings.
+      // Coerce-then-validate keeps the int/positive guarantees while accepting both.
+      k: z.coerce.number().int().positive().optional().describe("Number of results (default 5)"),
     },
     async ({ query, type, k }) => {
       try {
@@ -120,7 +122,8 @@ export function register(server: McpServer, campaignPath: string): void {
     "Get a lore entity and its connected entities up to N hops away. Returns { root, nodes, edges } where root has full incoming/outgoing relations populated, but nodes[*].relations is always empty (use the edges array for connectivity, or call get_lore on a specific node id to get that node's full relations).",
     {
       identifier: z.string().describe("Root entity (id, canonical, or alias)"),
-      depth: z.number().int().positive().optional().describe("Number of hops to traverse (default 1)"),
+      // Same MCP transport quirk as search_lore.k — accept numeric or stringified number.
+      depth: z.coerce.number().int().positive().optional().describe("Number of hops to traverse (default 1)"),
     },
     async ({ identifier, depth }) => {
       try {

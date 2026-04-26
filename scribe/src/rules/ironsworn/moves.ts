@@ -124,7 +124,7 @@ export function resolveMove(
   }
 
   const match = challengeDice[0] === challengeDice[1];
-  const burnOffered = momentum > actionScore;
+  const burnOffered = momentum > 0 && momentum > actionScore;
 
   // Look up move data
   const moves = getMoves();

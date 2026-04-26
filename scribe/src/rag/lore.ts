@@ -116,6 +116,10 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
   try {
     await conn.run("INSTALL vss;");
     await conn.run("LOAD vss;");
+    // HNSW persistence is gated behind an experimental flag in DuckDB. Without
+    // this, HNSW indexes can only be built on in-memory databases — which fails
+    // the moment we try to persist lore to a campaign directory.
+    await conn.run("SET hnsw_enable_experimental_persistence = true;");
 
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_entities (
