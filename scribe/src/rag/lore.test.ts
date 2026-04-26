@@ -80,3 +80,72 @@ describe("upsertLore + getLore", () => {
     expect(missing).toBeNull();
   });
 });
+
+describe("upsertLore — update and rename", () => {
+  it("updates existing entity in place", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "First version.",
+    });
+
+    const result = await upsertLore(campaignDir, {
+      id: "elven-iron",
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Second version with more detail.",
+    });
+
+    expect(result.updated).toBe(true);
+    const entity = await getLore(campaignDir, "elven-iron");
+    expect(entity?.summary).toBe("Second version with more detail.");
+  });
+
+  it("moves old canonical to aliases on rename", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+
+    const result = await upsertLore(campaignDir, {
+      id: "elven-iron",
+      canonical: "Veth Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+    });
+
+    expect(result.updated).toBe(true);
+    expect(result.canonical).toBe("Veth Iron");
+    expect(result.aliases).toContain("Elven Iron");
+
+    // Both names still resolve
+    const byOld = await getLore(campaignDir, "elven iron");
+    const byNew = await getLore(campaignDir, "Veth Iron");
+    expect(byOld?.id).toBe("elven-iron");
+    expect(byNew?.id).toBe("elven-iron");
+  });
+
+  it("merges new aliases with existing without duplicating", async () => {
+    if (!(await ollamaAvailable())) return;
+    await upsertLore(campaignDir, {
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      aliases: ["elf-iron"],
+    });
+
+    const result = await upsertLore(campaignDir, {
+      id: "elven-iron",
+      canonical: "Elven Iron",
+      type: "material",
+      summary: "Iron from elven ruins.",
+      aliases: ["elf-iron", "Iron of the Firstborn"],
+    });
+
+    expect(result.aliases.filter((a) => a.toLowerCase() === "elf-iron")).toHaveLength(1);
+    expect(result.aliases).toContain("Iron of the Firstborn");
+  });
+});

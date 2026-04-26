@@ -219,12 +219,6 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
 // Public API
 // ---------------------------------------------------------------------------
 
-// NOTE: This is the insert-only stage of upsertLore. Calling it with an
-// existing id will currently throw a PRIMARY KEY violation, and `updated`
-// is hardcoded to false. The full upsert behavior (SELECT-then-INSERT-or-
-// UPDATE with rename → alias migration) is added in a later task; the
-// function name and result shape are stable from day one so callers
-// added in subsequent tasks don't need to change.
 export async function upsertLore(
   campaignPath: string,
   input: UpsertLoreInput,
@@ -242,22 +236,82 @@ export async function upsertLore(
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
   const now = new Date().toISOString();
   const contentJson = JSON.stringify(input.content ?? {});
-  const aliases = input.aliases ?? [];
-  const aliasesLiteral = `[${aliases.map((a) => `'${a.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
 
   const conn = await instance.connect();
   try {
-    await conn.run(
-      `INSERT INTO lore_entities
-         (id, canonical, aliases, type, summary, content, embedding, created_at, updated_at)
-       VALUES (?, ?, ${aliasesLiteral}, ?, ?, ?, ${embeddingLiteral}, ?, ?)`,
-      [id, input.canonical, input.type, input.summary, contentJson, now, now],
+    // Look up existing entity (if any)
+    const existingResult = await conn.runAndReadAll(
+      `SELECT canonical, aliases FROM lore_entities WHERE id = ?`,
+      [id],
     );
+    const existingRows = existingResult.getRowObjectsJS() as Record<string, unknown>[];
+    const existing = existingRows[0];
+
+    // Build the merged alias list
+    const incomingAliases = input.aliases ?? [];
+    let mergedAliases: string[];
+    let updated = false;
+
+    if (existing) {
+      updated = true;
+      const oldCanonical = String(existing["canonical"] ?? "");
+      const oldAliases = Array.isArray(existing["aliases"])
+        ? (existing["aliases"] as unknown[]).map(String)
+        : [];
+
+      const seen = new Set<string>();
+      const acc: string[] = [];
+      const push = (name: string) => {
+        const key = name.toLowerCase();
+        if (key.length === 0) return;
+        if (key === input.canonical.toLowerCase()) return; // never alias the canonical
+        if (seen.has(key)) return;
+        seen.add(key);
+        acc.push(name);
+      };
+
+      for (const a of oldAliases) push(a);
+      if (oldCanonical.length > 0 && oldCanonical !== input.canonical) {
+        push(oldCanonical);
+      }
+      for (const a of incomingAliases) push(a);
+
+      mergedAliases = acc;
+    } else {
+      const seen = new Set<string>();
+      mergedAliases = [];
+      for (const a of incomingAliases) {
+        const key = a.toLowerCase();
+        if (key.length === 0 || key === input.canonical.toLowerCase()) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        mergedAliases.push(a);
+      }
+    }
+
+    const aliasesLiteral = `[${mergedAliases.map((a) => `'${a.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
+
+    if (existing) {
+      await conn.run(
+        `UPDATE lore_entities
+         SET canonical = ?, aliases = ${aliasesLiteral}, type = ?, summary = ?,
+             content = ?, embedding = ${embeddingLiteral}, updated_at = ?
+         WHERE id = ?`,
+        [input.canonical, input.type, input.summary, contentJson, now, id],
+      );
+    } else {
+      await conn.run(
+        `INSERT INTO lore_entities
+           (id, canonical, aliases, type, summary, content, embedding, created_at, updated_at)
+         VALUES (?, ?, ${aliasesLiteral}, ?, ?, ?, ${embeddingLiteral}, ?, ?)`,
+        [id, input.canonical, input.type, input.summary, contentJson, now, now],
+      );
+    }
+
+    return { id, canonical: input.canonical, aliases: mergedAliases, updated };
   } finally {
     conn.closeSync();
   }
-
-  return { id, canonical: input.canonical, aliases, updated: false };
 }
 
 export async function getLore(
