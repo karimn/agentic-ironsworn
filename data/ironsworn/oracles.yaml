@@ -1,2424 +1,3410 @@
-- name: "Combat Action"
-  dice: "d100"
+- name: Action
+  dice: 1d100
   rolls:
-    - max: 10
-      min: 1
-      outcome: "Scheme"
-    - max: 20
-      min: 11
-      outcome: "Clash"
-    - max: 30
-      min: 21
-      outcome: "Weaken"
-    - max: 40
-      min: 31
-      outcome: "Initiate"
-    - max: 50
-      min: 41
-      outcome: "Create"
-    - max: 60
-      min: 51
-      outcome: "Swear"
-    - max: 70
-      min: 61
-      outcome: "Avenge"
-    - max: 80
-      min: 71
-      outcome: "Guard"
-    - max: 90
-      min: 81
-      outcome: "Defeat"
-    - max: 100
-      min: 91
-      outcome: "Control"
-    - max: 110
-      min: 101
-      outcome: "Break"
-    - max: 120
-      min: 111
-      outcome: "Risk"
-    - max: 130
-      min: 121
-      outcome: "Surrender"
-    - max: 140
-      min: 131
-      outcome: "Inspect"
-    - max: 150
-      min: 141
-      outcome: "Raid"
-    - max: 160
-      min: 151
-      outcome: "Evade"
-    - max: 170
-      min: 161
-      outcome: "Assault"
-    - max: 180
-      min: 171
-      outcome: "Deflect"
-    - max: 190
-      min: 181
-      outcome: "Threaten"
-    - max: 200
-      min: 191
-      outcome: "Attack"
-    - max: 210
-      min: 201
-      outcome: "Leave"
-    - max: 220
-      min: 211
-      outcome: "Preserve"
-    - max: 230
-      min: 221
-      outcome: "Manipulate"
-    - max: 240
-      min: 231
-      outcome: "Remove"
-    - max: 250
-      min: 241
-      outcome: "Eliminate"
-    - max: 260
-      min: 251
-      outcome: "Withdraw"
-    - max: 270
-      min: 261
-      outcome: "Abandon"
-    - max: 280
-      min: 271
-      outcome: "Investigate"
-    - max: 290
-      min: 281
-      outcome: "Hold"
-    - max: 300
-      min: 291
-      outcome: "Focus"
-    - max: 310
-      min: 301
-      outcome: "Uncover"
-    - max: 320
-      min: 311
-      outcome: "Breach"
-    - max: 330
-      min: 321
-      outcome: "Aid"
-    - max: 340
-      min: 331
-      outcome: "Uphold"
-    - max: 350
-      min: 341
-      outcome: "Falter"
-    - max: 360
-      min: 351
-      outcome: "Suppress"
-    - max: 370
-      min: 361
-      outcome: "Hunt"
-    - max: 380
-      min: 371
-      outcome: "Share"
-    - max: 390
-      min: 381
-      outcome: "Destroy"
-    - max: 400
-      min: 391
-      outcome: "Avoid"
-    - max: 410
-      min: 401
-      outcome: "Reject"
-    - max: 420
-      min: 411
-      outcome: "Demand"
-    - max: 430
-      min: 421
-      outcome: "Explore"
-    - max: 440
-      min: 431
-      outcome: "Bolster"
-    - max: 450
-      min: 441
-      outcome: "Seize"
-    - max: 460
-      min: 451
-      outcome: "Mourn"
-    - max: 470
-      min: 461
-      outcome: "Reveal"
-    - max: 480
-      min: 471
-      outcome: "Gather"
-    - max: 490
-      min: 481
-      outcome: "Defy"
-    - max: 500
-      min: 491
-      outcome: "Transform"
-    - max: 510
-      min: 501
-      outcome: "Persevere"
-    - max: 520
-      min: 511
-      outcome: "Serve"
-    - max: 530
-      min: 521
-      outcome: "Begin"
-    - max: 540
-      min: 531
-      outcome: "Move"
-    - max: 550
-      min: 541
-      outcome: "Coordinate"
-    - max: 560
-      min: 551
-      outcome: "Resist"
-    - max: 570
-      min: 561
-      outcome: "Await"
-    - max: 580
-      min: 571
-      outcome: "Impress"
-    - max: 590
-      min: 581
-      outcome: "Take"
-    - max: 600
-      min: 591
-      outcome: "Oppose"
-    - max: 610
-      min: 601
-      outcome: "Capture"
-    - max: 620
-      min: 611
-      outcome: "Overwhelm"
-    - max: 630
-      min: 621
-      outcome: "Challenge"
-    - max: 640
-      min: 631
-      outcome: "Acquire"
-    - max: 650
-      min: 641
-      outcome: "Protect"
-    - max: 660
-      min: 651
-      outcome: "Finish"
-    - max: 670
-      min: 661
-      outcome: "Strengthen"
-    - max: 680
-      min: 671
-      outcome: "Restore"
-    - max: 690
-      min: 681
-      outcome: "Advance"
-    - max: 700
-      min: 691
-      outcome: "Command"
-    - max: 710
-      min: 701
-      outcome: "Refuse"
-    - max: 720
-      min: 711
-      outcome: "Find"
-    - max: 730
-      min: 721
-      outcome: "Deliver"
-    - max: 740
-      min: 731
-      outcome: "Hide"
-    - max: 750
-      min: 741
-      outcome: "Fortify"
-    - max: 760
-      min: 751
-      outcome: "Betray"
-    - max: 770
-      min: 761
-      outcome: "Secure"
-    - max: 780
-      min: 771
-      outcome: "Arrive"
-    - max: 790
-      min: 781
-      outcome: "Affect"
-    - max: 800
-      min: 791
-      outcome: "Change"
-    - max: 810
-      min: 801
-      outcome: "Defend"
-    - max: 820
-      min: 811
-      outcome: "Debate"
-    - max: 830
-      min: 821
-      outcome: "Support"
-    - max: 840
-      min: 831
-      outcome: "Follow"
-    - max: 850
-      min: 841
-      outcome: "Construct"
-    - max: 860
-      min: 851
-      outcome: "Locate"
-    - max: 870
-      min: 861
-      outcome: "Endure"
-    - max: 880
-      min: 871
-      outcome: "Release"
-    - max: 890
-      min: 881
-      outcome: "Lose"
-    - max: 900
-      min: 891
-      outcome: "Reduce"
-    - max: 910
-      min: 901
-      outcome: "Escalate"
-    - max: 920
-      min: 911
-      outcome: "Distract"
-    - max: 930
-      min: 921
-      outcome: "Journey"
-    - max: 940
-      min: 931
-      outcome: "Escort"
-    - max: 950
-      min: 941
-      outcome: "Learn"
-    - max: 960
-      min: 951
-      outcome: "Communicate"
-    - max: 970
-      min: 961
-      outcome: "Depart"
-    - max: 980
-      min: 971
-      outcome: "Search"
-    - max: 990
-      min: 981
-      outcome: "Charge"
-    - max: 1000
-      min: 991
-      outcome: "Summon"
-- name: "Theme"
-  dice: "d100"
+  - min: 1
+    max: 1
+    outcome: Scheme
+  - min: 2
+    max: 2
+    outcome: Clash
+  - min: 3
+    max: 3
+    outcome: Weaken
+  - min: 4
+    max: 4
+    outcome: Initiate
+  - min: 5
+    max: 5
+    outcome: Create
+  - min: 6
+    max: 6
+    outcome: Swear
+  - min: 7
+    max: 7
+    outcome: Avenge
+  - min: 8
+    max: 8
+    outcome: Guard
+  - min: 9
+    max: 9
+    outcome: Defeat
+  - min: 10
+    max: 10
+    outcome: Control
+  - min: 11
+    max: 11
+    outcome: Break
+  - min: 12
+    max: 12
+    outcome: Risk
+  - min: 13
+    max: 13
+    outcome: Surrender
+  - min: 14
+    max: 14
+    outcome: Inspect
+  - min: 15
+    max: 15
+    outcome: Raid
+  - min: 16
+    max: 16
+    outcome: Evade
+  - min: 17
+    max: 17
+    outcome: Assault
+  - min: 18
+    max: 18
+    outcome: Deflect
+  - min: 19
+    max: 19
+    outcome: Threaten
+  - min: 20
+    max: 20
+    outcome: Attack
+  - min: 21
+    max: 21
+    outcome: Leave
+  - min: 22
+    max: 22
+    outcome: Preserve
+  - min: 23
+    max: 23
+    outcome: Manipulate
+  - min: 24
+    max: 24
+    outcome: Remove
+  - min: 25
+    max: 25
+    outcome: Eliminate
+  - min: 26
+    max: 26
+    outcome: Withdraw
+  - min: 27
+    max: 27
+    outcome: Abandon
+  - min: 28
+    max: 28
+    outcome: Investigate
+  - min: 29
+    max: 29
+    outcome: Hold
+  - min: 30
+    max: 30
+    outcome: Focus
+  - min: 31
+    max: 31
+    outcome: Uncover
+  - min: 32
+    max: 32
+    outcome: Breach
+  - min: 33
+    max: 33
+    outcome: Aid
+  - min: 34
+    max: 34
+    outcome: Uphold
+  - min: 35
+    max: 35
+    outcome: Falter
+  - min: 36
+    max: 36
+    outcome: Suppress
+  - min: 37
+    max: 37
+    outcome: Hunt
+  - min: 38
+    max: 38
+    outcome: Share
+  - min: 39
+    max: 39
+    outcome: Destroy
+  - min: 40
+    max: 40
+    outcome: Avoid
+  - min: 41
+    max: 41
+    outcome: Reject
+  - min: 42
+    max: 42
+    outcome: Demand
+  - min: 43
+    max: 43
+    outcome: Explore
+  - min: 44
+    max: 44
+    outcome: Bolster
+  - min: 45
+    max: 45
+    outcome: Seize
+  - min: 46
+    max: 46
+    outcome: Mourn
+  - min: 47
+    max: 47
+    outcome: Reveal
+  - min: 48
+    max: 48
+    outcome: Gather
+  - min: 49
+    max: 49
+    outcome: Defy
+  - min: 50
+    max: 50
+    outcome: Transform
+  - min: 51
+    max: 51
+    outcome: Persevere
+  - min: 52
+    max: 52
+    outcome: Serve
+  - min: 53
+    max: 53
+    outcome: Begin
+  - min: 54
+    max: 54
+    outcome: Move
+  - min: 55
+    max: 55
+    outcome: Coordinate
+  - min: 56
+    max: 56
+    outcome: Resist
+  - min: 57
+    max: 57
+    outcome: Await
+  - min: 58
+    max: 58
+    outcome: Impress
+  - min: 59
+    max: 59
+    outcome: Take
+  - min: 60
+    max: 60
+    outcome: Oppose
+  - min: 61
+    max: 61
+    outcome: Capture
+  - min: 62
+    max: 62
+    outcome: Overwhelm
+  - min: 63
+    max: 63
+    outcome: Challenge
+  - min: 64
+    max: 64
+    outcome: Acquire
+  - min: 65
+    max: 65
+    outcome: Protect
+  - min: 66
+    max: 66
+    outcome: Finish
+  - min: 67
+    max: 67
+    outcome: Strengthen
+  - min: 68
+    max: 68
+    outcome: Restore
+  - min: 69
+    max: 69
+    outcome: Advance
+  - min: 70
+    max: 70
+    outcome: Command
+  - min: 71
+    max: 71
+    outcome: Refuse
+  - min: 72
+    max: 72
+    outcome: Find
+  - min: 73
+    max: 73
+    outcome: Deliver
+  - min: 74
+    max: 74
+    outcome: Hide
+  - min: 75
+    max: 75
+    outcome: Fortify
+  - min: 76
+    max: 76
+    outcome: Betray
+  - min: 77
+    max: 77
+    outcome: Secure
+  - min: 78
+    max: 78
+    outcome: Arrive
+  - min: 79
+    max: 79
+    outcome: Affect
+  - min: 80
+    max: 80
+    outcome: Change
+  - min: 81
+    max: 81
+    outcome: Defend
+  - min: 82
+    max: 82
+    outcome: Debate
+  - min: 83
+    max: 83
+    outcome: Support
+  - min: 84
+    max: 84
+    outcome: Follow
+  - min: 85
+    max: 85
+    outcome: Construct
+  - min: 86
+    max: 86
+    outcome: Locate
+  - min: 87
+    max: 87
+    outcome: Endure
+  - min: 88
+    max: 88
+    outcome: Release
+  - min: 89
+    max: 89
+    outcome: Lose
+  - min: 90
+    max: 90
+    outcome: Reduce
+  - min: 91
+    max: 91
+    outcome: Escalate
+  - min: 92
+    max: 92
+    outcome: Distract
+  - min: 93
+    max: 93
+    outcome: Journey
+  - min: 94
+    max: 94
+    outcome: Escort
+  - min: 95
+    max: 95
+    outcome: Learn
+  - min: 96
+    max: 96
+    outcome: Communicate
+  - min: 97
+    max: 97
+    outcome: Depart
+  - min: 98
+    max: 98
+    outcome: Search
+  - min: 99
+    max: 99
+    outcome: Charge
+  - min: 100
+    max: 100
+    outcome: Summon
+- name: Theme
+  dice: 1d100
   rolls:
-    - max: 1
-      min: 1
-      outcome: "Risk"
-    - max: 2
-      min: 2
-      outcome: "Ability"
-    - max: 3
-      min: 3
-      outcome: "Price"
-    - max: 4
-      min: 4
-      outcome: "Ally"
-    - max: 5
-      min: 5
-      outcome: "Battle"
-    - max: 6
-      min: 6
-      outcome: "Safety"
-    - max: 7
-      min: 7
-      outcome: "Survival"
-    - max: 8
-      min: 8
-      outcome: "Weapon"
-    - max: 9
-      min: 9
-      outcome: "Wound"
-    - max: 10
-      min: 10
-      outcome: "Shelter"
-    - max: 11
-      min: 11
-      outcome: "Leader"
-    - max: 12
-      min: 12
-      outcome: "Fear"
-    - max: 13
-      min: 13
-      outcome: "Time"
-    - max: 14
-      min: 14
-      outcome: "Duty"
-    - max: 15
-      min: 15
-      outcome: "Secret"
-    - max: 16
-      min: 16
-      outcome: "Innocence"
-    - max: 17
-      min: 17
-      outcome: "Renown"
-    - max: 18
-      min: 18
-      outcome: "Direction"
-    - max: 19
-      min: 19
-      outcome: "Death"
-    - max: 20
-      min: 20
-      outcome: "Honor"
-    - max: 21
-      min: 21
-      outcome: "Labor"
-    - max: 22
-      min: 22
-      outcome: "Solution"
-    - max: 23
-      min: 23
-      outcome: "Tool"
-    - max: 24
-      min: 24
-      outcome: "Balance"
-    - max: 25
-      min: 25
-      outcome: "Love"
-    - max: 26
-      min: 26
-      outcome: "Barrier"
-    - max: 27
-      min: 27
-      outcome: "Creation"
-    - max: 28
-      min: 28
-      outcome: "Decay"
-    - max: 29
-      min: 29
-      outcome: "Trade"
-    - max: 30
-      min: 30
-      outcome: "Bond"
-    - max: 31
-      min: 31
-      outcome: "Hope"
-    - max: 32
-      min: 32
-      outcome: "Superstition"
-    - max: 33
-      min: 33
-      outcome: "Peace"
-    - max: 34
-      min: 34
-      outcome: "Deception"
-    - max: 35
-      min: 35
-      outcome: "History"
-    - max: 36
-      min: 36
-      outcome: "World"
-    - max: 37
-      min: 37
-      outcome: "Vow"
-    - max: 38
-      min: 38
-      outcome: "Protection"
-    - max: 39
-      min: 39
-      outcome: "Nature"
-    - max: 40
-      min: 40
-      outcome: "Opinion"
-    - max: 41
-      min: 41
-      outcome: "Burden"
-    - max: 42
-      min: 42
-      outcome: "Vengeance"
-    - max: 43
-      min: 43
-      outcome: "Opportunity"
-    - max: 44
-      min: 44
-      outcome: "Faction"
-    - max: 45
-      min: 45
-      outcome: "Danger"
-    - max: 46
-      min: 46
-      outcome: "Corruption"
-    - max: 47
-      min: 47
-      outcome: "Freedom"
-    - max: 48
-      min: 48
-      outcome: "Debt"
-    - max: 49
-      min: 49
-      outcome: "Hate"
-    - max: 50
-      min: 50
-      outcome: "Possession"
-    - max: 51
-      min: 51
-      outcome: "Stranger"
-    - max: 52
-      min: 52
-      outcome: "Passage"
-    - max: 53
-      min: 53
-      outcome: "Land"
-    - max: 54
-      min: 54
-      outcome: "Creature"
-    - max: 55
-      min: 55
-      outcome: "Disease"
-    - max: 56
-      min: 56
-      outcome: "Advantage"
-    - max: 57
-      min: 57
-      outcome: "Blood"
-    - max: 58
-      min: 58
-      outcome: "Language"
-    - max: 59
-      min: 59
-      outcome: "Rumor"
-    - max: 60
-      min: 60
-      outcome: "Weakness"
-    - max: 61
-      min: 61
-      outcome: "Greed"
-    - max: 62
-      min: 62
-      outcome: "Family"
-    - max: 63
-      min: 63
-      outcome: "Resource"
-    - max: 64
-      min: 64
-      outcome: "Structure"
-    - max: 65
-      min: 65
-      outcome: "Dream"
-    - max: 66
-      min: 66
-      outcome: "Community"
-    - max: 67
-      min: 67
-      outcome: "War"
-    - max: 68
-      min: 68
-      outcome: "Portent"
-    - max: 69
-      min: 69
-      outcome: "Prize"
-    - max: 70
-      min: 70
-      outcome: "Destiny"
-    - max: 71
-      min: 71
-      outcome: "Momentum"
-    - max: 72
-      min: 72
-      outcome: "Power"
-    - max: 73
-      min: 73
-      outcome: "Memory"
-    - max: 74
-      min: 74
-      outcome: "Ruin"
-    - max: 75
-      min: 75
-      outcome: "Mysticism"
-    - max: 76
-      min: 76
-      outcome: "Rival"
-    - max: 77
-      min: 77
-      outcome: "Problem"
-    - max: 78
-      min: 78
-      outcome: "Idea"
-    - max: 79
-      min: 79
-      outcome: "Revenge"
-    - max: 80
-      min: 80
-      outcome: "Health"
-    - max: 81
-      min: 81
-      outcome: "Fellowship"
-    - max: 82
-      min: 82
-      outcome: "Enemy"
-    - max: 83
-      min: 83
-      outcome: "Religion"
-    - max: 84
-      min: 84
-      outcome: "Spirit"
-    - max: 85
-      min: 85
-      outcome: "Fame"
-    - max: 86
-      min: 86
-      outcome: "Desolation"
-    - max: 87
-      min: 87
-      outcome: "Strength"
-    - max: 88
-      min: 88
-      outcome: "Knowledge"
-    - max: 89
-      min: 89
-      outcome: "Truth"
-    - max: 90
-      min: 90
-      outcome: "Quest"
-    - max: 91
-      min: 91
-      outcome: "Pride"
-    - max: 92
-      min: 92
-      outcome: "Loss"
-    - max: 93
-      min: 93
-      outcome: "Law"
-    - max: 94
-      min: 94
-      outcome: "Path"
-    - max: 95
-      min: 95
-      outcome: "Warning"
-    - max: 96
-      min: 96
-      outcome: "Relationship"
-    - max: 97
-      min: 97
-      outcome: "Wealth"
-    - max: 98
-      min: 98
-      outcome: "Home"
-    - max: 99
-      min: 99
-      outcome: "Strategy"
-    - max: 100
-      min: 100
-      outcome: "Supply"
-- name: "Region"
-  dice: "d100"
+  - min: 1
+    max: 1
+    outcome: Risk
+  - min: 2
+    max: 2
+    outcome: Ability
+  - min: 3
+    max: 3
+    outcome: Price
+  - min: 4
+    max: 4
+    outcome: Ally
+  - min: 5
+    max: 5
+    outcome: Battle
+  - min: 6
+    max: 6
+    outcome: Safety
+  - min: 7
+    max: 7
+    outcome: Survival
+  - min: 8
+    max: 8
+    outcome: Weapon
+  - min: 9
+    max: 9
+    outcome: Wound
+  - min: 10
+    max: 10
+    outcome: Shelter
+  - min: 11
+    max: 11
+    outcome: Leader
+  - min: 12
+    max: 12
+    outcome: Fear
+  - min: 13
+    max: 13
+    outcome: Time
+  - min: 14
+    max: 14
+    outcome: Duty
+  - min: 15
+    max: 15
+    outcome: Secret
+  - min: 16
+    max: 16
+    outcome: Innocence
+  - min: 17
+    max: 17
+    outcome: Renown
+  - min: 18
+    max: 18
+    outcome: Direction
+  - min: 19
+    max: 19
+    outcome: Death
+  - min: 20
+    max: 20
+    outcome: Honor
+  - min: 21
+    max: 21
+    outcome: Labor
+  - min: 22
+    max: 22
+    outcome: Solution
+  - min: 23
+    max: 23
+    outcome: Tool
+  - min: 24
+    max: 24
+    outcome: Balance
+  - min: 25
+    max: 25
+    outcome: Love
+  - min: 26
+    max: 26
+    outcome: Barrier
+  - min: 27
+    max: 27
+    outcome: Creation
+  - min: 28
+    max: 28
+    outcome: Decay
+  - min: 29
+    max: 29
+    outcome: Trade
+  - min: 30
+    max: 30
+    outcome: Bond
+  - min: 31
+    max: 31
+    outcome: Hope
+  - min: 32
+    max: 32
+    outcome: Superstition
+  - min: 33
+    max: 33
+    outcome: Peace
+  - min: 34
+    max: 34
+    outcome: Deception
+  - min: 35
+    max: 35
+    outcome: History
+  - min: 36
+    max: 36
+    outcome: World
+  - min: 37
+    max: 37
+    outcome: Vow
+  - min: 38
+    max: 38
+    outcome: Protection
+  - min: 39
+    max: 39
+    outcome: Nature
+  - min: 40
+    max: 40
+    outcome: Opinion
+  - min: 41
+    max: 41
+    outcome: Burden
+  - min: 42
+    max: 42
+    outcome: Vengeance
+  - min: 43
+    max: 43
+    outcome: Opportunity
+  - min: 44
+    max: 44
+    outcome: Faction
+  - min: 45
+    max: 45
+    outcome: Danger
+  - min: 46
+    max: 46
+    outcome: Corruption
+  - min: 47
+    max: 47
+    outcome: Freedom
+  - min: 48
+    max: 48
+    outcome: Debt
+  - min: 49
+    max: 49
+    outcome: Hate
+  - min: 50
+    max: 50
+    outcome: Possession
+  - min: 51
+    max: 51
+    outcome: Stranger
+  - min: 52
+    max: 52
+    outcome: Passage
+  - min: 53
+    max: 53
+    outcome: Land
+  - min: 54
+    max: 54
+    outcome: Creature
+  - min: 55
+    max: 55
+    outcome: Disease
+  - min: 56
+    max: 56
+    outcome: Advantage
+  - min: 57
+    max: 57
+    outcome: Blood
+  - min: 58
+    max: 58
+    outcome: Language
+  - min: 59
+    max: 59
+    outcome: Rumor
+  - min: 60
+    max: 60
+    outcome: Weakness
+  - min: 61
+    max: 61
+    outcome: Greed
+  - min: 62
+    max: 62
+    outcome: Family
+  - min: 63
+    max: 63
+    outcome: Resource
+  - min: 64
+    max: 64
+    outcome: Structure
+  - min: 65
+    max: 65
+    outcome: Dream
+  - min: 66
+    max: 66
+    outcome: Community
+  - min: 67
+    max: 67
+    outcome: War
+  - min: 68
+    max: 68
+    outcome: Portent
+  - min: 69
+    max: 69
+    outcome: Prize
+  - min: 70
+    max: 70
+    outcome: Destiny
+  - min: 71
+    max: 71
+    outcome: Momentum
+  - min: 72
+    max: 72
+    outcome: Power
+  - min: 73
+    max: 73
+    outcome: Memory
+  - min: 74
+    max: 74
+    outcome: Ruin
+  - min: 75
+    max: 75
+    outcome: Mysticism
+  - min: 76
+    max: 76
+    outcome: Rival
+  - min: 77
+    max: 77
+    outcome: Problem
+  - min: 78
+    max: 78
+    outcome: Idea
+  - min: 79
+    max: 79
+    outcome: Revenge
+  - min: 80
+    max: 80
+    outcome: Health
+  - min: 81
+    max: 81
+    outcome: Fellowship
+  - min: 82
+    max: 82
+    outcome: Enemy
+  - min: 83
+    max: 83
+    outcome: Religion
+  - min: 84
+    max: 84
+    outcome: Spirit
+  - min: 85
+    max: 85
+    outcome: Fame
+  - min: 86
+    max: 86
+    outcome: Desolation
+  - min: 87
+    max: 87
+    outcome: Strength
+  - min: 88
+    max: 88
+    outcome: Knowledge
+  - min: 89
+    max: 89
+    outcome: Truth
+  - min: 90
+    max: 90
+    outcome: Quest
+  - min: 91
+    max: 91
+    outcome: Pride
+  - min: 92
+    max: 92
+    outcome: Loss
+  - min: 93
+    max: 93
+    outcome: Law
+  - min: 94
+    max: 94
+    outcome: Path
+  - min: 95
+    max: 95
+    outcome: Warning
+  - min: 96
+    max: 96
+    outcome: Relationship
+  - min: 97
+    max: 97
+    outcome: Wealth
+  - min: 98
+    max: 98
+    outcome: Home
+  - min: 99
+    max: 99
+    outcome: Strategy
+  - min: 100
+    max: 100
+    outcome: Supply
+- name: Character Role
+  dice: 1d100
   rolls:
-    - max: 12
-      min: 1
-      outcome: "Barrier Islands"
-    - max: 24
-      min: 13
-      outcome: "Ragged Coast"
-    - max: 34
-      min: 25
-      outcome: "Deep Wilds"
-    - max: 46
-      min: 35
-      outcome: "Flooded Lands"
-    - max: 60
-      min: 47
-      outcome: "Havens"
-    - max: 72
-      min: 61
-      outcome: "Hinterlands"
-    - max: 84
-      min: 73
-      outcome: "Tempest Hills"
-    - max: 94
-      min: 85
-      outcome: "Veiled Mountains"
-    - max: 99
-      min: 95
-      outcome: "Shattered Wastes"
-    - max: 100
-      min: 100
-      outcome: "Elsewhere"
-- name: "Coastal Waters Location"
-  dice: "d100"
+  - min: 1
+    max: 2
+    outcome: Criminal
+  - min: 3
+    max: 4
+    outcome: Healer
+  - min: 5
+    max: 6
+    outcome: Bandit
+  - min: 7
+    max: 9
+    outcome: Guide
+  - min: 10
+    max: 12
+    outcome: Performer
+  - min: 13
+    max: 15
+    outcome: Miner
+  - min: 16
+    max: 18
+    outcome: Mercenary
+  - min: 19
+    max: 21
+    outcome: Outcast
+  - min: 22
+    max: 24
+    outcome: Vagrant
+  - min: 25
+    max: 27
+    outcome: Forester
+  - min: 28
+    max: 30
+    outcome: Traveler
+  - min: 31
+    max: 33
+    outcome: Mystic
+  - min: 34
+    max: 36
+    outcome: Priest
+  - min: 37
+    max: 39
+    outcome: Sailor
+  - min: 40
+    max: 42
+    outcome: Pilgrim
+  - min: 43
+    max: 45
+    outcome: Thief
+  - min: 46
+    max: 48
+    outcome: Adventurer
+  - min: 49
+    max: 51
+    outcome: Forager
+  - min: 52
+    max: 54
+    outcome: Leader
+  - min: 55
+    max: 58
+    outcome: Guard
+  - min: 59
+    max: 62
+    outcome: Artisan
+  - min: 63
+    max: 66
+    outcome: Scout
+  - min: 67
+    max: 70
+    outcome: Herder
+  - min: 71
+    max: 74
+    outcome: Fisher
+  - min: 75
+    max: 79
+    outcome: Warrior
+  - min: 80
+    max: 84
+    outcome: Hunter
+  - min: 85
+    max: 89
+    outcome: Raider
+  - min: 90
+    max: 94
+    outcome: Trader
+  - min: 95
+    max: 99
+    outcome: Farmer
+  - min: 100
+    max: 100
+    outcome: Unusual role
+- name: Character Goal
+  dice: 1d100
   rolls:
-    - max: 1
-      min: 1
-      outcome: "Fleet"
-    - max: 2
-      min: 2
-      outcome: "Sargassum"
-    - max: 3
-      min: 3
-      outcome: "Flotsam"
-    - max: 4
-      min: 4
-      outcome: "Mystical Site"
-    - max: 5
-      min: 5
-      outcome: "Lair"
-    - max: 10
-      min: 6
-      outcome: "Wreck"
-    - max: 15
-      min: 11
-      outcome: "Harbor"
-    - max: 23
-      min: 16
-      outcome: "Ship"
-    - max: 30
-      min: 24
-      outcome: "Rocks"
-    - max: 38
-      min: 31
-      outcome: "Fjord"
-    - max: 46
-      min: 39
-      outcome: "Estuary"
-    - max: 54
-      min: 47
-      outcome: "Cove"
-    - max: 62
-      min: 55
-      outcome: "Bay"
-    - max: 70
-      min: 63
-      outcome: "Ice"
-    - max: 85
-      min: 71
-      outcome: "Island"
-    - max: 99
-      min: 86
-      outcome: "Open Water"
-    - max: 100
-      min: 100
-      outcome: "Anomaly"
-- name: "Settlement Name"
-  dice: "d100"
+  - min: 1
+    max: 3
+    outcome: Obtain an object
+  - min: 4
+    max: 6
+    outcome: Make an agreement
+  - min: 7
+    max: 9
+    outcome: Build a relationship
+  - min: 10
+    max: 12
+    outcome: Undermine a relationship
+  - min: 13
+    max: 15
+    outcome: Seek a truth
+  - min: 16
+    max: 18
+    outcome: Pay a debt
+  - min: 19
+    max: 21
+    outcome: Refute a falsehood
+  - min: 22
+    max: 24
+    outcome: Harm a rival
+  - min: 25
+    max: 27
+    outcome: Cure an ill
+  - min: 28
+    max: 30
+    outcome: Find a person
+  - min: 31
+    max: 33
+    outcome: Find a home
+  - min: 34
+    max: 36
+    outcome: Seize power
+  - min: 37
+    max: 39
+    outcome: Restore a relationship
+  - min: 40
+    max: 42
+    outcome: Create an item
+  - min: 43
+    max: 45
+    outcome: Travel to a place
+  - min: 46
+    max: 48
+    outcome: Secure provisions
+  - min: 49
+    max: 51
+    outcome: Rebel against power
+  - min: 52
+    max: 54
+    outcome: Collect a debt
+  - min: 55
+    max: 57
+    outcome: Protect a secret
+  - min: 58
+    max: 60
+    outcome: Spread faith
+  - min: 61
+    max: 63
+    outcome: Enrich themselves
+  - min: 64
+    max: 66
+    outcome: Protect a person
+  - min: 67
+    max: 69
+    outcome: Protect the status quo
+  - min: 70
+    max: 72
+    outcome: Advance status
+  - min: 73
+    max: 75
+    outcome: Defend a place
+  - min: 76
+    max: 78
+    outcome: Avenge a wrong
+  - min: 79
+    max: 81
+    outcome: Fulfill a duty
+  - min: 82
+    max: 84
+    outcome: Gain knowledge
+  - min: 85
+    max: 87
+    outcome: Prove worthiness
+  - min: 88
+    max: 90
+    outcome: Find redemption
+  - min: 91
+    max: 92
+    outcome: Escape from something
+  - min: 93
+    max: 95
+    outcome: Resolve a dispute
+  - min: 96
+    max: 100
+    outcome: Roll twice
+- name: Character Descriptor
+  dice: 1d100
   rolls:
-    - max: 10
-      min: 1
-      outcome: "Highmount"
-    - max: 20
-      min: 11
-      outcome: "Brackwater"
-    - max: 30
-      min: 21
-      outcome: "Frostwood"
-    - max: 40
-      min: 31
-      outcome: "Redcrest"
-    - max: 50
-      min: 41
-      outcome: "Grimtree"
-    - max: 60
-      min: 51
-      outcome: "Stoneford"
-    - max: 70
-      min: 61
-      outcome: "Deepwater"
-    - max: 80
-      min: 71
-      outcome: "Whitefall"
-    - max: 90
-      min: 81
-      outcome: "Graycliff"
-    - max: 100
-      min: 91
-      outcome: "Three Rivers"
-- name: "Settlement Trouble"
-  dice: "d100"
+  - min: 1
+    max: 1
+    outcome: Stoic
+  - min: 2
+    max: 2
+    outcome: Attractive
+  - min: 3
+    max: 3
+    outcome: Passive
+  - min: 4
+    max: 4
+    outcome: Aloof
+  - min: 5
+    max: 5
+    outcome: Affectionate
+  - min: 6
+    max: 6
+    outcome: Generous
+  - min: 7
+    max: 7
+    outcome: Smug
+  - min: 8
+    max: 8
+    outcome: Armed
+  - min: 9
+    max: 9
+    outcome: Clever
+  - min: 10
+    max: 10
+    outcome: Brave
+  - min: 11
+    max: 11
+    outcome: Ugly
+  - min: 12
+    max: 12
+    outcome: Sociable
+  - min: 13
+    max: 13
+    outcome: Doomed
+  - min: 14
+    max: 14
+    outcome: Connected
+  - min: 15
+    max: 15
+    outcome: Bold
+  - min: 16
+    max: 16
+    outcome: Jealous
+  - min: 17
+    max: 17
+    outcome: Angry
+  - min: 18
+    max: 18
+    outcome: Active
+  - min: 19
+    max: 19
+    outcome: Suspicious
+  - min: 20
+    max: 20
+    outcome: Hostile
+  - min: 21
+    max: 21
+    outcome: Hardhearted
+  - min: 22
+    max: 22
+    outcome: Successful
+  - min: 23
+    max: 23
+    outcome: Talented
+  - min: 24
+    max: 24
+    outcome: Experienced
+  - min: 25
+    max: 25
+    outcome: Deceitful
+  - min: 26
+    max: 26
+    outcome: Ambitious
+  - min: 27
+    max: 27
+    outcome: Aggressive
+  - min: 28
+    max: 28
+    outcome: Conceited
+  - min: 29
+    max: 29
+    outcome: Proud
+  - min: 30
+    max: 30
+    outcome: Stern
+  - min: 31
+    max: 31
+    outcome: Dependent
+  - min: 32
+    max: 32
+    outcome: Wary
+  - min: 33
+    max: 33
+    outcome: Strong
+  - min: 34
+    max: 34
+    outcome: Insightful
+  - min: 35
+    max: 35
+    outcome: Dangerous
+  - min: 36
+    max: 36
+    outcome: Quirky
+  - min: 37
+    max: 37
+    outcome: Cheery
+  - min: 38
+    max: 38
+    outcome: Disfigured
+  - min: 39
+    max: 39
+    outcome: Intolerant
+  - min: 40
+    max: 40
+    outcome: Skilled
+  - min: 41
+    max: 41
+    outcome: Stingy
+  - min: 42
+    max: 42
+    outcome: Timid
+  - min: 43
+    max: 43
+    outcome: Insensitive
+  - min: 44
+    max: 44
+    outcome: Wild
+  - min: 45
+    max: 45
+    outcome: Bitter
+  - min: 46
+    max: 46
+    outcome: Cunning
+  - min: 47
+    max: 47
+    outcome: Remorseful
+  - min: 48
+    max: 48
+    outcome: Kind
+  - min: 49
+    max: 49
+    outcome: Charming
+  - min: 50
+    max: 50
+    outcome: Oblivious
+  - min: 51
+    max: 51
+    outcome: Critical
+  - min: 52
+    max: 52
+    outcome: Cautious
+  - min: 53
+    max: 53
+    outcome: Resourceful
+  - min: 54
+    max: 54
+    outcome: Weary
+  - min: 55
+    max: 55
+    outcome: Wounded
+  - min: 56
+    max: 56
+    outcome: Anxious
+  - min: 57
+    max: 57
+    outcome: Powerful
+  - min: 58
+    max: 58
+    outcome: Athletic
+  - min: 59
+    max: 59
+    outcome: Driven
+  - min: 60
+    max: 60
+    outcome: Cruel
+  - min: 61
+    max: 61
+    outcome: Quiet
+  - min: 62
+    max: 62
+    outcome: Honest
+  - min: 63
+    max: 63
+    outcome: Infamous
+  - min: 64
+    max: 64
+    outcome: Dying
+  - min: 65
+    max: 65
+    outcome: Reclusive
+  - min: 66
+    max: 66
+    outcome: Artistic
+  - min: 67
+    max: 67
+    outcome: Disabled
+  - min: 68
+    max: 68
+    outcome: Confused
+  - min: 69
+    max: 69
+    outcome: Manipulative
+  - min: 70
+    max: 70
+    outcome: Relaxed
+  - min: 71
+    max: 71
+    outcome: Stealthy
+  - min: 72
+    max: 72
+    outcome: Confident
+  - min: 73
+    max: 73
+    outcome: Weak
+  - min: 74
+    max: 74
+    outcome: Friendly
+  - min: 75
+    max: 75
+    outcome: Wise
+  - min: 76
+    max: 76
+    outcome: Influential
+  - min: 77
+    max: 77
+    outcome: Young
+  - min: 78
+    max: 78
+    outcome: Adventurous
+  - min: 79
+    max: 79
+    outcome: Oppressed
+  - min: 80
+    max: 80
+    outcome: Vengeful
+  - min: 81
+    max: 81
+    outcome: Cooperative
+  - min: 82
+    max: 82
+    outcome: Armored
+  - min: 83
+    max: 83
+    outcome: Apathetic
+  - min: 84
+    max: 84
+    outcome: Determined
+  - min: 85
+    max: 85
+    outcome: Loyal
+  - min: 86
+    max: 86
+    outcome: Sick
+  - min: 87
+    max: 87
+    outcome: Religious
+  - min: 88
+    max: 88
+    outcome: Selfish
+  - min: 89
+    max: 89
+    outcome: Old
+  - min: 90
+    max: 90
+    outcome: Fervent
+  - min: 91
+    max: 91
+    outcome: Violent
+  - min: 92
+    max: 92
+    outcome: Agreeable
+  - min: 93
+    max: 93
+    outcome: Hot-tempered
+  - min: 94
+    max: 94
+    outcome: Stubborn
+  - min: 95
+    max: 95
+    outcome: Incompetent
+  - min: 96
+    max: 96
+    outcome: Greedy
+  - min: 97
+    max: 97
+    outcome: Cowardly
+  - min: 98
+    max: 98
+    outcome: Obsessed
+  - min: 99
+    max: 99
+    outcome: Careless
+  - min: 100
+    max: 100
+    outcome: Ironsworn
+- name: Endure Harm
+  dice: 1d100
   rolls:
-    - max: 2
-      min: 1
-      outcome: "Outsiders rejected"
-    - max: 4
-      min: 3
-      outcome: "Dangerous discovery"
-    - max: 6
-      min: 5
-      outcome: "Dreadful omens"
-    - max: 8
-      min: 7
-      outcome: "Natural disaster"
-    - max: 10
-      min: 9
-      outcome: "Old wounds reopened"
-    - max: 12
-      min: 11
-      outcome: "Important object is lost"
-    - max: 14
-      min: 13
-      outcome: "Someone is captured"
-    - max: 16
-      min: 15
-      outcome: "Mysterious phenomenon"
-    - max: 18
-      min: 17
-      outcome: "Revolt against a leader"
-    - max: 20
-      min: 19
-      outcome: "Vengeful outcast"
-    - max: 22
-      min: 21
-      outcome: "Rival settlement"
-    - max: 24
-      min: 23
-      outcome: "Nature strikes back"
-    - max: 26
-      min: 25
-      outcome: "Someone is missing"
-    - max: 28
-      min: 27
-      outcome: "Production halts"
-    - max: 30
-      min: 29
-      outcome: "Mysterious murders"
-    - max: 32
-      min: 31
-      outcome: "Debt comes due"
-    - max: 34
-      min: 33
-      outcome: "Unjust leadership"
-    - max: 36
-      min: 35
-      outcome: "Disastrous accident"
-    - max: 38
-      min: 37
-      outcome: "In league with the enemy"
-    - max: 40
-      min: 39
-      outcome: "Raiders prey on the weak"
-    - max: 42
-      min: 41
-      outcome: "Cursed past"
-    - max: 44
-      min: 43
-      outcome: "An innocent is accused"
-    - max: 46
-      min: 45
-      outcome: "Corrupted by dark magic"
-    - max: 48
-      min: 47
-      outcome: "Isolated by brutal weather"
-    - max: 50
-      min: 49
-      outcome: "Provisions are scarce"
-    - max: 52
-      min: 51
-      outcome: "Sickness run amok"
-    - max: 54
-      min: 53
-      outcome: "Allies become enemies"
-    - max: 56
-      min: 55
-      outcome: "Attack is imminent"
-    - max: 58
-      min: 57
-      outcome: "Lost caravan"
-    - max: 60
-      min: 59
-      outcome: "Dark secret revealed"
-    - max: 62
-      min: 61
-      outcome: "Urgent expedition"
-    - max: 64
-      min: 63
-      outcome: "A leader falls"
-    - max: 66
-      min: 65
-      outcome: "Families in conflict"
-    - max: 68
-      min: 67
-      outcome: "Incompetent leadership"
-    - max: 70
-      min: 69
-      outcome: "Reckless warmongering"
-    - max: 72
-      min: 71
-      outcome: "Beast on the hunt"
-    - max: 74
-      min: 73
-      outcome: "Betrayed from within"
-    - max: 76
-      min: 75
-      outcome: "Broken truce"
-    - max: 78
-      min: 77
-      outcome: "Wrathful haunt"
-    - max: 80
-      min: 79
-      outcome: "Conflict with firstborn"
-    - max: 82
-      min: 81
-      outcome: "Trade route blocked"
-    - max: 84
-      min: 83
-      outcome: "In the crossfire"
-    - max: 86
-      min: 85
-      outcome: "Stranger causes discord"
-    - max: 88
-      min: 87
-      outcome: "Important event threatened"
-    - max: 90
-      min: 89
-      outcome: "Dangerous tradition"
-    - max: 100
-      min: 91
-      outcome: "Roll twice"
-- name: "Character Role"
-  dice: "d100"
+  - min: 1
+    max: 10
+    outcome: The harm is mortal. Face Death.
+  - min: 11
+    max: 20
+    outcome: You are dying. You need to Heal within an hour or two, or Face Death.
+  - min: 21
+    max: 35
+    outcome: You are unconscious and out of action. If left alone, you come back to
+      your senses in an hour or two. If you are vulnerable to a foe not inclined to
+      show mercy, Face Death.
+  - min: 36
+    max: 50
+    outcome: You are reeling and fighting to stay conscious. If you engage in any
+      vigorous activity (such as running or fighting) before taking a breather for
+      a few minutes, roll on this table again (before resolving the other move).
+  - min: 51
+    max: 100
+    outcome: You are battered but still standing.
+- name: Endure Stress
+  dice: 1d100
   rolls:
-    - max: 2
-      min: 1
-      outcome: "Criminal"
-    - max: 4
-      min: 3
-      outcome: "Healer"
-    - max: 6
-      min: 5
-      outcome: "Bandit"
-    - max: 9
-      min: 7
-      outcome: "Guide"
-    - max: 12
-      min: 10
-      outcome: "Performer"
-    - max: 15
-      min: 13
-      outcome: "Miner"
-    - max: 18
-      min: 16
-      outcome: "Mercenary"
-    - max: 21
-      min: 19
-      outcome: "Outcast"
-    - max: 24
-      min: 22
-      outcome: "Vagrant"
-    - max: 27
-      min: 25
-      outcome: "Forester"
-    - max: 30
-      min: 28
-      outcome: "Traveler"
-    - max: 33
-      min: 31
-      outcome: "Mystic"
-    - max: 36
-      min: 34
-      outcome: "Priest"
-    - max: 39
-      min: 37
-      outcome: "Sailor"
-    - max: 42
-      min: 40
-      outcome: "Pilgrim"
-    - max: 45
-      min: 43
-      outcome: "Thief"
-    - max: 48
-      min: 46
-      outcome: "Adventurer"
-    - max: 51
-      min: 49
-      outcome: "Forager"
-    - max: 54
-      min: 52
-      outcome: "Leader"
-    - max: 58
-      min: 55
-      outcome: "Guard"
-    - max: 62
-      min: 59
-      outcome: "Artisan"
-    - max: 66
-      min: 63
-      outcome: "Scout"
-    - max: 70
-      min: 67
-      outcome: "Herder"
-    - max: 74
-      min: 71
-      outcome: "Fisher"
-    - max: 79
-      min: 75
-      outcome: "Warrior"
-    - max: 84
-      min: 80
-      outcome: "Hunter"
-    - max: 89
-      min: 85
-      outcome: "Raider"
-    - max: 94
-      min: 90
-      outcome: "Trader"
-    - max: 99
-      min: 95
-      outcome: "Farmer"
-    - max: 100
-      min: 100
-      outcome: "Unusual role"
-- name: "Character Goal"
-  dice: "d100"
+  - min: 1
+    max: 10
+    outcome: You are overwhelmed. Face Desolation.
+  - min: 11
+    max: 25
+    outcome: You give up. Forsake Your Vow (if possible, one relevant to your current
+      crisis).
+  - min: 26
+    max: 50
+    outcome: You give in to a fear or compulsion, and act against your better instincts.
+  - min: 51
+    max: 100
+    outcome: You persevere.
+- name: Pay the Price
+  dice: 1d100
   rolls:
-    - max: 3
-      min: 1
-      outcome: "Obtain an object"
-    - max: 6
-      min: 4
-      outcome: "Make an agreement"
-    - max: 9
-      min: 7
-      outcome: "Build a relationship"
-    - max: 12
-      min: 10
-      outcome: "Undermine a relationship"
-    - max: 15
-      min: 13
-      outcome: "Seek a truth"
-    - max: 18
-      min: 16
-      outcome: "Pay a debt"
-    - max: 21
-      min: 19
-      outcome: "Refute a falsehood"
-    - max: 24
-      min: 22
-      outcome: "Harm a rival"
-    - max: 27
-      min: 25
-      outcome: "Cure an ill"
-    - max: 30
-      min: 28
-      outcome: "Find a person"
-    - max: 33
-      min: 31
-      outcome: "Find a home"
-    - max: 36
-      min: 34
-      outcome: "Seize power"
-    - max: 39
-      min: 37
-      outcome: "Restore a relationship"
-    - max: 42
-      min: 40
-      outcome: "Create an item"
-    - max: 45
-      min: 43
-      outcome: "Travel to a place"
-    - max: 48
-      min: 46
-      outcome: "Secure provisions"
-    - max: 51
-      min: 49
-      outcome: "Rebel against power"
-    - max: 54
-      min: 52
-      outcome: "Collect a debt"
-    - max: 57
-      min: 55
-      outcome: "Protect a secret"
-    - max: 60
-      min: 58
-      outcome: "Spread faith"
-    - max: 63
-      min: 61
-      outcome: "Enrich themselves"
-    - max: 66
-      min: 64
-      outcome: "Protect a person"
-    - max: 69
-      min: 67
-      outcome: "Protect the status quo"
-    - max: 72
-      min: 70
-      outcome: "Advance status"
-    - max: 75
-      min: 73
-      outcome: "Defend a place"
-    - max: 78
-      min: 76
-      outcome: "Avenge a wrong"
-    - max: 81
-      min: 79
-      outcome: "Fulfill a duty"
-    - max: 84
-      min: 82
-      outcome: "Gain knowledge"
-    - max: 87
-      min: 85
-      outcome: "Prove worthiness"
-    - max: 90
-      min: 88
-      outcome: "Find redemption"
-    - max: 92
-      min: 91
-      outcome: "Escape from something"
-    - max: 95
-      min: 93
-      outcome: "Resolve a dispute"
-    - max: 100
-      min: 96
-      outcome: "Roll twice"
-- name: "Character Descriptor"
-  dice: "d100"
+  - min: 1
+    max: 2
+    outcome: Roll again and apply that result but make it worse. If you roll this
+      result yet again, think of something dreadful that changes the course of your
+      quest (Ask the Oracle if unsure) and make it happen.
+  - min: 3
+    max: 5
+    outcome: A person or community you trusted loses faith in you, or acts against
+      you.
+  - min: 6
+    max: 9
+    outcome: A person or community you care about is exposed to danger.
+  - min: 10
+    max: 16
+    outcome: You are separated from something or someone.
+  - min: 17
+    max: 23
+    outcome: Your action has an unintended effect.
+  - min: 24
+    max: 32
+    outcome: Something of value is lost or destroyed.
+  - min: 33
+    max: 41
+    outcome: The current situation worsens.
+  - min: 42
+    max: 50
+    outcome: A new danger or foe is revealed.
+  - min: 51
+    max: 59
+    outcome: It causes a delay or puts you at a disadvantage.
+  - min: 60
+    max: 68
+    outcome: It is harmful.
+  - min: 69
+    max: 76
+    outcome: It is stressful.
+  - min: 77
+    max: 85
+    outcome: A surprising development complicates your quest.
+  - min: 86
+    max: 90
+    outcome: It wastes resources.
+  - min: 91
+    max: 94
+    outcome: It forces you to act against your best intentions.
+  - min: 95
+    max: 98
+    outcome: A friend, companion, or ally is put in harm’s way (or you are, if alone).
+  - min: 99
+    max: 100
+    outcome: Roll twice more on this table. Both results occur. If they are the same
+      result, make it worse.
+- name: Almost Certain
+  dice: 1d100
   rolls:
-    - max: 1
-      min: 1
-      outcome: "Stoic"
-    - max: 2
-      min: 2
-      outcome: "Attractive"
-    - max: 3
-      min: 3
-      outcome: "Passive"
-    - max: 4
-      min: 4
-      outcome: "Aloof"
-    - max: 5
-      min: 5
-      outcome: "Affectionate"
-    - max: 6
-      min: 6
-      outcome: "Generous"
-    - max: 7
-      min: 7
-      outcome: "Smug"
-    - max: 8
-      min: 8
-      outcome: "Armed"
-    - max: 9
-      min: 9
-      outcome: "Clever"
-    - max: 10
-      min: 10
-      outcome: "Brave"
-    - max: 11
-      min: 11
-      outcome: "Ugly"
-    - max: 12
-      min: 12
-      outcome: "Sociable"
-    - max: 13
-      min: 13
-      outcome: "Doomed"
-    - max: 14
-      min: 14
-      outcome: "Connected"
-    - max: 15
-      min: 15
-      outcome: "Bold"
-    - max: 16
-      min: 16
-      outcome: "Jealous"
-    - max: 17
-      min: 17
-      outcome: "Angry"
-    - max: 18
-      min: 18
-      outcome: "Active"
-    - max: 19
-      min: 19
-      outcome: "Suspicious"
-    - max: 20
-      min: 20
-      outcome: "Hostile"
-    - max: 21
-      min: 21
-      outcome: "Hardhearted"
-    - max: 22
-      min: 22
-      outcome: "Successful"
-    - max: 23
-      min: 23
-      outcome: "Talented"
-    - max: 24
-      min: 24
-      outcome: "Experienced"
-    - max: 25
-      min: 25
-      outcome: "Deceitful"
-    - max: 26
-      min: 26
-      outcome: "Ambitious"
-    - max: 27
-      min: 27
-      outcome: "Aggressive"
-    - max: 28
-      min: 28
-      outcome: "Conceited"
-    - max: 29
-      min: 29
-      outcome: "Proud"
-    - max: 30
-      min: 30
-      outcome: "Stern"
-    - max: 31
-      min: 31
-      outcome: "Dependent"
-    - max: 32
-      min: 32
-      outcome: "Wary"
-    - max: 33
-      min: 33
-      outcome: "Strong"
-    - max: 34
-      min: 34
-      outcome: "Insightful"
-    - max: 35
-      min: 35
-      outcome: "Dangerous"
-    - max: 36
-      min: 36
-      outcome: "Quirky"
-    - max: 37
-      min: 37
-      outcome: "Cheery"
-    - max: 38
-      min: 38
-      outcome: "Disfigured"
-    - max: 39
-      min: 39
-      outcome: "Intolerant"
-    - max: 40
-      min: 40
-      outcome: "Skilled"
-    - max: 41
-      min: 41
-      outcome: "Stingy"
-    - max: 42
-      min: 42
-      outcome: "Timid"
-    - max: 43
-      min: 43
-      outcome: "Insensitive"
-    - max: 44
-      min: 44
-      outcome: "Wild"
-    - max: 45
-      min: 45
-      outcome: "Bitter"
-    - max: 46
-      min: 46
-      outcome: "Cunning"
-    - max: 47
-      min: 47
-      outcome: "Remorseful"
-    - max: 48
-      min: 48
-      outcome: "Kind"
-    - max: 49
-      min: 49
-      outcome: "Charming"
-    - max: 50
-      min: 50
-      outcome: "Oblivious"
-    - max: 51
-      min: 51
-      outcome: "Critical"
-    - max: 52
-      min: 52
-      outcome: "Cautious"
-    - max: 53
-      min: 53
-      outcome: "Resourceful"
-    - max: 54
-      min: 54
-      outcome: "Weary"
-    - max: 55
-      min: 55
-      outcome: "Wounded"
-    - max: 56
-      min: 56
-      outcome: "Anxious"
-    - max: 57
-      min: 57
-      outcome: "Powerful"
-    - max: 58
-      min: 58
-      outcome: "Athletic"
-    - max: 59
-      min: 59
-      outcome: "Driven"
-    - max: 60
-      min: 60
-      outcome: "Cruel"
-    - max: 61
-      min: 61
-      outcome: "Quiet"
-    - max: 62
-      min: 62
-      outcome: "Honest"
-    - max: 63
-      min: 63
-      outcome: "Infamous"
-    - max: 64
-      min: 64
-      outcome: "Dying"
-    - max: 65
-      min: 65
-      outcome: "Reclusive"
-    - max: 66
-      min: 66
-      outcome: "Artistic"
-    - max: 67
-      min: 67
-      outcome: "Disabled"
-    - max: 68
-      min: 68
-      outcome: "Confused"
-    - max: 69
-      min: 69
-      outcome: "Manipulative"
-    - max: 70
-      min: 70
-      outcome: "Relaxed"
-    - max: 71
-      min: 71
-      outcome: "Stealthy"
-    - max: 72
-      min: 72
-      outcome: "Confident"
-    - max: 73
-      min: 73
-      outcome: "Weak"
-    - max: 74
-      min: 74
-      outcome: "Friendly"
-    - max: 75
-      min: 75
-      outcome: "Wise"
-    - max: 76
-      min: 76
-      outcome: "Influential"
-    - max: 77
-      min: 77
-      outcome: "Young"
-    - max: 78
-      min: 78
-      outcome: "Adventurous"
-    - max: 79
-      min: 79
-      outcome: "Oppressed"
-    - max: 80
-      min: 80
-      outcome: "Vengeful"
-    - max: 81
-      min: 81
-      outcome: "Cooperative"
-    - max: 82
-      min: 82
-      outcome: "Armored"
-    - max: 83
-      min: 83
-      outcome: "Apathetic"
-    - max: 84
-      min: 84
-      outcome: "Determined"
-    - max: 85
-      min: 85
-      outcome: "Loyal"
-    - max: 86
-      min: 86
-      outcome: "Sick"
-    - max: 87
-      min: 87
-      outcome: "Religious"
-    - max: 88
-      min: 88
-      outcome: "Selfish"
-    - max: 89
-      min: 89
-      outcome: "Old"
-    - max: 90
-      min: 90
-      outcome: "Fervent"
-    - max: 91
-      min: 91
-      outcome: "Violent"
-    - max: 92
-      min: 92
-      outcome: "Agreeable"
-    - max: 93
-      min: 93
-      outcome: "Hot-tempered"
-    - max: 94
-      min: 94
-      outcome: "Stubborn"
-    - max: 95
-      min: 95
-      outcome: "Incompetent"
-    - max: 96
-      min: 96
-      outcome: "Greedy"
-    - max: 97
-      min: 97
-      outcome: "Cowardly"
-    - max: 98
-      min: 98
-      outcome: "Obsessed"
-    - max: 99
-      min: 99
-      outcome: "Careless"
-    - max: 100
-      min: 100
-      outcome: "Ironsworn"
-- name: "ORACLE 13: IRONLANDER NAMES"
-  dice: "d100"
+  - min: 1
+    max: 10
+    outcome: 'No'
+  - min: 11
+    max: 100
+    outcome: 'Yes'
+- name: Likely
+  dice: 1d100
   rolls:
-    - max: 1
-      min: 1
-      outcome: "Solana"
-    - max: 2
-      min: 2
-      outcome: "Keelan"
-    - max: 3
-      min: 3
-      outcome: "Cadigan"
-    - max: 4
-      min: 4
-      outcome: "Sola"
-    - max: 5
-      min: 5
-      outcome: "Kodroth"
-    - max: 6
-      min: 6
-      outcome: "Kione"
-    - max: 7
-      min: 7
-      outcome: "Katja"
-    - max: 8
-      min: 8
-      outcome: "Tio"
-    - max: 9
-      min: 9
-      outcome: "Artiga"
-    - max: 10
-      min: 10
-      outcome: "Eos"
-    - max: 11
-      min: 11
-      outcome: "Bastien"
-    - max: 12
-      min: 12
-      outcome: "Elli"
-    - max: 13
-      min: 13
-      outcome: "Maura"
-    - max: 14
-      min: 14
-      outcome: "Haleema"
-    - max: 15
-      min: 15
-      outcome: "Abella"
-    - max: 16
-      min: 16
-      outcome: "Morter"
-    - max: 17
-      min: 17
-      outcome: "Wulan"
-    - max: 18
-      min: 18
-      outcome: "Mai"
-    - max: 19
-      min: 19
-      outcome: "Farina"
-    - max: 20
-      min: 20
-      outcome: "Pearce"
-    - max: 21
-      min: 21
-      outcome: "Wynne"
-    - max: 22
-      min: 22
-      outcome: "Haf"
-    - max: 23
-      min: 23
-      outcome: "Aeddon"
-    - max: 24
-      min: 24
-      outcome: "Khinara"
-    - max: 25
-      min: 25
-      outcome: "Milla"
-    - max: 26
-      min: 26
-      outcome: "Nakata"
-    - max: 27
-      min: 27
-      outcome: "Kynan"
-    - max: 28
-      min: 28
-      outcome: "Kiah"
-    - max: 29
-      min: 29
-      outcome: "Jaggar"
-    - max: 30
-      min: 30
-      outcome: "Beca"
-    - max: 31
-      min: 31
-      outcome: "Ikram"
-    - max: 32
-      min: 32
-      outcome: "Melia"
-    - max: 33
-      min: 33
-      outcome: "Sidan"
-    - max: 34
-      min: 34
-      outcome: "Deshi"
-    - max: 35
-      min: 35
-      outcome: "Tessa"
-    - max: 36
-      min: 36
-      outcome: "Sibila"
-    - max: 37
-      min: 37
-      outcome: "Morien"
-    - max: 38
-      min: 38
-      outcome: "Mona"
-    - max: 39
-      min: 39
-      outcome: "Padma"
-    - max: 40
-      min: 40
-      outcome: "Avella"
-    - max: 41
-      min: 41
-      outcome: "Naila"
-    - max: 42
-      min: 42
-      outcome: "Lio"
-    - max: 43
-      min: 43
-      outcome: "Cera"
-    - max: 44
-      min: 44
-      outcome: "Ithela"
-    - max: 45
-      min: 45
-      outcome: "Zhan"
-    - max: 46
-      min: 46
-      outcome: "Kaivan"
-    - max: 47
-      min: 47
-      outcome: "Valeri"
-    - max: 48
-      min: 48
-      outcome: "Hirsham"
-    - max: 49
-      min: 49
-      outcome: "Pemba"
-    - max: 50
-      min: 50
-      outcome: "Edda"
-    - max: 51
-      min: 51
-      outcome: "Lestara"
-    - max: 52
-      min: 52
-      outcome: "Lago"
-    - max: 53
-      min: 53
-      outcome: "Elstan"
-    - max: 54
-      min: 54
-      outcome: "Saskia"
-    - max: 55
-      min: 55
-      outcome: "Kabeera"
-    - max: 56
-      min: 56
-      outcome: "Caldas"
-    - max: 57
-      min: 57
-      outcome: "Nisus"
-    - max: 58
-      min: 58
-      outcome: "Serene"
-    - max: 59
-      min: 59
-      outcome: "Chenda"
-    - max: 60
-      min: 60
-      outcome: "Themon"
-    - max: 61
-      min: 61
-      outcome: "Erin"
-    - max: 62
-      min: 62
-      outcome: "Alban"
-    - max: 63
-      min: 63
-      outcome: "Parcell"
-    - max: 64
-      min: 64
-      outcome: "Jelma"
-    - max: 65
-      min: 65
-      outcome: "Willa"
-    - max: 66
-      min: 66
-      outcome: "Nadira"
-    - max: 67
-      min: 67
-      outcome: "Gwen"
-    - max: 68
-      min: 68
-      outcome: "Amara"
-    - max: 69
-      min: 69
-      outcome: "Masias"
-    - max: 70
-      min: 70
-      outcome: "Kanno"
-    - max: 71
-      min: 71
-      outcome: "Razeena"
-    - max: 72
-      min: 72
-      outcome: "Mira"
-    - max: 73
-      min: 73
-      outcome: "Perella"
-    - max: 74
-      min: 74
-      outcome: "Myrick"
-    - max: 75
-      min: 75
-      outcome: "Qamar"
-    - max: 76
-      min: 76
-      outcome: "Kormak"
-    - max: 77
-      min: 77
-      outcome: "Zura"
-    - max: 78
-      min: 78
-      outcome: "Zanita"
-    - max: 79
-      min: 79
-      outcome: "Brynn"
-    - max: 80
-      min: 80
-      outcome: "Tegan"
-    - max: 81
-      min: 81
-      outcome: "Pendry"
-    - max: 82
-      min: 82
-      outcome: "Quinn"
-    - max: 83
-      min: 83
-      outcome: "Fanir"
-    - max: 84
-      min: 84
-      outcome: "Glain"
-    - max: 85
-      min: 85
-      outcome: "Emelyn"
-    - max: 86
-      min: 86
-      outcome: "Kendi"
-    - max: 87
-      min: 87
-      outcome: "Althus"
-    - max: 88
-      min: 88
-      outcome: "Leela"
-    - max: 89
-      min: 89
-      outcome: "Ishana"
-    - max: 90
-      min: 90
-      outcome: "Flint"
-    - max: 91
-      min: 91
-      outcome: "Delkash"
-    - max: 92
-      min: 92
-      outcome: "Nia"
-    - max: 93
-      min: 93
-      outcome: "Nan"
-    - max: 94
-      min: 94
-      outcome: "Keeara"
-    - max: 95
-      min: 95
-      outcome: "Katania"
-    - max: 96
-      min: 96
-      outcome: "Morell"
-    - max: 97
-      min: 97
-      outcome: "Temir"
-    - max: 98
-      min: 98
-      outcome: "Bas"
-    - max: 99
-      min: 99
-      outcome: "Sabine"
-    - max: 0
-      min: 0
-      outcome: "Tallus"
-- name: "ORACLE 13B: IRONLANDER NAMES (ALTERNATE)"
-  dice: "d100"
+  - min: 1
+    max: 25
+    outcome: 'No'
+  - min: 26
+    max: 100
+    outcome: 'Yes'
+- name: 50/50
+  dice: 1d100
   rolls:
-    - max: 1
-      min: 1
-      outcome: "Segura"
-    - max: 2
-      min: 2
-      outcome: "Gethin"
-    - max: 3
-      min: 3
-      outcome: "Bataar"
-    - max: 4
-      min: 4
-      outcome: "Basira"
-    - max: 5
-      min: 5
-      outcome: "Joa"
-    - max: 6
-      min: 6
-      outcome: "Glynn"
-    - max: 7
-      min: 7
-      outcome: "Toran"
-    - max: 8
-      min: 8
-      outcome: "Arasen"
-    - max: 9
-      min: 9
-      outcome: "Kuron"
-    - max: 10
-      min: 10
-      outcome: "Griff"
-    - max: 11
-      min: 11
-      outcome: "Owena"
-    - max: 12
-      min: 12
-      outcome: "Adda"
-    - max: 13
-      min: 13
-      outcome: "Euros"
-    - max: 14
-      min: 14
-      outcome: "Kova"
-    - max: 15
-      min: 15
-      outcome: "Kara"
-    - max: 16
-      min: 16
-      outcome: "Morgan"
-    - max: 17
-      min: 17
-      outcome: "Nanda"
-    - max: 18
-      min: 18
-      outcome: "Tamara"
-    - max: 19
-      min: 19
-      outcome: "Asha"
-    - max: 20
-      min: 20
-      outcome: "Delos"
-    - max: 21
-      min: 21
-      outcome: "Torgan"
-    - max: 22
-      min: 22
-      outcome: "Makari"
-    - max: 23
-      min: 23
-      outcome: "Selva"
-    - max: 24
-      min: 24
-      outcome: "Kimura"
-    - max: 25
-      min: 25
-      outcome: "Rhian"
-    - max: 26
-      min: 26
-      outcome: "Tristan"
-    - max: 27
-      min: 27
-      outcome: "Siorra"
-    - max: 28
-      min: 28
-      outcome: "Sayer"
-    - max: 29
-      min: 29
-      outcome: "Cortina"
-    - max: 30
-      min: 30
-      outcome: "Vesna"
-    - max: 31
-      min: 31
-      outcome: "Kataka"
-    - max: 32
-      min: 32
-      outcome: "Keyshia"
-    - max: 33
-      min: 33
-      outcome: "Mila"
-    - max: 34
-      min: 34
-      outcome: "Lili"
-    - max: 35
-      min: 35
-      outcome: "Vigo"
-    - max: 36
-      min: 36
-      outcome: "Sadia"
-    - max: 37
-      min: 37
-      outcome: "Malik"
-    - max: 38
-      min: 38
-      outcome: "Dag"
-    - max: 39
-      min: 39
-      outcome: "Kuno"
-    - max: 40
-      min: 40
-      outcome: "Reva"
-    - max: 41
-      min: 41
-      outcome: "Kai"
-    - max: 42
-      min: 42
-      outcome: "Kalina"
-    - max: 43
-      min: 43
-      outcome: "Jihan"
-    - max: 44
-      min: 44
-      outcome: "Hennion"
-    - max: 45
-      min: 45
-      outcome: "Abram"
-    - max: 46
-      min: 46
-      outcome: "Aida"
-    - max: 47
-      min: 47
-      outcome: "Myrtle"
-    - max: 48
-      min: 48
-      outcome: "Nekun"
-    - max: 49
-      min: 49
-      outcome: "Menna"
-    - max: 50
-      min: 50
-      outcome: "Tahir"
-    - max: 51
-      min: 51
-      outcome: "Sarria"
-    - max: 52
-      min: 52
-      outcome: "Nakura"
-    - max: 53
-      min: 53
-      outcome: "Akiya"
-    - max: 54
-      min: 54
-      outcome: "Talan"
-    - max: 55
-      min: 55
-      outcome: "Mattick"
-    - max: 56
-      min: 56
-      outcome: "Okoth"
-    - max: 57
-      min: 57
-      outcome: "Khulan"
-    - max: 58
-      min: 58
-      outcome: "Verena"
-    - max: 59
-      min: 59
-      outcome: "Beltran"
-    - max: 60
-      min: 60
-      outcome: "Del"
-    - max: 61
-      min: 61
-      outcome: "Ranna"
-    - max: 62
-      min: 62
-      outcome: "Alina"
-    - max: 63
-      min: 63
-      outcome: "Muna"
-    - max: 64
-      min: 64
-      outcome: "Mura"
-    - max: 65
-      min: 65
-      outcome: "Torrens"
-    - max: 66
-      min: 66
-      outcome: "Yuda"
-    - max: 67
-      min: 67
-      outcome: "Nazmi"
-    - max: 68
-      min: 68
-      outcome: "Ghalen"
-    - max: 69
-      min: 69
-      outcome: "Sarda"
-    - max: 70
-      min: 70
-      outcome: "Shona"
-    - max: 71
-      min: 71
-      outcome: "Kalidas"
-    - max: 72
-      min: 72
-      outcome: "Wena"
-    - max: 73
-      min: 73
-      outcome: "Sendra"
-    - max: 74
-      min: 74
-      outcome: "Kori"
-    - max: 75
-      min: 75
-      outcome: "Setara"
-    - max: 76
-      min: 76
-      outcome: "Lucia"
-    - max: 77
-      min: 77
-      outcome: "Maya"
-    - max: 78
-      min: 78
-      outcome: "Reema"
-    - max: 79
-      min: 79
-      outcome: "Yorath"
-    - max: 80
-      min: 80
-      outcome: "Rhoddri"
-    - max: 81
-      min: 81
-      outcome: "Shekhar"
-    - max: 82
-      min: 82
-      outcome: "Servan"
-    - max: 83
-      min: 83
-      outcome: "Reese"
-    - max: 84
-      min: 84
-      outcome: "Kenrick"
-    - max: 85
-      min: 85
-      outcome: "Indirra"
-    - max: 86
-      min: 86
-      outcome: "Giliana"
-    - max: 87
-      min: 87
-      outcome: "Jebran"
-    - max: 88
-      min: 88
-      outcome: "Kotama"
-    - max: 89
-      min: 89
-      outcome: "Fara"
-    - max: 90
-      min: 90
-      outcome: "Katrin"
-    - max: 91
-      min: 91
-      outcome: "Namba"
-    - max: 92
-      min: 92
-      outcome: "Lona"
-    - max: 93
-      min: 93
-      outcome: "Taylah"
-    - max: 94
-      min: 94
-      outcome: "Kato"
-    - max: 95
-      min: 95
-      outcome: "Esra"
-    - max: 96
-      min: 96
-      outcome: "Eleri"
-    - max: 97
-      min: 97
-      outcome: "Irsia"
-    - max: 98
-      min: 98
-      outcome: "Kayu"
-    - max: 99
-      min: 99
-      outcome: "Bevan"
-    - max: 0
-      min: 0
-      outcome: "Chandra"
-- name: "ORACLE 14: ELF NAMES"
-  dice: "d100"
+  - min: 1
+    max: 50
+    outcome: 'No'
+  - min: 51
+    max: 100
+    outcome: 'Yes'
+- name: Unlikely
+  dice: 1d100
   rolls:
-    - max: 2
-      min: 1
-      outcome: "Arsula"
-    - max: 4
-      min: 3
-      outcome: "Naidita"
-    - max: 6
-      min: 5
-      outcome: "Belesunna"
-    - max: 8
-      min: 7
-      outcome: "Vidarna"
-    - max: 10
-      min: 9
-      outcome: "Ninsunu"
-    - max: 12
-      min: 11
-      outcome: "Balathu"
-    - max: 14
-      min: 13
-      outcome: "Dorosi"
-    - max: 16
-      min: 15
-      outcome: "Gezera"
-    - max: 18
-      min: 17
-      outcome: "Zursan"
-    - max: 20
-      min: 19
-      outcome: "Seleeku"
-    - max: 22
-      min: 21
-      outcome: "Utamara"
-    - max: 24
-      min: 23
-      outcome: "Nebakay"
-    - max: 26
-      min: 25
-      outcome: "Dismashk"
-    - max: 28
-      min: 27
-      outcome: "Mitunu"
-    - max: 30
-      min: 29
-      outcome: "Atani"
-    - max: 32
-      min: 31
-      outcome: "Kinzura"
-    - max: 34
-      min: 33
-      outcome: "Sumula"
-    - max: 36
-      min: 35
-      outcome: "Ukames"
-    - max: 38
-      min: 37
-      outcome: "Ahmeshki"
-    - max: 40
-      min: 39
-      outcome: "Ilsit"
-    - max: 42
-      min: 41
-      outcome: "Mayayanay"
-    - max: 44
-      min: 43
-      outcome: "Etana"
-    - max: 46
-      min: 45
-      outcome: "Gamanna"
-    - max: 48
-      min: 47
-      outcome: "Nessana"
-    - max: 50
-      min: 49
-      outcome: "Uralar"
-    - max: 52
-      min: 51
-      outcome: "Tishetu"
-    - max: 54
-      min: 53
-      outcome: "Leucia"
-    - max: 56
-      min: 55
-      outcome: "Sutahe"
-    - max: 58
-      min: 57
-      outcome: "Dotani"
-    - max: 60
-      min: 59
-      outcome: "Uktannu"
-    - max: 62
-      min: 61
-      outcome: "Retenay"
-    - max: 64
-      min: 63
-      outcome: "Kendalanu"
-    - max: 66
-      min: 65
-      outcome: "Tahuta"
-    - max: 68
-      min: 67
-      outcome: "Mattissa"
-    - max: 70
-      min: 69
-      outcome: "Anatu"
-    - max: 72
-      min: 71
-      outcome: "Aralu"
-    - max: 74
-      min: 73
-      outcome: "Arakhi"
-    - max: 76
-      min: 75
-      outcome: "Ibrahem"
-    - max: 78
-      min: 77
-      outcome: "Sinosu"
-    - max: 80
-      min: 79
-      outcome: "Jemshida"
-    - max: 82
-      min: 81
-      outcome: "Visapni"
-    - max: 84
-      min: 83
-      outcome: "Hullata"
-    - max: 86
-      min: 85
-      outcome: "Sidura"
-    - max: 88
-      min: 87
-      outcome: "Keribu"
-    - max: 90
-      min: 89
-      outcome: "Ereshki"
-    - max: 92
-      min: 91
-      outcome: "Cybela"
-    - max: 94
-      min: 93
-      outcome: "Anunna"
-    - max: 96
-      min: 95
-      outcome: "Otani"
-    - max: 98
-      min: 97
-      outcome: "Ditani"
-    - max: 0
-      min: 99
-      outcome: "Faraza"
-- name: "ORACLE 15: OTHER NAMES"
-  dice: "d100"
+  - min: 1
+    max: 75
+    outcome: 'No'
+  - min: 76
+    max: 100
+    outcome: 'Yes'
+- name: Small Chance
+  dice: 1d100
   rolls:
-    - max: 4
-      min: 1
-      outcome: "Giants: Chony, Varou: Vata, Trolls: Rattle"
-    - max: 8
-      min: 5
-      outcome: "Giants: Banda, Varou: Zora, Trolls: Scratch"
-    - max: 12
-      min: 9
-      outcome: "Giants: Jochu, Varou: Jasna, Trolls: Wallow"
-    - max: 16
-      min: 13
-      outcome: "Giants: Kira, Varou: Charna, Trolls: Groak"
-    - max: 20
-      min: 17
-      outcome: "Giants: Khatir, Varou: Tana, Trolls: Gimble"
-    - max: 24
-      min: 21
-      outcome: "Giants: Chaidu, Varou: Soveen, Trolls: Scar"
-    - max: 28
-      min: 25
-      outcome: "Giants: Atan, Varou: Radka, Trolls: Cratch"
-    - max: 32
-      min: 29
-      outcome: "Giants: Buandu, Varou: Zlata, Trolls: Creech"
-    - max: 36
-      min: 33
-      outcome: "Giants: Javyn, Varou: Leesla, Trolls: Shush"
-    - max: 40
-      min: 37
-      outcome: "Giants: Khashin, Varou: Byna, Trolls: Glush"
-    - max: 44
-      min: 41
-      outcome: "Giants: Bayara, Varou: Meeka, Trolls: Slar"
-    - max: 48
-      min: 45
-      outcome: "Giants: Temura, Varou: Iskra, Trolls: Gnash"
-    - max: 52
-      min: 49
-      outcome: "Giants: Kidha, Varou: Jarek, Trolls: Stoad"
-    - max: 56
-      min: 53
-      outcome: "Giants: Kathos, Varou: Darva, Trolls: Grig"
-    - max: 60
-      min: 57
-      outcome: "Giants: Tanua, Varou: Neda, Trolls: Bleat"
-    - max: 64
-      min: 61
-      outcome: "Giants: Bashtu, Varou: Keha, Trolls: Chortle"
-    - max: 68
-      min: 65
-      outcome: "Giants: Jaran, Varou: Zhivka, Trolls: Cluck"
-    - max: 72
-      min: 69
-      outcome: "Giants: Othos, Varou: Kyata, Trolls: Slith"
-    - max: 76
-      min: 73
-      outcome: "Giants: Khutan, Varou: Staysa, Trolls: Mongo"
-    - max: 80
-      min: 77
-      outcome: "Giants: Otaan, Varou: Evka, Trolls: Creak"
-    - max: 84
-      min: 81
-      outcome: "Giants: Martu, Varou: Vuksha, Trolls: Burble"
-    - max: 88
-      min: 85
-      outcome: "Giants: Baku, Varou: Muko, Trolls: Vrusk"
-    - max: 92
-      min: 89
-      outcome: "Giants: Tuban, Varou: Dreko, Trolls: Snuffle"
-    - max: 96
-      min: 93
-      outcome: "Giants: Qudan, Varou: Aleko, Trolls: Leech"
-    - max: 0
-      min: 97
-      outcome: "Giants: Denua, Varou: Vojan, Trolls: Herk"
-- name: "ORACLE 16: COMBAT ACTION"
-  dice: "d100"
+  - min: 1
+    max: 90
+    outcome: 'No'
+  - min: 91
+    max: 100
+    outcome: 'Yes'
+- name: Elf Names
+  dice: 1d100
   rolls:
-    - max: 3
-      min: 1
-      outcome: "Compel a surrender."
-    - max: 6
-      min: 4
-      outcome: "Coordinate with allies."
-    - max: 9
-      min: 7
-      outcome: "Gather reinforcements."
-    - max: 13
-      min: 10
-      outcome: "Seize something or someone."
-    - max: 17
-      min: 14
-      outcome: "Provoke a reckless response."
-    - max: 21
-      min: 18
-      outcome: "Intimidate or frighten."
-    - max: 25
-      min: 22
-      outcome: "Reveal a surprising truth."
-    - max: 29
-      min: 26
-      outcome: "Shift focus to someone or something else."
-    - max: 33
-      min: 30
-      outcome: "Destroy something, or render it useless."
-    - max: 39
-      min: 34
-      outcome: "Take a decisive action."
-    - max: 45
-      min: 40
-      outcome: "Reinforce defenses."
-    - max: 52
-      min: 46
-      outcome: "Ready an action."
-    - max: 60
-      min: 53
-      outcome: "Use the terrain to gain advantage."
-    - max: 68
-      min: 61
-      outcome: "Leverage the advantage of a weapon or ability."
-    - max: 78
-      min: 69
-      outcome: "Create an opportunity."
-    - max: 89
-      min: 79
-      outcome: "Attack with precision."
-    - max: 99
-      min: 90
-      outcome: "Attack with power."
-    - max: 0
-      min: 0
-      outcome: "Take a completely unexpected action."
-- name: "ORACLE 17: MYSTIC BACKLASH"
-  dice: "d100"
+  - min: 1
+    max: 2
+    outcome: Arsula
+  - min: 3
+    max: 4
+    outcome: Naidita
+  - min: 5
+    max: 6
+    outcome: Belesunna
+  - min: 7
+    max: 8
+    outcome: Vidarna
+  - min: 9
+    max: 10
+    outcome: Ninsunu
+  - min: 11
+    max: 12
+    outcome: Balathu
+  - min: 13
+    max: 14
+    outcome: Dorosi
+  - min: 15
+    max: 16
+    outcome: Gezera
+  - min: 17
+    max: 18
+    outcome: Zursan
+  - min: 19
+    max: 20
+    outcome: Seleeku
+  - min: 21
+    max: 22
+    outcome: Utamara
+  - min: 23
+    max: 24
+    outcome: Nebakay
+  - min: 25
+    max: 26
+    outcome: Dismashk
+  - min: 27
+    max: 28
+    outcome: Mitunu
+  - min: 29
+    max: 30
+    outcome: Atani
+  - min: 31
+    max: 32
+    outcome: Kinzura
+  - min: 33
+    max: 34
+    outcome: Sumula
+  - min: 35
+    max: 36
+    outcome: Ukames
+  - min: 37
+    max: 38
+    outcome: Ahmeshki
+  - min: 39
+    max: 40
+    outcome: Ilsit
+  - min: 41
+    max: 42
+    outcome: Mayatanay
+  - min: 43
+    max: 44
+    outcome: Etana
+  - min: 45
+    max: 46
+    outcome: Gamanna
+  - min: 47
+    max: 48
+    outcome: Nessana
+  - min: 49
+    max: 50
+    outcome: Uralar
+  - min: 51
+    max: 52
+    outcome: Tishetu
+  - min: 53
+    max: 54
+    outcome: Leucia
+  - min: 55
+    max: 56
+    outcome: Sutahe
+  - min: 57
+    max: 58
+    outcome: Dotani
+  - min: 59
+    max: 60
+    outcome: Uktannu
+  - min: 61
+    max: 62
+    outcome: Retenay
+  - min: 63
+    max: 64
+    outcome: Kendalanu
+  - min: 65
+    max: 66
+    outcome: Tahuta
+  - min: 67
+    max: 68
+    outcome: Mattissa
+  - min: 69
+    max: 70
+    outcome: Anatu
+  - min: 71
+    max: 72
+    outcome: Aralu
+  - min: 73
+    max: 74
+    outcome: Arakhi
+  - min: 75
+    max: 76
+    outcome: Ibrahem
+  - min: 77
+    max: 78
+    outcome: Sinosu
+  - min: 79
+    max: 80
+    outcome: Jemshida
+  - min: 81
+    max: 82
+    outcome: Visapni
+  - min: 83
+    max: 84
+    outcome: Hullata
+  - min: 85
+    max: 86
+    outcome: Sidura
+  - min: 87
+    max: 88
+    outcome: Kerihu
+  - min: 89
+    max: 90
+    outcome: Ereshki
+  - min: 91
+    max: 92
+    outcome: Cybela
+  - min: 93
+    max: 94
+    outcome: Anunna
+  - min: 95
+    max: 96
+    outcome: Otani
+  - min: 97
+    max: 98
+    outcome: Ditani
+  - min: 99
+    max: 100
+    outcome: Faraza
+- name: Table A
+  dice: 1d100
   rolls:
-    - max: 4
-      min: 1
-      outcome: "Your ritual has the opposite affect."
-    - max: 8
-      min: 5
-      outcome: "You are sapped of strength."
-    - max: 12
-      min: 9
-      outcome: "Your friend, ally, or companion is adversely affected."
-    - max: 16
-      min: 13
-      outcome: "You destroy an important object."
-    - max: 20
-      min: 17
-      outcome: "You inadvertently summon a horror."
-    - max: 24
-      min: 21
-      outcome: "You collapse, and drift into a troubled sleep."
-    - max: 28
-      min: 25
-      outcome: "You undergo a physical torment which leaves its mark upon you."
-    - max: 32
-      min: 29
-      outcome: "You hear ghostly voices whispering of dark portents."
-    - max: 36
-      min: 33
-      outcome: "You are lost in shadow, and find yourself in another place without memory of how you got there."
-    - max: 40
-      min: 37
-      outcome: "You alert someone or something to your presence."
-    - max: 44
-      min: 41
-      outcome: "You are not yourself, and act against a friend, ally, or companion."
-    - max: 48
-      min: 45
-      outcome: "You affect or damage your surroundings, causing a disturbance or potential harm."
-    - max: 52
-      min: 49
-      outcome: "You waste resources."
-    - max: 56
-      min: 53
-      outcome: "You suffer the loss of a sense for several hours."
-    - max: 60
-      min: 57
-      outcome: "You lose your connection to magic for a day or so, and cannot perform rituals."
-    - max: 64
-      min: 61
-      outcome: "Your ritual affects the target in an unexpected and problematic way."
-    - max: 68
-      min: 65
-      outcome: "Your ritual reveals a surprising and troubling truth."
-    - max: 72
-      min: 69
-      outcome: "You are tempted by dark powers."
-    - max: 76
-      min: 73
-      outcome: "You see a troubling vision of your future."
-    - max: 80
-      min: 77
-      outcome: "You can't perform this ritual again until you acquire an important component."
-    - max: 84
-      min: 81
-      outcome: "You develop a strange fear or compulsion."
-    - max: 88
-      min: 85
-      outcome: "Your ritual causes creatures to exhibit strange or aggressive behavior."
-    - max: 92
-      min: 89
-      outcome: "You are tormented by an apparition from your past."
-    - max: 96
-      min: 93
-      outcome: "You are wracked with sudden sickness."
-    - max: 0
-      min: 97
-      outcome: "Roll twice more on this table. Both results occur. If they are the same result, make it worse."
-- name: "ORACLE 18: MAJOR PLOT TWIST"
-  dice: "d100"
+  - min: 1
+    max: 1
+    outcome: Solana
+  - min: 2
+    max: 2
+    outcome: Keelan
+  - min: 3
+    max: 3
+    outcome: Cadigan
+  - min: 4
+    max: 4
+    outcome: Sola
+  - min: 5
+    max: 5
+    outcome: Kodroth
+  - min: 6
+    max: 6
+    outcome: Kione
+  - min: 7
+    max: 7
+    outcome: Katja
+  - min: 8
+    max: 8
+    outcome: Tio
+  - min: 9
+    max: 9
+    outcome: Artiga
+  - min: 10
+    max: 10
+    outcome: Eos
+  - min: 11
+    max: 11
+    outcome: Bastien
+  - min: 12
+    max: 12
+    outcome: Elli
+  - min: 13
+    max: 13
+    outcome: Maura
+  - min: 14
+    max: 14
+    outcome: Haleema
+  - min: 15
+    max: 15
+    outcome: Abella
+  - min: 16
+    max: 16
+    outcome: Morter
+  - min: 17
+    max: 17
+    outcome: Wulan
+  - min: 18
+    max: 18
+    outcome: Mai
+  - min: 19
+    max: 19
+    outcome: Farina
+  - min: 20
+    max: 20
+    outcome: Pearce
+  - min: 21
+    max: 21
+    outcome: Wynne
+  - min: 22
+    max: 22
+    outcome: Haf
+  - min: 23
+    max: 23
+    outcome: Aeddon
+  - min: 24
+    max: 24
+    outcome: Khinara
+  - min: 25
+    max: 25
+    outcome: Milla
+  - min: 26
+    max: 26
+    outcome: Nakata
+  - min: 27
+    max: 27
+    outcome: Kynan
+  - min: 28
+    max: 28
+    outcome: Kiah
+  - min: 29
+    max: 29
+    outcome: Jaggar
+  - min: 30
+    max: 30
+    outcome: Beca
+  - min: 31
+    max: 31
+    outcome: Ikram
+  - min: 32
+    max: 32
+    outcome: Melia
+  - min: 33
+    max: 33
+    outcome: Sidan
+  - min: 34
+    max: 34
+    outcome: Deshi
+  - min: 35
+    max: 35
+    outcome: Tessa
+  - min: 36
+    max: 36
+    outcome: Sibila
+  - min: 37
+    max: 37
+    outcome: Morien
+  - min: 38
+    max: 38
+    outcome: Mona
+  - min: 39
+    max: 39
+    outcome: Padma
+  - min: 40
+    max: 40
+    outcome: Avella
+  - min: 41
+    max: 41
+    outcome: Naila
+  - min: 42
+    max: 42
+    outcome: Lio
+  - min: 43
+    max: 43
+    outcome: Cera
+  - min: 44
+    max: 44
+    outcome: Ithela
+  - min: 45
+    max: 45
+    outcome: Zhan
+  - min: 46
+    max: 46
+    outcome: Kaivan
+  - min: 47
+    max: 47
+    outcome: Valeri
+  - min: 48
+    max: 48
+    outcome: Hirsham
+  - min: 49
+    max: 49
+    outcome: Pemba
+  - min: 50
+    max: 50
+    outcome: Edda
+  - min: 51
+    max: 51
+    outcome: Lestara
+  - min: 52
+    max: 52
+    outcome: Lago
+  - min: 53
+    max: 53
+    outcome: Elstan
+  - min: 54
+    max: 54
+    outcome: Saskia
+  - min: 55
+    max: 55
+    outcome: Kabeera
+  - min: 56
+    max: 56
+    outcome: Caldas
+  - min: 57
+    max: 57
+    outcome: Nisus
+  - min: 58
+    max: 58
+    outcome: Serene
+  - min: 59
+    max: 59
+    outcome: Chenda
+  - min: 60
+    max: 60
+    outcome: Themon
+  - min: 61
+    max: 61
+    outcome: Erin
+  - min: 62
+    max: 62
+    outcome: Alban
+  - min: 63
+    max: 63
+    outcome: Parcell
+  - min: 64
+    max: 64
+    outcome: Jelma
+  - min: 65
+    max: 65
+    outcome: Willa
+  - min: 66
+    max: 66
+    outcome: Nadira
+  - min: 67
+    max: 67
+    outcome: Gwen
+  - min: 68
+    max: 68
+    outcome: Amara
+  - min: 69
+    max: 69
+    outcome: Masias
+  - min: 70
+    max: 70
+    outcome: Kanno
+  - min: 71
+    max: 71
+    outcome: Razeena
+  - min: 72
+    max: 72
+    outcome: Mira
+  - min: 73
+    max: 73
+    outcome: Perella
+  - min: 74
+    max: 74
+    outcome: Myrick
+  - min: 75
+    max: 75
+    outcome: Qamar
+  - min: 76
+    max: 76
+    outcome: Kormak
+  - min: 77
+    max: 77
+    outcome: Zura
+  - min: 78
+    max: 78
+    outcome: Zanita
+  - min: 79
+    max: 79
+    outcome: Brynn
+  - min: 80
+    max: 80
+    outcome: Tegan
+  - min: 81
+    max: 81
+    outcome: Pendry
+  - min: 82
+    max: 82
+    outcome: Quinn
+  - min: 83
+    max: 83
+    outcome: Fanir
+  - min: 84
+    max: 84
+    outcome: Glain
+  - min: 85
+    max: 85
+    outcome: Emelyn
+  - min: 86
+    max: 86
+    outcome: Kendi
+  - min: 87
+    max: 87
+    outcome: Althus
+  - min: 88
+    max: 88
+    outcome: Leela
+  - min: 89
+    max: 89
+    outcome: Ishana
+  - min: 90
+    max: 90
+    outcome: Flint
+  - min: 91
+    max: 91
+    outcome: Delkash
+  - min: 92
+    max: 92
+    outcome: Nia
+  - min: 93
+    max: 93
+    outcome: Nan
+  - min: 94
+    max: 94
+    outcome: Keeara
+  - min: 95
+    max: 95
+    outcome: Katania
+  - min: 96
+    max: 96
+    outcome: Morell
+  - min: 97
+    max: 97
+    outcome: Temir
+  - min: 98
+    max: 98
+    outcome: Bas
+  - min: 99
+    max: 99
+    outcome: Sabine
+  - min: 100
+    max: 100
+    outcome: Tallus
+- name: Table B
+  dice: 1d100
   rolls:
-    - max: 5
-      min: 1
-      outcome: "It was all a diversion."
-    - max: 10
-      min: 6
-      outcome: "A dark secret is revealed."
-    - max: 15
-      min: 11
-      outcome: "A trap is sprung."
-    - max: 20
-      min: 16
-      outcome: "An assumption is revealed to be false."
-    - max: 25
-      min: 21
-      outcome: "A secret alliance is revealed."
-    - max: 30
-      min: 26
-      outcome: "Your actions benefit an enemy."
-    - max: 35
-      min: 31
-      outcome: "Someone returns unexpectedly."
-    - max: 40
-      min: 36
-      outcome: "A more dangerous foe is revealed."
-    - max: 45
-      min: 41
-      outcome: "You and an enemy share a common goal."
-    - max: 50
-      min: 46
-      outcome: "A true identity is revealed."
-    - max: 55
-      min: 51
-      outcome: "You are betrayed by someone who was trusted."
-    - max: 60
-      min: 56
-      outcome: "You are too late."
-    - max: 65
-      min: 61
-      outcome: "The true enemy is revealed."
-    - max: 70
-      min: 66
-      outcome: "The enemy gains new allies."
-    - max: 75
-      min: 71
-      outcome: "A new danger appears."
-    - max: 80
-      min: 76
-      outcome: "Someone or something goes missing."
-    - max: 85
-      min: 81
-      outcome: "The truth of a relationship is revealed."
-    - max: 90
-      min: 86
-      outcome: "Two seemingly unrelated situations are shown to be connected."
-    - max: 95
-      min: 91
-      outcome: "Unexpected powers or abilities are revealed."
-    - max: 0
-      min: 96
-      outcome: "Roll twice more on this table. Both results occur. If they are the same result, make it more dramatic."
-- name: "ORACLE 19: CHALLENGE RANK"
-  dice: "d100"
+  - min: 1
+    max: 1
+    outcome: Segura
+  - min: 2
+    max: 2
+    outcome: Gethin
+  - min: 3
+    max: 3
+    outcome: Bataar
+  - min: 4
+    max: 4
+    outcome: Basira
+  - min: 5
+    max: 5
+    outcome: Joa
+  - min: 6
+    max: 6
+    outcome: Glynn
+  - min: 7
+    max: 7
+    outcome: Toran
+  - min: 8
+    max: 8
+    outcome: Arasen
+  - min: 9
+    max: 9
+    outcome: Kuron
+  - min: 10
+    max: 10
+    outcome: Griff
+  - min: 11
+    max: 11
+    outcome: Owena
+  - min: 12
+    max: 12
+    outcome: Adda
+  - min: 13
+    max: 13
+    outcome: Euros
+  - min: 14
+    max: 14
+    outcome: Kova
+  - min: 15
+    max: 15
+    outcome: Kara
+  - min: 16
+    max: 16
+    outcome: Morgan
+  - min: 17
+    max: 17
+    outcome: Nanda
+  - min: 18
+    max: 18
+    outcome: Tamara
+  - min: 19
+    max: 19
+    outcome: Asha
+  - min: 20
+    max: 20
+    outcome: Delos
+  - min: 21
+    max: 21
+    outcome: Torgan
+  - min: 22
+    max: 22
+    outcome: Makari
+  - min: 23
+    max: 23
+    outcome: Selva
+  - min: 24
+    max: 24
+    outcome: Kimura
+  - min: 25
+    max: 25
+    outcome: Rhian
+  - min: 26
+    max: 26
+    outcome: Tristan
+  - min: 27
+    max: 27
+    outcome: Siorra
+  - min: 28
+    max: 28
+    outcome: Sayer
+  - min: 29
+    max: 29
+    outcome: Cortina
+  - min: 30
+    max: 30
+    outcome: Vesna
+  - min: 31
+    max: 31
+    outcome: Kataka
+  - min: 32
+    max: 32
+    outcome: Keyshia
+  - min: 33
+    max: 33
+    outcome: Mila
+  - min: 34
+    max: 34
+    outcome: Lili
+  - min: 35
+    max: 35
+    outcome: Vigo
+  - min: 36
+    max: 36
+    outcome: Sadia
+  - min: 37
+    max: 37
+    outcome: Malik
+  - min: 38
+    max: 38
+    outcome: Dag
+  - min: 39
+    max: 39
+    outcome: Kuno
+  - min: 40
+    max: 40
+    outcome: Reva
+  - min: 41
+    max: 41
+    outcome: Kai
+  - min: 42
+    max: 42
+    outcome: Kalina
+  - min: 43
+    max: 43
+    outcome: Jihan
+  - min: 44
+    max: 44
+    outcome: Hennion
+  - min: 45
+    max: 45
+    outcome: Abram
+  - min: 46
+    max: 46
+    outcome: Aida
+  - min: 47
+    max: 47
+    outcome: Myrtle
+  - min: 48
+    max: 48
+    outcome: Nekun
+  - min: 49
+    max: 49
+    outcome: Menna
+  - min: 50
+    max: 50
+    outcome: Tahir
+  - min: 51
+    max: 51
+    outcome: Sarria
+  - min: 52
+    max: 52
+    outcome: Nakura
+  - min: 53
+    max: 53
+    outcome: Akiya
+  - min: 54
+    max: 54
+    outcome: Talan
+  - min: 55
+    max: 55
+    outcome: Mattick
+  - min: 56
+    max: 56
+    outcome: Okoth
+  - min: 57
+    max: 57
+    outcome: Khulan
+  - min: 58
+    max: 58
+    outcome: Verena
+  - min: 59
+    max: 59
+    outcome: Beltran
+  - min: 60
+    max: 60
+    outcome: Del
+  - min: 61
+    max: 61
+    outcome: Ranna
+  - min: 62
+    max: 62
+    outcome: Alina
+  - min: 63
+    max: 63
+    outcome: Muna
+  - min: 64
+    max: 64
+    outcome: Mura
+  - min: 65
+    max: 65
+    outcome: Torrens
+  - min: 66
+    max: 66
+    outcome: Yuda
+  - min: 67
+    max: 67
+    outcome: Nazmi
+  - min: 68
+    max: 68
+    outcome: Ghalen
+  - min: 69
+    max: 69
+    outcome: Sarda
+  - min: 70
+    max: 70
+    outcome: Shona
+  - min: 71
+    max: 71
+    outcome: Kalidas
+  - min: 72
+    max: 72
+    outcome: Wena
+  - min: 73
+    max: 73
+    outcome: Sendra
+  - min: 74
+    max: 74
+    outcome: Kori
+  - min: 75
+    max: 75
+    outcome: Setara
+  - min: 76
+    max: 76
+    outcome: Lucia
+  - min: 77
+    max: 77
+    outcome: Maya
+  - min: 78
+    max: 78
+    outcome: Reema
+  - min: 79
+    max: 79
+    outcome: Yorath
+  - min: 80
+    max: 80
+    outcome: Rhoddri
+  - min: 81
+    max: 81
+    outcome: Shekhar
+  - min: 82
+    max: 82
+    outcome: Servan
+  - min: 83
+    max: 83
+    outcome: Reese
+  - min: 84
+    max: 84
+    outcome: Kenrick
+  - min: 85
+    max: 85
+    outcome: Indirra
+  - min: 86
+    max: 86
+    outcome: Giliana
+  - min: 87
+    max: 87
+    outcome: Jebran
+  - min: 88
+    max: 88
+    outcome: Kotama
+  - min: 89
+    max: 89
+    outcome: Fara
+  - min: 90
+    max: 90
+    outcome: Katrin
+  - min: 91
+    max: 91
+    outcome: Namba
+  - min: 92
+    max: 92
+    outcome: Lona
+  - min: 93
+    max: 93
+    outcome: Taylah
+  - min: 94
+    max: 94
+    outcome: Kato
+  - min: 95
+    max: 95
+    outcome: Esra
+  - min: 96
+    max: 96
+    outcome: Eleri
+  - min: 97
+    max: 97
+    outcome: Irsia
+  - min: 98
+    max: 98
+    outcome: Kayu
+  - min: 99
+    max: 99
+    outcome: Bevan
+  - min: 100
+    max: 100
+    outcome: Chandra
+- name: Giants
+  dice: 1d100
   rolls:
-    - max: 20
-      min: 1
-      outcome: "Troublesome"
-    - max: 55
-      min: 21
-      outcome: "Dangerous"
-    - max: 80
-      min: 56
-      outcome: "Formidable"
-    - max: 93
-      min: 81
-      outcome: "Extreme"
-    - max: 0
-      min: 94
-      outcome: "Epic"
-- name: "Asset Connection Examples"
-  dice: "d100"
+  - min: 1
+    max: 4
+    outcome: Chony
+  - min: 5
+    max: 8
+    outcome: Banda
+  - min: 9
+    max: 12
+    outcome: Jochu
+  - min: 13
+    max: 16
+    outcome: Kira
+  - min: 17
+    max: 20
+    outcome: Khatir
+  - min: 21
+    max: 24
+    outcome: Chaidu
+  - min: 25
+    max: 28
+    outcome: Atan
+  - min: 29
+    max: 32
+    outcome: Buandu
+  - min: 33
+    max: 36
+    outcome: Javyn
+  - min: 37
+    max: 40
+    outcome: Khashin
+  - min: 41
+    max: 44
+    outcome: Bayara
+  - min: 45
+    max: 48
+    outcome: Temura
+  - min: 49
+    max: 52
+    outcome: Kidha
+  - min: 53
+    max: 56
+    outcome: Kathos
+  - min: 57
+    max: 60
+    outcome: Tanua
+  - min: 61
+    max: 64
+    outcome: Bashtu
+  - min: 65
+    max: 68
+    outcome: Jaran
+  - min: 69
+    max: 72
+    outcome: Othos
+  - min: 73
+    max: 76
+    outcome: Khutan
+  - min: 77
+    max: 80
+    outcome: Otaan
+  - min: 81
+    max: 84
+    outcome: Martu
+  - min: 85
+    max: 88
+    outcome: Baku
+  - min: 89
+    max: 92
+    outcome: Tuban
+  - min: 93
+    max: 96
+    outcome: Qudan
+  - min: 97
+    max: 100
+    outcome: Denua
+- name: Varou
+  dice: 1d100
   rolls:
-    - max: 100
-      min: 1
-      outcome: "Swear an Iron Vow to guard a trading caravan and receive fine armor; become Ironclad when fulfilled."
+  - min: 1
+    max: 4
+    outcome: Vata
+  - min: 5
+    max: 8
+    outcome: Zora
+  - min: 9
+    max: 12
+    outcome: Jasna
+  - min: 13
+    max: 16
+    outcome: Charna
+  - min: 17
+    max: 20
+    outcome: Tana
+  - min: 21
+    max: 24
+    outcome: Soveen
+  - min: 25
+    max: 28
+    outcome: Radka
+  - min: 29
+    max: 32
+    outcome: Zlata
+  - min: 33
+    max: 36
+    outcome: Leesla
+  - min: 37
+    max: 40
+    outcome: Byna
+  - min: 41
+    max: 44
+    outcome: Meeka
+  - min: 45
+    max: 48
+    outcome: Iskra
+  - min: 49
+    max: 52
+    outcome: Jarek
+  - min: 53
+    max: 56
+    outcome: Darva
+  - min: 57
+    max: 60
+    outcome: Neda
+  - min: 61
+    max: 64
+    outcome: Keha
+  - min: 65
+    max: 68
+    outcome: Zhivka
+  - min: 69
+    max: 72
+    outcome: Kvata
+  - min: 73
+    max: 76
+    outcome: Staysa
+  - min: 77
+    max: 80
+    outcome: Evka
+  - min: 81
+    max: 84
+    outcome: Vuksha
+  - min: 85
+    max: 88
+    outcome: Muko
+  - min: 89
+    max: 92
+    outcome: Dreko
+  - min: 93
+    max: 96
+    outcome: Aleko
+  - min: 97
+    max: 100
+    outcome: Vojan
+- name: Trolls
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 4
+    outcome: Rattle
+  - min: 5
+    max: 8
+    outcome: Scratch
+  - min: 9
+    max: 12
+    outcome: Wallow
+  - min: 13
+    max: 16
+    outcome: Groak
+  - min: 17
+    max: 20
+    outcome: Gimble
+  - min: 21
+    max: 24
+    outcome: Scar
+  - min: 25
+    max: 28
+    outcome: Cratch
+  - min: 29
+    max: 32
+    outcome: Creech
+  - min: 33
+    max: 36
+    outcome: Shush
+  - min: 37
+    max: 40
+    outcome: Glush
+  - min: 41
+    max: 44
+    outcome: Slar
+  - min: 45
+    max: 48
+    outcome: Gnash
+  - min: 49
+    max: 52
+    outcome: Stoad
+  - min: 53
+    max: 56
+    outcome: Grig
+  - min: 57
+    max: 60
+    outcome: Bleat
+  - min: 61
+    max: 64
+    outcome: Chortle
+  - min: 65
+    max: 68
+    outcome: Cluck
+  - min: 69
+    max: 72
+    outcome: Slith
+  - min: 73
+    max: 76
+    outcome: Mongo
+  - min: 77
+    max: 80
+    outcome: Creak
+  - min: 81
+    max: 84
+    outcome: Burble
+  - min: 85
+    max: 88
+    outcome: Vrusk
+  - min: 89
+    max: 92
+    outcome: Snuffle
+  - min: 93
+    max: 96
+    outcome: Leech
+  - min: 97
+    max: 100
+    outcome: Herk
+- name: Region
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 12
+    outcome: Barrier Islands
+  - min: 13
+    max: 24
+    outcome: Ragged Coast
+  - min: 25
+    max: 34
+    outcome: Deep Wilds
+  - min: 35
+    max: 46
+    outcome: Flooded Lands
+  - min: 47
+    max: 60
+    outcome: Havens
+  - min: 61
+    max: 72
+    outcome: Hinterlands
+  - min: 73
+    max: 84
+    outcome: Tempest Hills
+  - min: 85
+    max: 94
+    outcome: Veiled Mountains
+  - min: 95
+    max: 99
+    outcome: Shattered Wastes
+  - min: 100
+    max: 100
+    outcome: Elsewhere
+- name: Location
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 1
+    outcome: Hideout
+  - min: 2
+    max: 2
+    outcome: Ruin
+  - min: 3
+    max: 3
+    outcome: Mine
+  - min: 4
+    max: 4
+    outcome: Waste
+  - min: 5
+    max: 5
+    outcome: Mystical Site
+  - min: 6
+    max: 6
+    outcome: Path
+  - min: 7
+    max: 7
+    outcome: Outpost
+  - min: 8
+    max: 8
+    outcome: Wall
+  - min: 9
+    max: 9
+    outcome: Battlefield
+  - min: 10
+    max: 10
+    outcome: Hovel
+  - min: 11
+    max: 11
+    outcome: Spring
+  - min: 12
+    max: 12
+    outcome: Lair
+  - min: 13
+    max: 13
+    outcome: Fort
+  - min: 14
+    max: 14
+    outcome: Bridge
+  - min: 15
+    max: 15
+    outcome: Camp
+  - min: 16
+    max: 16
+    outcome: Cairn/Grave
+  - min: 17
+    max: 18
+    outcome: Caravan
+  - min: 19
+    max: 20
+    outcome: Waterfall
+  - min: 21
+    max: 22
+    outcome: Cave
+  - min: 23
+    max: 24
+    outcome: Swamp
+  - min: 25
+    max: 26
+    outcome: Fen
+  - min: 27
+    max: 28
+    outcome: Ravine
+  - min: 29
+    max: 30
+    outcome: Road
+  - min: 31
+    max: 32
+    outcome: Tree
+  - min: 33
+    max: 34
+    outcome: Pond
+  - min: 35
+    max: 36
+    outcome: Fields
+  - min: 37
+    max: 38
+    outcome: Marsh
+  - min: 39
+    max: 40
+    outcome: Steading
+  - min: 41
+    max: 42
+    outcome: Rapids
+  - min: 43
+    max: 44
+    outcome: Pass
+  - min: 45
+    max: 46
+    outcome: Trail
+  - min: 47
+    max: 48
+    outcome: Glade
+  - min: 49
+    max: 50
+    outcome: Plain
+  - min: 51
+    max: 52
+    outcome: Ridge
+  - min: 53
+    max: 54
+    outcome: Cliff
+  - min: 55
+    max: 56
+    outcome: Grove
+  - min: 57
+    max: 58
+    outcome: Village
+  - min: 59
+    max: 60
+    outcome: Moor
+  - min: 61
+    max: 62
+    outcome: Thicket
+  - min: 63
+    max: 64
+    outcome: River Ford
+  - min: 65
+    max: 66
+    outcome: Valley
+  - min: 67
+    max: 68
+    outcome: Bay/Fjord
+  - min: 69
+    max: 70
+    outcome: Foothills
+  - min: 71
+    max: 72
+    outcome: Lake
+  - min: 73
+    max: 75
+    outcome: River
+  - min: 76
+    max: 79
+    outcome: Forest
+  - min: 80
+    max: 83
+    outcome: Coast
+  - min: 84
+    max: 88
+    outcome: Hill
+  - min: 89
+    max: 93
+    outcome: Mountain
+  - min: 94
+    max: 99
+    outcome: Woods
+  - min: 100
+    max: 100
+    outcome: Anomaly
+- name: Coastal Waters Location
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 1
+    outcome: Fleet
+  - min: 2
+    max: 2
+    outcome: Sargassum
+  - min: 3
+    max: 3
+    outcome: Flotsam
+  - min: 4
+    max: 4
+    outcome: Mystical Site
+  - min: 5
+    max: 5
+    outcome: Lair
+  - min: 6
+    max: 10
+    outcome: Wreck
+  - min: 11
+    max: 15
+    outcome: Harbor
+  - min: 16
+    max: 23
+    outcome: Ship/Boat
+  - min: 24
+    max: 30
+    outcome: Rocks
+  - min: 31
+    max: 38
+    outcome: Fjord
+  - min: 39
+    max: 46
+    outcome: Estuary
+  - min: 47
+    max: 54
+    outcome: Cove
+  - min: 55
+    max: 62
+    outcome: Bay
+  - min: 63
+    max: 70
+    outcome: Ice
+  - min: 71
+    max: 85
+    outcome: Island
+  - min: 86
+    max: 99
+    outcome: Open Water
+  - min: 100
+    max: 100
+    outcome: Anomaly
+- name: Location Descriptor
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 2
+    outcome: High
+  - min: 3
+    max: 4
+    outcome: Remote
+  - min: 5
+    max: 6
+    outcome: Exposed
+  - min: 7
+    max: 8
+    outcome: Small
+  - min: 9
+    max: 10
+    outcome: Broken
+  - min: 11
+    max: 12
+    outcome: Diverse
+  - min: 13
+    max: 14
+    outcome: Rough
+  - min: 15
+    max: 16
+    outcome: Dark
+  - min: 17
+    max: 18
+    outcome: Shadowy
+  - min: 19
+    max: 20
+    outcome: Contested
+  - min: 21
+    max: 22
+    outcome: Grim
+  - min: 23
+    max: 24
+    outcome: Wild
+  - min: 25
+    max: 26
+    outcome: Fertile
+  - min: 27
+    max: 28
+    outcome: Blocked
+  - min: 29
+    max: 30
+    outcome: Ancient
+  - min: 31
+    max: 32
+    outcome: Perilous
+  - min: 33
+    max: 34
+    outcome: Hidden
+  - min: 35
+    max: 36
+    outcome: Occupied
+  - min: 37
+    max: 38
+    outcome: Rich
+  - min: 39
+    max: 40
+    outcome: Big
+  - min: 41
+    max: 42
+    outcome: Savage
+  - min: 43
+    max: 44
+    outcome: Defended
+  - min: 45
+    max: 46
+    outcome: Withered
+  - min: 47
+    max: 48
+    outcome: Mystical
+  - min: 49
+    max: 50
+    outcome: Inaccessible
+  - min: 51
+    max: 52
+    outcome: Protected
+  - min: 53
+    max: 54
+    outcome: Abandoned
+  - min: 55
+    max: 56
+    outcome: Wide
+  - min: 57
+    max: 58
+    outcome: Foul
+  - min: 59
+    max: 60
+    outcome: Dead
+  - min: 61
+    max: 62
+    outcome: Ruined
+  - min: 63
+    max: 64
+    outcome: Barren
+  - min: 65
+    max: 66
+    outcome: Cold
+  - min: 67
+    max: 68
+    outcome: Blighted
+  - min: 69
+    max: 70
+    outcome: Low
+  - min: 71
+    max: 72
+    outcome: Beautiful
+  - min: 73
+    max: 74
+    outcome: Abundant
+  - min: 75
+    max: 76
+    outcome: Lush
+  - min: 77
+    max: 78
+    outcome: Flooded
+  - min: 79
+    max: 80
+    outcome: Empty
+  - min: 81
+    max: 82
+    outcome: Strange
+  - min: 83
+    max: 84
+    outcome: Corrupted
+  - min: 85
+    max: 86
+    outcome: Peaceful
+  - min: 87
+    max: 88
+    outcome: Forgotten
+  - min: 89
+    max: 90
+    outcome: Expansive
+  - min: 91
+    max: 92
+    outcome: Settled
+  - min: 93
+    max: 94
+    outcome: Dense
+  - min: 95
+    max: 96
+    outcome: Civilized
+  - min: 97
+    max: 98
+    outcome: Desolate
+  - min: 99
+    max: 100
+    outcome: Isolated
+- name: Settlement Trouble
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 2
+    outcome: Outsiders rejected
+  - min: 3
+    max: 4
+    outcome: Dangerous discovery
+  - min: 5
+    max: 6
+    outcome: Dreadful omens
+  - min: 7
+    max: 8
+    outcome: Natural disaster
+  - min: 9
+    max: 10
+    outcome: Old wounds reopened
+  - min: 11
+    max: 12
+    outcome: Important object is lost
+  - min: 13
+    max: 14
+    outcome: Someone is captured
+  - min: 15
+    max: 16
+    outcome: Mysterious phenomenon
+  - min: 17
+    max: 18
+    outcome: Revolt against a leader
+  - min: 19
+    max: 20
+    outcome: Vengeful outcast
+  - min: 21
+    max: 22
+    outcome: Rival settlement
+  - min: 23
+    max: 24
+    outcome: Nature strikes back
+  - min: 25
+    max: 26
+    outcome: Someone is missing
+  - min: 27
+    max: 28
+    outcome: Production halts
+  - min: 29
+    max: 30
+    outcome: Mysterious murders
+  - min: 31
+    max: 32
+    outcome: Debt comes due
+  - min: 33
+    max: 34
+    outcome: Unjust leadership
+  - min: 35
+    max: 36
+    outcome: Disastrous accident
+  - min: 37
+    max: 38
+    outcome: In league with the enemy
+  - min: 39
+    max: 40
+    outcome: Raiders prey on the weak
+  - min: 41
+    max: 42
+    outcome: Cursed past
+  - min: 43
+    max: 44
+    outcome: An innocent is accused
+  - min: 45
+    max: 46
+    outcome: Corrupted by dark magic
+  - min: 47
+    max: 48
+    outcome: Isolated by brutal weather
+  - min: 49
+    max: 50
+    outcome: Provisions are scarce
+  - min: 51
+    max: 52
+    outcome: Sickness run amok
+  - min: 53
+    max: 54
+    outcome: Allies become enemies
+  - min: 55
+    max: 56
+    outcome: Attack is imminent
+  - min: 57
+    max: 58
+    outcome: Lost caravan
+  - min: 59
+    max: 60
+    outcome: Dark secret revealed
+  - min: 61
+    max: 62
+    outcome: Urgent expedition
+  - min: 63
+    max: 64
+    outcome: A leader falls
+  - min: 65
+    max: 66
+    outcome: Families in conflict
+  - min: 67
+    max: 68
+    outcome: Incompetent leadership
+  - min: 69
+    max: 70
+    outcome: Reckless warmongering
+  - min: 71
+    max: 72
+    outcome: Beast on the hunt
+  - min: 73
+    max: 74
+    outcome: Betrayed from within
+  - min: 75
+    max: 76
+    outcome: Broken truce
+  - min: 77
+    max: 78
+    outcome: Wrathful haunt
+  - min: 79
+    max: 80
+    outcome: Conflict with firstborn
+  - min: 81
+    max: 82
+    outcome: Trade route blocked
+  - min: 83
+    max: 84
+    outcome: In the crossfire
+  - min: 85
+    max: 86
+    outcome: Stranger causes discord
+  - min: 87
+    max: 88
+    outcome: Important event threatened
+  - min: 89
+    max: 90
+    outcome: Dangerous tradition
+  - min: 91
+    max: 100
+    outcome: Roll twice
+- name: Settlement Name
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 15
+    outcome: A feature of the landscape. Envision what it is. What makes it unusual
+      or distinctive?
+  - min: 16
+    max: 30
+    outcome: A manmade edifice. What is it? Why is it important to this settlement’s
+      history?,
+  - min: 31
+    max: 45
+    outcome: A creature. Why have the people of this settlement chosen this creature
+      as their totem? How is it represented in art or rituals?
+  - min: 46
+    max: 60
+    outcome: A historical event. What happened here? What place or practice commemorates
+      this event?
+  - min: 61
+    max: 75
+    outcome: A word in an Old World language. What culture is represented by this
+      word? What does it translate to?
+  - min: 76
+    max: 90
+    outcome: A season or environmental aspect. What influence does the weather have
+      on this settlement?
+  - min: 91
+    max: 100
+    outcome: Something Else...
+- name: Landscape Feature
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: Highmount
+  - min: 11
+    max: 20
+    outcome: Brackwater
+  - min: 21
+    max: 30
+    outcome: Frostwood
+  - min: 31
+    max: 40
+    outcome: Redcrest
+  - min: 41
+    max: 50
+    outcome: Grimtree
+  - min: 51
+    max: 60
+    outcome: Stoneford
+  - min: 61
+    max: 70
+    outcome: Deepwater
+  - min: 71
+    max: 80
+    outcome: Whitefall
+  - min: 81
+    max: 90
+    outcome: Graycliff
+  - min: 91
+    max: 100
+    outcome: Three Rivers
+- name: Manmade Edifice
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: Whitebridge
+  - min: 11
+    max: 20
+    outcome: Lonefort
+  - min: 21
+    max: 30
+    outcome: Highcairn
+  - min: 31
+    max: 40
+    outcome: Redhall
+  - min: 41
+    max: 50
+    outcome: Darkwell
+  - min: 51
+    max: 60
+    outcome: Timberwall
+  - min: 61
+    max: 70
+    outcome: Stonetower
+  - min: 71
+    max: 80
+    outcome: Thornhall
+  - min: 81
+    max: 90
+    outcome: Cinderhome
+  - min: 91
+    max: 100
+    outcome: Fallowfield
+- name: Creature
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: Ravencliff
+  - min: 11
+    max: 20
+    outcome: Bearmark
+  - min: 21
+    max: 30
+    outcome: Wolfcrag
+  - min: 31
+    max: 40
+    outcome: Eaglespire
+  - min: 41
+    max: 50
+    outcome: Wyvern's Rest
+  - min: 51
+    max: 60
+    outcome: Boarwood
+  - min: 61
+    max: 70
+    outcome: Foxhollow
+  - min: 71
+    max: 80
+    outcome: Elderwatch
+  - min: 81
+    max: 90
+    outcome: Elkfield
+  - min: 91
+    max: 100
+    outcome: Dragonshadow
+- name: Historical Event
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: Swordbreak
+  - min: 11
+    max: 20
+    outcome: Fool's Fall
+  - min: 21
+    max: 30
+    outcome: Firstmeet
+  - min: 31
+    max: 40
+    outcome: Brokenhelm
+  - min: 41
+    max: 50
+    outcome: Mournhaunt
+  - min: 51
+    max: 60
+    outcome: Olgar's Stand
+  - min: 61
+    max: 70
+    outcome: Lostwater
+  - min: 71
+    max: 80
+    outcome: Rojirra's Lament
+  - min: 81
+    max: 90
+    outcome: Lastmarch
+  - min: 91
+    max: 100
+    outcome: Rockfall
+- name: Old World Language
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: Abon
+  - min: 11
+    max: 20
+    outcome: Daveza
+  - min: 21
+    max: 30
+    outcome: Damula
+  - min: 31
+    max: 40
+    outcome: Essus
+  - min: 41
+    max: 50
+    outcome: Sina
+  - min: 51
+    max: 60
+    outcome: Kazeera
+  - min: 61
+    max: 70
+    outcome: Khazu
+  - min: 71
+    max: 80
+    outcome: Sova
+  - min: 81
+    max: 90
+    outcome: Nabuma
+  - min: 91
+    max: 100
+    outcome: Tiza
+- name: Environmental Aspect
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: Winterhome
+  - min: 11
+    max: 20
+    outcome: Windhaven
+  - min: 21
+    max: 30
+    outcome: Stormrest
+  - min: 31
+    max: 40
+    outcome: Bleakfrost
+  - min: 41
+    max: 50
+    outcome: Springtide
+  - min: 51
+    max: 60
+    outcome: Duskmoor
+  - min: 61
+    max: 70
+    outcome: Frostcrag
+  - min: 71
+    max: 80
+    outcome: Springbrook
+  - min: 81
+    max: 90
+    outcome: Icebreak
+  - min: 91
+    max: 100
+    outcome: Summersong
+- name: Something Else
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 10
+    outcome: A trade good (Ironhome)
+  - min: 11
+    max: 20
+    outcome: An Old World city (New Arkesh)
+  - min: 21
+    max: 30
+    outcome: A founder or famous settler (Kei's Hall)
+  - min: 31
+    max: 40
+    outcome: A god (Elisora)
+  - min: 41
+    max: 50
+    outcome: A historical item (Blackhelm)
+  - min: 51
+    max: 60
+    outcome: A firstborn race (Elfbrook)
+  - min: 61
+    max: 70
+    outcome: An elvish word or name (Nessana)
+  - min: 71
+    max: 80
+    outcome: A mythic belief or event (Ghostwalk)
+  - min: 81
+    max: 90
+    outcome: A positive term (Hope)
+  - min: 91
+    max: 100
+    outcome: A negative term (Forsaken)
+- name: Prefix
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 4
+    outcome: Bleak
+  - min: 5
+    max: 8
+    outcome: Green
+  - min: 9
+    max: 12
+    outcome: Wolf
+  - min: 13
+    max: 16
+    outcome: Raven
+  - min: 17
+    max: 20
+    outcome: Gray
+  - min: 21
+    max: 24
+    outcome: Red
+  - min: 25
+    max: 28
+    outcome: Axe
+  - min: 29
+    max: 32
+    outcome: Great
+  - min: 33
+    max: 36
+    outcome: Wood
+  - min: 37
+    max: 40
+    outcome: Low
+  - min: 41
+    max: 44
+    outcome: White
+  - min: 45
+    max: 48
+    outcome: Storm
+  - min: 49
+    max: 52
+    outcome: Black
+  - min: 53
+    max: 56
+    outcome: Mourn
+  - min: 57
+    max: 60
+    outcome: New
+  - min: 61
+    max: 64
+    outcome: Stone
+  - min: 65
+    max: 68
+    outcome: Grim
+  - min: 69
+    max: 72
+    outcome: Lost
+  - min: 73
+    max: 76
+    outcome: High
+  - min: 77
+    max: 80
+    outcome: Rock
+  - min: 81
+    max: 84
+    outcome: Shield
+  - min: 85
+    max: 88
+    outcome: Sword
+  - min: 89
+    max: 92
+    outcome: Frost
+  - min: 93
+    max: 96
+    outcome: Thorn
+  - min: 97
+    max: 100
+    outcome: Long
+- name: Suffix
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 4
+    outcome: moor
+  - min: 5
+    max: 8
+    outcome: ford
+  - min: 9
+    max: 12
+    outcome: crag
+  - min: 13
+    max: 16
+    outcome: watch
+  - min: 17
+    max: 20
+    outcome: hope
+  - min: 21
+    max: 24
+    outcome: wood
+  - min: 25
+    max: 28
+    outcome: ridge
+  - min: 29
+    max: 32
+    outcome: stone
+  - min: 33
+    max: 36
+    outcome: haven
+  - min: 37
+    max: 40
+    outcome: fall(s)
+  - min: 41
+    max: 44
+    outcome: river
+  - min: 45
+    max: 48
+    outcome: field
+  - min: 49
+    max: 52
+    outcome: hill
+  - min: 53
+    max: 56
+    outcome: bridge
+  - min: 57
+    max: 60
+    outcome: mark
+  - min: 61
+    max: 64
+    outcome: cairn
+  - min: 65
+    max: 68
+    outcome: land
+  - min: 69
+    max: 72
+    outcome: hall
+  - min: 73
+    max: 76
+    outcome: mount
+  - min: 77
+    max: 80
+    outcome: rock
+  - min: 81
+    max: 84
+    outcome: brook
+  - min: 85
+    max: 88
+    outcome: barrow
+  - min: 89
+    max: 92
+    outcome: stead
+  - min: 93
+    max: 96
+    outcome: home
+  - min: 97
+    max: 100
+    outcome: wick
+- name: Combat Action
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 3
+    outcome: Compel a surrender.
+  - min: 4
+    max: 6
+    outcome: Coordinate with allies.
+  - min: 7
+    max: 9
+    outcome: Gather reinforcements.
+  - min: 10
+    max: 13
+    outcome: Seize something or someone.
+  - min: 14
+    max: 17
+    outcome: Provoke a reckless response.
+  - min: 18
+    max: 21
+    outcome: Intimidate or frighten.
+  - min: 22
+    max: 25
+    outcome: Reveal a surprising truth.
+  - min: 26
+    max: 29
+    outcome: Shift focus to someone or something else.
+  - min: 30
+    max: 33
+    outcome: Destroy something, or render it useless.
+  - min: 34
+    max: 39
+    outcome: Take a decisive action.
+  - min: 40
+    max: 45
+    outcome: Reinforce defenses.
+  - min: 46
+    max: 52
+    outcome: Ready an action.
+  - min: 53
+    max: 60
+    outcome: Use the terrain to gain advantage.
+  - min: 61
+    max: 68
+    outcome: Leverage the advantage of a weapon or ability.
+  - min: 69
+    max: 78
+    outcome: Create an opportunity.
+  - min: 79
+    max: 89
+    outcome: Attack with precision.
+  - min: 90
+    max: 99
+    outcome: Attack with power.
+  - min: 100
+    max: 100
+    outcome: Take a completely unexpected action.
+- name: Mystic Backlash
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 4
+    outcome: Your ritual has the opposite affect.
+  - min: 5
+    max: 8
+    outcome: You are sapped of strength.
+  - min: 9
+    max: 12
+    outcome: Your friend, ally, or companion is adversely affected.
+  - min: 13
+    max: 16
+    outcome: You destroy an important object.
+  - min: 17
+    max: 20
+    outcome: You inadvertently summon a horror.
+  - min: 21
+    max: 24
+    outcome: You collapse, and drift into a troubled sleep.
+  - min: 25
+    max: 28
+    outcome: You undergo a physical torment which leaves its mark upon you.
+  - min: 29
+    max: 32
+    outcome: You hear ghostly voices whispering of dark portents.
+  - min: 33
+    max: 36
+    outcome: You are lost in shadow, and find yourself in another place without memory
+      of how you got there.
+  - min: 37
+    max: 40
+    outcome: You alert someone or something to your presence.
+  - min: 41
+    max: 44
+    outcome: You are not yourself, and act against a friend, ally, or companion.
+  - min: 45
+    max: 48
+    outcome: You affect or damage your surroundings, causing a disturbance or potential
+      harm.
+  - min: 49
+    max: 52
+    outcome: You waste resources.
+  - min: 53
+    max: 56
+    outcome: You suffer the loss of a sense for several hours.
+  - min: 57
+    max: 60
+    outcome: You lose your connection to magic for a day or so, and cannot perform
+      rituals.
+  - min: 61
+    max: 64
+    outcome: Your ritual affects the target in an unexpected and problematic way.
+  - min: 65
+    max: 68
+    outcome: Your ritual reveals a surprising and troubling truth.
+  - min: 69
+    max: 72
+    outcome: You are tempted by dark powers.
+  - min: 73
+    max: 76
+    outcome: You see a troubling vision of your future.
+  - min: 77
+    max: 80
+    outcome: You can't perform this ritual again until you acquire an important component.
+  - min: 81
+    max: 84
+    outcome: You develop a strange fear or compulsion.
+  - min: 85
+    max: 88
+    outcome: Your ritual causes creatures to exhibit strange or aggressive behavior.
+  - min: 89
+    max: 92
+    outcome: You are tormented by an apparition from your past.
+  - min: 93
+    max: 96
+    outcome: You are wracked with sudden sickness.
+  - min: 97
+    max: 100
+    outcome: Roll twice more on this table. Both results occur. If they are the same
+      result, make it worse.
+- name: Major Plot Twist
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 5
+    outcome: It was all a diversion.
+  - min: 6
+    max: 10
+    outcome: A dark secret is revealed.
+  - min: 11
+    max: 15
+    outcome: A trap is sprung.
+  - min: 16
+    max: 20
+    outcome: An assumption is revealed to be false.
+  - min: 21
+    max: 25
+    outcome: A secret alliance is revealed.
+  - min: 26
+    max: 30
+    outcome: Your actions benefit an enemy.
+  - min: 31
+    max: 35
+    outcome: Someone returns unexpectedly.
+  - min: 36
+    max: 40
+    outcome: A more dangerous foe is revealed.
+  - min: 41
+    max: 45
+    outcome: You and an enemy share a common goal.
+  - min: 46
+    max: 50
+    outcome: A true identity is revealed.
+  - min: 51
+    max: 55
+    outcome: You are betrayed by someone who was trusted.
+  - min: 56
+    max: 60
+    outcome: You are too late.
+  - min: 61
+    max: 65
+    outcome: The true enemy is revealed.
+  - min: 66
+    max: 70
+    outcome: The enemy gains new allies.
+  - min: 71
+    max: 75
+    outcome: A new danger appears.
+  - min: 76
+    max: 80
+    outcome: Someone or something goes missing.
+  - min: 81
+    max: 85
+    outcome: The truth of a relationship is revealed.
+  - min: 86
+    max: 90
+    outcome: Two seemingly unrelated situations are shown to be connected.
+  - min: 91
+    max: 95
+    outcome: Unexpected powers or abilities are revealed.
+  - min: 96
+    max: 100
+    outcome: Roll twice more on this table. Both results occur. If they are the same
+      result, make it more dramatic.
+- name: Challenge Rank
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 20
+    outcome: Troublesome
+  - min: 21
+    max: 55
+    outcome: Dangerous
+  - min: 56
+    max: 80
+    outcome: Formidable
+  - min: 81
+    max: 93
+    outcome: Extreme
+  - min: 94
+    max: 100
+    outcome: Epic
