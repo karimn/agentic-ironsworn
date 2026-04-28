@@ -43,6 +43,7 @@ export interface Character {
   progressTracks: ProgressTrack[];
   companions: Companion[];
   bonds: number;
+  experience: number;
   customState: Record<string, string>;
 }
 
@@ -98,6 +99,7 @@ export async function loadCharacter(campaignPath: string): Promise<Character> {
   const raw = await readFile(characterPath(campaignPath), "utf-8");
   const char = JSON.parse(raw) as Character;
   char.companions ??= [];
+  (char as any).experience ??= 0;
   return char;
 }
 
@@ -314,5 +316,32 @@ export async function upsertCompanion(
     } else {
       char.companions.push({ name, health: clamp(health, 0, 5) });
     }
+  });
+}
+
+export async function gainExperience(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  if (n <= 0) {
+    throw new Error("n must be a positive integer");
+  }
+  return mutate(campaignPath, "gainExperience", (char) => {
+    char.experience += n;
+  });
+}
+
+export async function spendExperience(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  if (n <= 0) {
+    throw new Error("n must be a positive integer");
+  }
+  return mutate(campaignPath, "spendExperience", (char) => {
+    if (char.experience < n) {
+      throw new Error(`Insufficient experience: have ${char.experience}, need ${n}`);
+    }
+    char.experience -= n;
   });
 }

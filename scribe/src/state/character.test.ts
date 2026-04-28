@@ -15,6 +15,8 @@ import {
   restoreHealth,
   restoreSpirit,
   restoreSupply,
+  gainExperience,
+  spendExperience,
   computeMomentumReset,
   companionSufferHarm,
   companionRestoreHealth,
@@ -36,6 +38,7 @@ const SAMPLE: Character = {
   progressTracks: [],
   companions: [],
   bonds: 0,
+  experience: 0,
   customState: {},
 };
 
@@ -262,5 +265,30 @@ describe("loadCharacter backwards compat", () => {
     await saveCharacter(campaignDir, charWithoutCompanions as any);
     const loaded = await loadCharacter(campaignDir);
     expect(loaded.companions).toEqual([]);
+  });
+});
+
+describe("gainExperience", () => {
+  it("adds experience", async () => {
+    const { after } = await gainExperience(campaignDir, 3);
+    expect(after.experience).toBe(3);
+  });
+
+  it("accumulates experience across calls", async () => {
+    await gainExperience(campaignDir, 2);
+    const { after } = await gainExperience(campaignDir, 5);
+    expect(after.experience).toBe(7);
+  });
+});
+
+describe("spendExperience", () => {
+  it("deducts experience", async () => {
+    await gainExperience(campaignDir, 10);
+    const { after } = await spendExperience(campaignDir, 4);
+    expect(after.experience).toBe(6);
+  });
+
+  it("throws when experience is insufficient", async () => {
+    await expect(spendExperience(campaignDir, 5)).rejects.toThrow("Insufficient experience");
   });
 });
