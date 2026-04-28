@@ -67,17 +67,23 @@ describe("resolveMove", () => {
   });
 
   it("does not offer burn when momentum ties the max challenge die on a weak hit", () => {
+    // momentum=7: if challengeDice=[7,5], burning replaces actionScore with 7 but 7 vs 7
+    // is a tie (challenge wins), so the band stays weak_hit — burnOffered must be false.
+    // Verify the general invariant across many rolls with momentum=7.
     for (let i = 0; i < 10_000; i++) {
       const r = resolveMove("Face Danger", "edge", 0, 7);
       const maxChallenge = Math.max(r.challengeDice[0], r.challengeDice[1]);
       const minChallenge = Math.min(r.challengeDice[0], r.challengeDice[1]);
       if (r.band === "weak_hit") {
+        // Burn only helps on weak_hit if momentum strictly beats the max challenge die
         expect(r.burnOffered).toBe(7 > maxChallenge);
       }
       if (r.band === "miss") {
+        // Burn only helps on miss if momentum strictly beats the min challenge die
         expect(r.burnOffered).toBe(7 > minChallenge);
       }
       if (r.band === "strong_hit") {
+        // Already best outcome; burn never offered
         expect(r.burnOffered).toBe(false);
       }
     }

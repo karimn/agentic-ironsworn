@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -290,5 +290,31 @@ describe("spendExperience", () => {
 
   it("throws when experience is insufficient", async () => {
     await expect(spendExperience(campaignDir, 5)).rejects.toThrow("Insufficient experience");
+  });
+});
+
+describe("experience field (issue #9)", () => {
+  it("defaults experience to 0 on a fresh character", async () => {
+    const loaded = await loadCharacter(campaignDir);
+    expect(loaded.experience).toBe(0);
+  });
+
+  it("loadCharacter fills in experience=0 when field is missing (legacy data)", async () => {
+    // Write a character JSON without the experience field (simulating old data)
+    const legacy = structuredClone(SAMPLE) as Record<string, unknown>;
+    delete legacy.experience;
+    await writeFile(join(campaignDir, "character.json"), JSON.stringify(legacy, null, 2), "utf-8");
+
+    const loaded = await loadCharacter(campaignDir);
+    expect(loaded.experience).toBe(0);
+  });
+
+  it("persists experience value through save/load round-trip", async () => {
+    const char = await loadCharacter(campaignDir);
+    char.experience = 3;
+    await saveCharacter(campaignDir, char);
+
+    const reloaded = await loadCharacter(campaignDir);
+    expect(reloaded.experience).toBe(3);
   });
 });

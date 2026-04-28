@@ -124,7 +124,11 @@ export function resolveMove(
   }
 
   const match = challengeDice[0] === challengeDice[1];
-  const burnOffered = momentum > 0 && momentum > actionScore;
+  const minChallenge = Math.min(challengeDice[0], challengeDice[1]);
+  const maxChallenge = Math.max(challengeDice[0], challengeDice[1]);
+  const burnOffered =
+    (band === "miss" && momentum > minChallenge) ||
+    (band === "weak_hit" && momentum > maxChallenge);
 
   // Look up move data
   const moves = getMoves();

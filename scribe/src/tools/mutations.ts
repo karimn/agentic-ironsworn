@@ -38,6 +38,7 @@ function characterDigest(char: Character) {
     supply: char.supply,
     debilities: activeDebilities,
     bonds: char.bonds,
+    experience: char.experience,
   };
 }
 
@@ -313,7 +314,14 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "fulfill_progress",
-    "Mark a progress track as completed",
+    [
+      "Fulfill a progress track: marks it completed and grants the character 1 XP.",
+      "",
+      "Canonical vow fulfillment flow:",
+      "1. roll_progress — roll against the vow's progress score to see the outcome",
+      "2. fulfill_progress — (this tool) marks the track complete and awards 1 XP",
+      "3. close_thread — narrative resolution; also marks the matching progress track completed",
+    ].join("\n"),
     { track_name: z.string().describe("Name of the progress track to fulfill (case-insensitive)") },
     async ({ track_name }) => {
       try {
@@ -327,10 +335,18 @@ export function register(server: McpServer, campaignPath: string): void {
             isError: true,
           };
         }
+        const before = structuredClone(character);
         character.progressTracks[idx]!.completed = true;
+        character.experience += 1;
         await saveCharacter(campaignPath, character);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "fulfillProgress",
+          before,
+          after: character,
+        });
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx] }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], experience: character.experience }) }],
         };
       } catch (e) {
         return {

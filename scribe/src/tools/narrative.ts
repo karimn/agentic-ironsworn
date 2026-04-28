@@ -4,6 +4,7 @@ import { recordScene } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore } from "../rag/lore.js";
+import { loadCharacter, saveCharacter } from "../state/character.js";
 
 // ---------------------------------------------------------------------------
 // Warning helpers (exported for testing)
@@ -72,17 +73,31 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "open_thread",
-    "Open a new narrative thread",
+    "Open a new narrative thread. When kind is 'vow', provide a rank to automatically create a matching progress track on the character.",
     {
       title: z.string().describe("Title of the thread"),
       kind: z.enum(["vow", "threat", "debt", "other"]).describe("Kind of thread"),
       notes: z.string().optional().describe("Optional notes about the thread"),
+      rank: z
+        .enum(["troublesome", "dangerous", "formidable", "extreme", "epic"])
+        .optional()
+        .describe("Difficulty rank (required for vow kind to auto-create a matching progress track)"),
     },
-    async ({ title, kind, notes }) => {
+    async ({ title, kind, notes, rank }) => {
       try {
         const thread = await openThread(campaignPath, title, kind, notes);
+
+        // Issue #2: auto-create a matching progress track for vow threads
+        let track: { name: string; rank: string; kind: string; ticks: number; completed: boolean } | undefined;
+        if (kind === "vow" && rank !== undefined) {
+          const character = await loadCharacter(campaignPath);
+          track = { name: title, rank, kind: "vow", ticks: 0, completed: false };
+          character.progressTracks.push(track);
+          await saveCharacter(campaignPath, character);
+        }
+
         return {
-          content: [{ type: "text", text: JSON.stringify(thread) }],
+          content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrack: track ?? null }) }],
         };
       } catch (e) {
         return {
@@ -95,7 +110,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "close_thread",
-    "Close an existing narrative thread with a resolution",
+    "Close an existing narrative thread with a resolution. If the thread is a vow, also marks the matching progress track as completed (case-insensitive name match).",
     {
       title: z.string().describe("Title of the thread to close (case-insensitive)"),
       resolution: z.string().describe("How the thread was resolved"),
@@ -103,8 +118,23 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ title, resolution }) => {
       try {
         const thread = await closeThread(campaignPath, title, resolution);
+
+        // Issue #3: mark matching progress track completed when closing a vow
+        let trackUpdated = false;
+        if (thread.kind === "vow") {
+          const character = await loadCharacter(campaignPath);
+          const idx = character.progressTracks.findIndex(
+            (t) => t.name.toLowerCase() === title.toLowerCase(),
+          );
+          if (idx !== -1) {
+            character.progressTracks[idx]!.completed = true;
+            await saveCharacter(campaignPath, character);
+            trackUpdated = true;
+          }
+        }
+
         return {
-          content: [{ type: "text", text: JSON.stringify(thread) }],
+          content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrackCompleted: trackUpdated }) }],
         };
       } catch (e) {
         return {

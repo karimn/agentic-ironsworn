@@ -43,7 +43,7 @@ export interface Character {
   progressTracks: ProgressTrack[];
   companions: Companion[];
   bonds: number;
-  experience: number;
+  experience: number;    // XP earned from fulfilled vows
   customState: Record<string, string>;
 }
 
@@ -99,7 +99,7 @@ export async function loadCharacter(campaignPath: string): Promise<Character> {
   const raw = await readFile(characterPath(campaignPath), "utf-8");
   const char = JSON.parse(raw) as Character;
   char.companions ??= [];
-  (char as any).experience ??= 0;
+  char.experience ??= 0;
   return char;
 }
 
