@@ -12,6 +12,9 @@ import {
   inflictDebility,
   clearDebility,
   overrideField,
+  restoreHealth,
+  restoreSpirit,
+  restoreSupply,
   computeMomentumReset,
   DEBILITIES,
   Character,
@@ -129,5 +132,46 @@ describe("overrideField", () => {
 
   it("throws on missing intermediate segment", async () => {
     await expect(overrideField(campaignDir, "notAField.sub", "x")).rejects.toThrow();
+  });
+});
+
+describe("restoreHealth", () => {
+  it("restores health from partial", async () => {
+    await sufferHarm(campaignDir, 3); // health -> 2
+    const { after } = await restoreHealth(campaignDir, 2);
+    expect(after.health).toBe(4);
+  });
+
+  it("clamps health to 5 when restoring beyond max", async () => {
+    await sufferHarm(campaignDir, 2); // health -> 3
+    const { after } = await restoreHealth(campaignDir, 10);
+    expect(after.health).toBe(5);
+  });
+});
+
+describe("restoreSpirit", () => {
+  it("restores spirit from partial", async () => {
+    await sufferStress(campaignDir, 3); // spirit -> 2
+    const { after } = await restoreSpirit(campaignDir, 2);
+    expect(after.spirit).toBe(4);
+  });
+
+  it("clamps spirit to 5 when restoring beyond max", async () => {
+    await sufferStress(campaignDir, 2); // spirit -> 3
+    const { after } = await restoreSpirit(campaignDir, 10);
+    expect(after.spirit).toBe(5);
+  });
+});
+
+describe("restoreSupply", () => {
+  it("restores supply from partial", async () => {
+    await consumeSupply(campaignDir, 2); // supply -> 1
+    const { after } = await restoreSupply(campaignDir, 3);
+    expect(after.supply).toBe(4);
+  });
+
+  it("clamps supply to 5 when restoring beyond max", async () => {
+    const { after } = await restoreSupply(campaignDir, 10);
+    expect(after.supply).toBe(5);
   });
 });

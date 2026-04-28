@@ -203,6 +203,33 @@ export async function consumeSupply(
   });
 }
 
+export async function restoreHealth(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "restoreHealth", (char) => {
+    char.health = clamp(char.health + n, 0, 5);
+  });
+}
+
+export async function restoreSpirit(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "restoreSpirit", (char) => {
+    char.spirit = clamp(char.spirit + n, 0, 5);
+  });
+}
+
+export async function restoreSupply(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "restoreSupply", (char) => {
+    char.supply = clamp(char.supply + n, 0, 5);
+  });
+}
+
 export async function inflictDebility(
   campaignPath: string,
   name: string,
