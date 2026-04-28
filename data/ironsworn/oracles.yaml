@@ -1394,6 +1394,10 @@
     max: 100
     outcome: Faraza
 - name: Table A
+  aliases:
+  - Ironlander Name
+  - Ironlander Name A
+  - character name
   dice: 1d100
   rolls:
   - min: 1
@@ -1697,6 +1701,8 @@
     max: 100
     outcome: Tallus
 - name: Table B
+  aliases:
+  - Ironlander Name B
   dice: 1d100
   rolls:
   - min: 1

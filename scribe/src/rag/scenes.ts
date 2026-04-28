@@ -76,6 +76,16 @@ function getDb(campaignPath: string): Promise<DuckDBInstance> {
   return promise;
 }
 
+// See lore.ts openWriteConn for explanation. Same connection-scoped flag
+// required on every write connection to an HNSW-indexed table.
+async function openWriteConn(
+  instance: DuckDBInstance,
+): Promise<Awaited<ReturnType<DuckDBInstance["connect"]>>> {
+  const conn = await instance.connect();
+  await conn.run("SET hnsw_enable_experimental_persistence = true;");
+  return conn;
+}
+
 // ---------------------------------------------------------------------------
 // Embeddings
 // ---------------------------------------------------------------------------
@@ -138,7 +148,7 @@ export async function recordScene(
 
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
 
-  const conn = await instance.connect();
+  const conn = await openWriteConn(instance);
   try {
     await conn.run(
       `INSERT INTO scenes (id, text, embedding, timestamp, kind)

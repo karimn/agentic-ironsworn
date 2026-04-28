@@ -191,6 +191,19 @@ function getDb(campaignPath: string): Promise<DuckDBInstance> {
   return promise;
 }
 
+// DuckDB's hnsw_enable_experimental_persistence flag is connection-scoped, not
+// database-scoped. The initDb connection sets it, but every subsequent write
+// connection opens fresh without it — causing "Duplicate keys not allowed in
+// high-level wrappers" when DuckDB tries to replay buffered HNSW index appends.
+// Every connection that writes to an HNSW-indexed table must set this flag.
+async function openWriteConn(
+  instance: DuckDBInstance,
+): Promise<Awaited<ReturnType<DuckDBInstance["connect"]>>> {
+  const conn = await instance.connect();
+  await conn.run("SET hnsw_enable_experimental_persistence = true;");
+  return conn;
+}
+
 // ---------------------------------------------------------------------------
 // Embeddings
 // ---------------------------------------------------------------------------
@@ -317,7 +330,7 @@ export async function upsertLore(
   const now = new Date().toISOString();
   const contentJson = JSON.stringify(input.content ?? {});
 
-  const conn = await instance.connect();
+  const conn = await openWriteConn(instance);
   try {
     const existingResult = await conn.runAndReadAll(
       `SELECT canonical, aliases, metadata FROM lore_entities WHERE id = ?`,
@@ -492,7 +505,7 @@ export async function linkLore(
   input: LinkLoreInput,
 ): Promise<{ from_id: string; to_id: string; relation: string }> {
   const instance = await getDb(campaignPath);
-  const conn = await instance.connect();
+  const conn = await openWriteConn(instance);
   try {
     const fromId = await resolveId(conn, input.from);
     const toId = await resolveId(conn, input.to);

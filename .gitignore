@@ -2,3 +2,4 @@ LocalPreferences.toml
 .worktrees/
 campaigns/
 data/ironsworn/classic.json
+data/ironsworn/*.duckdb

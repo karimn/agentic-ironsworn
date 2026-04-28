@@ -16,6 +16,7 @@ interface OracleEntry {
 
 interface OracleTable {
   name: string;
+  aliases?: string[];
   dice: "d6" | "d10" | "d100";
   rolls: OracleEntry[];
 }
@@ -80,8 +81,11 @@ function getOracles(): OracleTable[] {
 
 export function rollOracle(tableName: string): OracleRollResult {
   const oracles = getOracles();
+  const needle = tableName.toLowerCase();
   const table = oracles.find(
-    (t) => t.name.toLowerCase() === tableName.toLowerCase(),
+    (t) =>
+      t.name.toLowerCase() === needle ||
+      t.aliases?.some((a) => a.toLowerCase() === needle),
   );
 
   if (!table) {
