@@ -262,15 +262,18 @@ export async function lookupMove(name: string): Promise<ChunkResult | null> {
   const conn = await instance.connect();
 
   try {
-    const sql = `SELECT id, text, heading_path, content_type, move_trigger, page,
-                        fts_main_chunks.match_bm25(id, ?) AS score
-                 FROM chunks
-                 WHERE fts_main_chunks.match_bm25(id, ?) IS NOT NULL
-                   AND content_type = 'move'
-                 ORDER BY score DESC
-                 LIMIT 1`;
+    const SCORE_THRESHOLD = 1.0;
+    const sql = `SELECT * FROM (
+                   SELECT id, text, heading_path, content_type, move_trigger, page,
+                          fts_main_chunks.match_bm25(id, ?) AS score
+                   FROM chunks
+                   WHERE fts_main_chunks.match_bm25(id, ?) IS NOT NULL
+                     AND content_type = 'move'
+                   ORDER BY score DESC
+                   LIMIT 1
+                 ) WHERE score > ?`;
 
-    const result = await conn.runAndReadAll(sql, [name, name]);
+    const result = await conn.runAndReadAll(sql, [name, name, SCORE_THRESHOLD]);
     const rows = result.getRowObjectsJS() as RawRow[];
 
     if (rows.length === 0) return null;
