@@ -13,6 +13,9 @@ import {
   clearDebility,
   overrideField,
   computeMomentumReset,
+  companionSufferHarm,
+  companionRestoreHealth,
+  upsertCompanion,
   DEBILITIES,
   Character,
 } from "./character.js";
@@ -28,6 +31,7 @@ const SAMPLE: Character = {
   debilities: Object.fromEntries(DEBILITIES.map((d) => [d, false])),
   assets: [],
   progressTracks: [],
+  companions: [],
   bonds: 0,
   customState: {},
 };
@@ -129,5 +133,90 @@ describe("overrideField", () => {
 
   it("throws on missing intermediate segment", async () => {
     await expect(overrideField(campaignDir, "notAField.sub", "x")).rejects.toThrow();
+  });
+});
+
+describe("upsertCompanion", () => {
+  it("adds a new companion", async () => {
+    const { after } = await upsertCompanion(campaignDir, "Grey", 4);
+    expect(after.companions).toHaveLength(1);
+    expect(after.companions[0]).toEqual({ name: "Grey", health: 4 });
+  });
+
+  it("updates health of an existing companion", async () => {
+    await upsertCompanion(campaignDir, "Grey", 4);
+    const { after } = await upsertCompanion(campaignDir, "Grey", 2);
+    expect(after.companions).toHaveLength(1);
+    expect(after.companions[0]!.health).toBe(2);
+  });
+
+  it("clamps health to 5 on upsert", async () => {
+    const { after } = await upsertCompanion(campaignDir, "Grey", 10);
+    expect(after.companions[0]!.health).toBe(5);
+  });
+
+  it("clamps health to 0 on upsert", async () => {
+    const { after } = await upsertCompanion(campaignDir, "Grey", -3);
+    expect(after.companions[0]!.health).toBe(0);
+  });
+});
+
+describe("companionSufferHarm", () => {
+  beforeEach(async () => {
+    await upsertCompanion(campaignDir, "Grey", 4);
+  });
+
+  it("reduces companion health", async () => {
+    const { after } = await companionSufferHarm(campaignDir, "Grey", 2);
+    expect(after.companions[0]!.health).toBe(2);
+  });
+
+  it("clamps companion health to 0", async () => {
+    const { after } = await companionSufferHarm(campaignDir, "Grey", 10);
+    expect(after.companions[0]!.health).toBe(0);
+  });
+
+  it("throws when companion not found", async () => {
+    await expect(companionSufferHarm(campaignDir, "Unknown", 1)).rejects.toThrow(
+      "Companion not found",
+    );
+  });
+
+  it("is case-insensitive for companion name", async () => {
+    const { after } = await companionSufferHarm(campaignDir, "grey", 1);
+    expect(after.companions[0]!.health).toBe(3);
+  });
+});
+
+describe("companionRestoreHealth", () => {
+  beforeEach(async () => {
+    await upsertCompanion(campaignDir, "Grey", 2);
+  });
+
+  it("restores companion health", async () => {
+    const { after } = await companionRestoreHealth(campaignDir, "Grey", 2);
+    expect(after.companions[0]!.health).toBe(4);
+  });
+
+  it("clamps companion health to 5", async () => {
+    const { after } = await companionRestoreHealth(campaignDir, "Grey", 10);
+    expect(after.companions[0]!.health).toBe(5);
+  });
+
+  it("throws when companion not found", async () => {
+    await expect(companionRestoreHealth(campaignDir, "Unknown", 1)).rejects.toThrow(
+      "Companion not found",
+    );
+  });
+});
+
+describe("loadCharacter backwards compat", () => {
+  it("defaults companions to [] when missing from JSON", async () => {
+    // Write a character file that lacks the companions field
+    const char = structuredClone(SAMPLE);
+    const { companions: _removed, ...charWithoutCompanions } = char as any;
+    await saveCharacter(campaignDir, charWithoutCompanions as any);
+    const loaded = await loadCharacter(campaignDir);
+    expect(loaded.companions).toEqual([]);
   });
 });

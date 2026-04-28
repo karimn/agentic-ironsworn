@@ -11,6 +11,11 @@ export interface Asset {
   customState?: Record<string, string>;
 }
 
+export interface Companion {
+  name: string;
+  health: number; // 0-5
+}
+
 export interface ProgressTrack {
   name: string;
   rank: "troublesome" | "dangerous" | "formidable" | "extreme" | "epic";
@@ -36,6 +41,7 @@ export interface Character {
   debilities: Record<string, boolean>;
   assets: Asset[];
   progressTracks: ProgressTrack[];
+  companions: Companion[];
   bonds: number;
   customState: Record<string, string>;
 }
@@ -90,7 +96,9 @@ function journalPath(campaignPath: string): string {
 
 export async function loadCharacter(campaignPath: string): Promise<Character> {
   const raw = await readFile(characterPath(campaignPath), "utf-8");
-  return JSON.parse(raw) as Character;
+  const char = JSON.parse(raw) as Character;
+  char.companions ??= [];
+  return char;
 }
 
 export async function saveCharacter(
@@ -236,5 +244,48 @@ export async function overrideField(
 ): Promise<MutationResult> {
   return mutate(campaignPath, "overrideField", (char) => {
     setNestedField(char as unknown as Record<string, unknown>, path, value);
+  });
+}
+
+export async function companionSufferHarm(
+  campaignPath: string,
+  name: string,
+  n: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "companionSufferHarm", (char) => {
+    const companion = char.companions.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (!companion) {
+      throw new Error(`Companion not found: "${name}"`);
+    }
+    companion.health = clamp(companion.health - n, 0, 5);
+  });
+}
+
+export async function companionRestoreHealth(
+  campaignPath: string,
+  name: string,
+  n: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "companionRestoreHealth", (char) => {
+    const companion = char.companions.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (!companion) {
+      throw new Error(`Companion not found: "${name}"`);
+    }
+    companion.health = clamp(companion.health + n, 0, 5);
+  });
+}
+
+export async function upsertCompanion(
+  campaignPath: string,
+  name: string,
+  health: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "upsertCompanion", (char) => {
+    const existing = char.companions.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.health = clamp(health, 0, 5);
+    } else {
+      char.companions.push({ name, health: clamp(health, 0, 5) });
+    }
   });
 }
