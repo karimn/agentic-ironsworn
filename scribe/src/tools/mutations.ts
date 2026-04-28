@@ -14,6 +14,9 @@ import {
   clearDebility,
   overrideField,
   appendJournal,
+  companionSufferHarm,
+  companionRestoreHealth,
+  upsertCompanion,
   Character,
 } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
@@ -389,6 +392,80 @@ export function register(server: McpServer, campaignPath: string): void {
         await saveCharacter(campaignPath, entry.before);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, restored: characterDigest(entry.before) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+  server.tool(
+    "companion_suffer_harm",
+    "Reduce a companion's health by n points",
+    {
+      companion_name: z.string().describe("Name of the companion (case-insensitive)"),
+      n: z.number().int().positive().describe("Amount of harm to suffer"),
+    },
+    async ({ companion_name, n }) => {
+      try {
+        const result = await companionSufferHarm(campaignPath, companion_name, n);
+        const companion = result.after.companions.find(
+          (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, companion }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "companion_restore_health",
+    "Restore a companion's health by n points",
+    {
+      companion_name: z.string().describe("Name of the companion (case-insensitive)"),
+      n: z.number().int().positive().describe("Amount of health to restore"),
+    },
+    async ({ companion_name, n }) => {
+      try {
+        const result = await companionRestoreHealth(campaignPath, companion_name, n);
+        const companion = result.after.companions.find(
+          (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, companion }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "upsert_companion",
+    "Add a new companion or update an existing companion's health",
+    {
+      companion_name: z.string().describe("Name of the companion"),
+      health: z.number().int().min(0).max(5).describe("Health value (0-5)"),
+    },
+    async ({ companion_name, health }) => {
+      try {
+        const result = await upsertCompanion(campaignPath, companion_name, health);
+        const companion = result.after.companions.find(
+          (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, companion }) }],
         };
       } catch (e) {
         return {
