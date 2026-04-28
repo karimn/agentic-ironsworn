@@ -10,6 +10,8 @@ import {
   inflictDebility,
   clearDebility,
   overrideField,
+  gainExperience,
+  spendExperience,
   appendJournal,
   Character,
 } from "../state/character.js";
@@ -329,6 +331,44 @@ export function register(server: McpServer, campaignPath: string): void {
         await saveCharacter(campaignPath, entry.before);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, restored: characterDigest(entry.before) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "gain_experience",
+    "Add experience points to the character",
+    { n: z.number().int().positive().describe("Amount of experience to gain") },
+    async ({ n }) => {
+      try {
+        const result = await gainExperience(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "spend_experience",
+    "Spend experience points from the character",
+    { n: z.number().int().positive().describe("Amount of experience to spend") },
+    async ({ n }) => {
+      try {
+        const result = await spendExperience(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
         };
       } catch (e) {
         return {

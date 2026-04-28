@@ -37,6 +37,7 @@ export interface Character {
   assets: Asset[];
   progressTracks: ProgressTrack[];
   bonds: number;
+  experience: number;
   customState: Record<string, string>;
 }
 
@@ -90,7 +91,9 @@ function journalPath(campaignPath: string): string {
 
 export async function loadCharacter(campaignPath: string): Promise<Character> {
   const raw = await readFile(characterPath(campaignPath), "utf-8");
-  return JSON.parse(raw) as Character;
+  const char = JSON.parse(raw) as Character;
+  (char as any).experience ??= 0;
+  return char;
 }
 
 export async function saveCharacter(
@@ -236,5 +239,32 @@ export async function overrideField(
 ): Promise<MutationResult> {
   return mutate(campaignPath, "overrideField", (char) => {
     setNestedField(char as unknown as Record<string, unknown>, path, value);
+  });
+}
+
+export async function gainExperience(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  if (n <= 0) {
+    throw new Error("n must be a positive integer");
+  }
+  return mutate(campaignPath, "gainExperience", (char) => {
+    char.experience += n;
+  });
+}
+
+export async function spendExperience(
+  campaignPath: string,
+  n: number,
+): Promise<MutationResult> {
+  if (n <= 0) {
+    throw new Error("n must be a positive integer");
+  }
+  return mutate(campaignPath, "spendExperience", (char) => {
+    if (char.experience < n) {
+      throw new Error(`Insufficient experience: have ${char.experience}, need ${n}`);
+    }
+    char.experience -= n;
   });
 }

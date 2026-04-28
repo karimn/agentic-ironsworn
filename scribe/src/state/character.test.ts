@@ -12,6 +12,8 @@ import {
   inflictDebility,
   clearDebility,
   overrideField,
+  gainExperience,
+  spendExperience,
   computeMomentumReset,
   DEBILITIES,
   Character,
@@ -29,6 +31,7 @@ const SAMPLE: Character = {
   assets: [],
   progressTracks: [],
   bonds: 0,
+  experience: 0,
   customState: {},
 };
 
@@ -129,5 +132,30 @@ describe("overrideField", () => {
 
   it("throws on missing intermediate segment", async () => {
     await expect(overrideField(campaignDir, "notAField.sub", "x")).rejects.toThrow();
+  });
+});
+
+describe("gainExperience", () => {
+  it("adds experience", async () => {
+    const { after } = await gainExperience(campaignDir, 3);
+    expect(after.experience).toBe(3);
+  });
+
+  it("accumulates experience across calls", async () => {
+    await gainExperience(campaignDir, 2);
+    const { after } = await gainExperience(campaignDir, 5);
+    expect(after.experience).toBe(7);
+  });
+});
+
+describe("spendExperience", () => {
+  it("deducts experience", async () => {
+    await gainExperience(campaignDir, 10);
+    const { after } = await spendExperience(campaignDir, 4);
+    expect(after.experience).toBe(6);
+  });
+
+  it("throws when experience is insufficient", async () => {
+    await expect(spendExperience(campaignDir, 5)).rejects.toThrow("Insufficient experience");
   });
 });
