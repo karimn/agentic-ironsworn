@@ -169,10 +169,10 @@ async function mutate(
 
 export async function takeMomentum(
   campaignPath: string,
-  delta: number,
+  n: number,
 ): Promise<MutationResult> {
   return mutate(campaignPath, "takeMomentum", (char) => {
-    char.momentum = clamp(char.momentum + delta, -6, 10);
+    char.momentum = clamp(char.momentum + n, -6, 10);
   });
 }
 

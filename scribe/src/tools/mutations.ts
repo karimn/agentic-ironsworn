@@ -37,10 +37,10 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "take_momentum",
     "Add or remove momentum from the character",
-    { delta: z.number().int().describe("Amount to add (positive) or remove (negative)") },
-    async ({ delta }) => {
+    { n: z.number().int().describe("Amount to add (positive) or remove (negative)") },
+    async ({ n }) => {
       try {
-        const result = await takeMomentum(campaignPath, delta);
+        const result = await takeMomentum(campaignPath, n);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
