@@ -7,6 +7,9 @@ import {
   sufferHarm,
   sufferStress,
   consumeSupply,
+  restoreHealth,
+  restoreSpirit,
+  restoreSupply,
   inflictDebility,
   clearDebility,
   overrideField,
@@ -125,6 +128,63 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await consumeSupply(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "restore_health",
+    "Restore character health by n points (clamped to max 5)",
+    { n: z.number().int().positive().describe("Amount of health to restore") },
+    async ({ n }) => {
+      try {
+        const result = await restoreHealth(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "restore_spirit",
+    "Restore character spirit by n points (clamped to max 5)",
+    { n: z.number().int().positive().describe("Amount of spirit to restore") },
+    async ({ n }) => {
+      try {
+        const result = await restoreSpirit(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "restore_supply",
+    "Restore character supply by n points (clamped to max 5)",
+    { n: z.number().int().positive().describe("Amount of supply to restore") },
+    async ({ n }) => {
+      try {
+        const result = await restoreSupply(campaignPath, n);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
