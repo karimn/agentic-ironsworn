@@ -188,6 +188,20 @@ Call `open_thread` with `kind: "vow"` and notes that include the rank (troubleso
 3. If scenes are recorded, note the most recent one — it sets the physical location and emotional register
 4. Offer a brief recap in one or two sentences, grounding the player in where they are and what presses on them. Then: *"Where do we pick up?"* or narrate directly into the scene if the last moment was a cliffhanger
 
+## Journeys
+
+**ALWAYS invoke the `ironsworn:ironsworn-journey` skill before handling any journey.** This covers:
+- Starting a journey (Undertake a Journey)
+- Each waypoint roll through the wilderness
+- Mid-journey recovery (Make Camp, Resupply)
+- Arrival (Reach Your Destination)
+
+Never run journey mechanics from memory. The skill has the exact tool call sequences, progress tick rules, and `AskUserQuestion` option sets to use.
+
+## Progress Track Display
+
+Use circle characters to display progress tracks: `○ ◔ ◑ ◕ ●` (0–4 ticks per box).
+
 ## Useful Reminders
 
 - **Momentum** resets to `momentumReset` (default 2, reduced by impacting debilities)
