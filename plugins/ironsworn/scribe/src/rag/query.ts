@@ -9,18 +9,24 @@ import { fileURLToPath } from "node:url";
 const OLLAMA_BASE_URL =
   process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
 
-const DB_PATH = (() => {
-  const envPath = process.env["DB_PATH"];
-  if (envPath) return envPath;
-  // scribe/src/rag/ → scribe/src/ → scribe/ → repo root
-  const repoRoot = resolve(
+export function resolveDbPath(): string {
+  const explicit = process.env["DB_PATH"];
+  if (explicit) return explicit;
+
+  const pluginRoot = process.env["SCRIBE_PLUGIN_ROOT"];
+  if (pluginRoot) {
+    return resolve(pluginRoot, "data", "ironsworn", "ironsworn.duckdb");
+  }
+
+  // Dev fallback: scribe/src/rag/ → scribe/src/ → scribe/ → plugin root
+  const pluginRootFallback = resolve(
     dirname(fileURLToPath(import.meta.url)),
     "..",
     "..",
     "..",
   );
-  return resolve(repoRoot, "data", "ironsworn", "ironsworn.duckdb");
-})();
+  return resolve(pluginRootFallback, "data", "ironsworn", "ironsworn.duckdb");
+}
 
 // ---------------------------------------------------------------------------
 // Lazy singleton DB instance
@@ -30,7 +36,7 @@ let _instancePromise: Promise<DuckDBInstance> | null = null;
 
 function getInstance(): Promise<DuckDBInstance> {
   if (_instancePromise === null) {
-    _instancePromise = DuckDBInstance.create(DB_PATH, { access_mode: "READ_ONLY" });
+    _instancePromise = DuckDBInstance.create(resolveDbPath(), { access_mode: "READ_ONLY" });
   }
   return _instancePromise;
 }
