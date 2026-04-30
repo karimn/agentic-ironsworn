@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "scribe": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/scribe/src/server.ts"],
+      "env": {
+        "SCRIBE_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+        "SCRIBE_CAMPAIGN": "campaigns/default",
+        "OLLAMA_BASE_URL": "http://localhost:11434"
+      }
+    }
+  }
+}

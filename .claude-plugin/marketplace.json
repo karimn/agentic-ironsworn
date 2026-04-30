@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agentic-ironsworn",
+  "description": "Tabletop RPG plugins for Claude Code — solo play companions with full rules engines",
+  "owner": {
+    "name": "Karim Naguib"
+  },
+  "plugins": [
+    {
+      "name": "ironsworn",
+      "description": "Solo Ironsworn GM companion — fiction-first, dice-driven, with a living lore graph",
+      "category": "games",
+      "source": "./plugins/ironsworn"
+    }
+  ]
+}
