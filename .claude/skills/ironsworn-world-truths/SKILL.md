@@ -21,9 +21,16 @@ to the lore graph so it's retrievable mid-play.
 Work through the truths **in order, one at a time**. For each truth:
 
 1. **Introduce** the category with one evocative sentence. Make the Ironlands feel present, not abstract.
-2. **Present options** — usually A, B, C from the list below, but offer to build something custom if none fit.
-   Adapt the options based on what was established earlier (see *Adaptive Logic* below).
-3. **Wait for the player's choice.** Don't rush. Ask a follow-up if their answer opens an interesting question.
+2. **Present options** using `AskUserQuestion` with options A, B, C plus a custom option. Use the option text from the list below as the `description` field. Adapt based on what was established earlier (see *Adaptive Logic*).
+   ```
+   question: "[Category] — [the framing question]"
+   options:
+     - value: "A"      label: "A"      description: "[exact option A text from the list]"
+     - value: "B"      label: "B"      description: "[exact option B text from the list]"
+     - value: "C"      label: "C"      description: "[exact option C text from the list]"
+     - value: "custom" label: "Custom" description: "Build something specific to this world."
+   ```
+3. If the player picks **Custom**, ask a follow-up in prose: "What's true about [category] in this world?"
 4. **Lock it** with a bold **Locked.** followed by one crisp, specific sentence that captures the truth.
 5. **Immediately call `upsert_lore`** — don't batch. If the session breaks here, nothing is lost.
 6. Continue to the next truth.
