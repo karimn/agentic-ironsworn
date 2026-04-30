@@ -1,0 +1,864 @@
+# Ironsworn Assets
+# Source: Ironsworn by Shawn Tomkin (CC BY 4.0)
+# All assets have three abilities. Only the first (default: true) is active at character creation.
+# Companions include a health field for the starting health track value.
+
+# ─── Combat Talents ──────────────────────────────────────────────────────────
+
+- name: Archer
+  type: combat_talent
+  requires: "If you wield a bow"
+  abilities:
+    - text: "When you Secure an Advantage by taking a moment to aim, choose your approach and add +1. * Trust your instincts: Roll +wits, and take +2 momentum on a hit. * Aim carefully: Roll +edge, and take +2 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Berserker
+  type: combat_talent
+  requires: "If you are clad only in animal pelts"
+  abilities:
+    - text: "When you Secure an Advantage or Compel by embodying your wild nature, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Brawler
+  type: combat_talent
+  requires: "If you are unarmed or fighting with a non-deadly weapon"
+  abilities:
+    - text: "When you Secure an Advantage +iron by engaging in close-quarters brawling (such as punching, tripping, or grappling), add +1. If you score a hit, you may push your luck."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Cutthroat
+  type: combat_talent
+  requires: "If you wield a dagger or knife"
+  abilities:
+    - text: "When you are in position to Strike at an unsuspecting foe, choose one (before rolling). * Add +2 and take +1 momentum on a hit. * Inflict +1 harm on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Duelist
+  type: combat_talent
+  requires: "If you wield a bladed weapon in each hand"
+  abilities:
+    - text: "When you Strike or Clash, you may add +2. If you do (decide before rolling), inflict +1 harm on a strong hit and count a weak hit as a miss."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Fletcher
+  type: combat_talent
+  abilities:
+    - text: "When you Secure an Advantage by crafting arrows of fine quality, add +1. Then, take +1 supply or +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Ironclad
+  type: combat_talent
+  requires: "If you wear armor"
+  abilities:
+    - text: "When you equip or adjust your armor, choose one. * Lightly armored: When you Endure Harm in a fight, add +1 and take +1 momentum on a hit. * Gird yourself: Take +1 momentum."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Long-Arm
+  type: combat_talent
+  requires: "If you wield a staff"
+  abilities:
+    - text: "In your hands, a humble staff is a deadly weapon (2 harm). When you instead use it as a simple weapon (1 harm), you may Strike or Clash +wits (instead of iron) as you find your foe's opening."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Shield-Bearer
+  type: combat_talent
+  requires: "If you wield a shield"
+  abilities:
+    - text: "When you Face Danger using your shield as cover, add +1. When you Clash in close quarters, take +1 momentum on a strong hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Skirmisher
+  type: combat_talent
+  requires: "If you wield a spear"
+  abilities:
+    - text: "When you Face Danger by holding a foe at bay using your spear's reach, roll +iron or +edge. If you score a hit, you may Strike with your spear."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Slinger
+  type: combat_talent
+  requires: "If you wield a sling"
+  abilities:
+    - text: "When launched from a sling, a simple stone inflicts deadly harm (2 harm). When you Enter the Fray by barraging your foe with sling-bullets, roll +edge."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Sunderer
+  type: combat_talent
+  requires: "If you wield an axe"
+  abilities:
+    - text: "When you Strike or Clash in close quarters, you may suffer -1 momentum and inflict +1 harm on a hit (decide before rolling)."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Swordmaster
+  type: combat_talent
+  requires: "If you wield a sword"
+  abilities:
+    - text: "When you Strike or Clash and burn momentum to improve your result, inflict +2 harm. If the fight continues, add +1 on your next move."
+      default: true
+    - text: "When you Swear an Iron Vow to someone who has bested you in combat, add +1. If you then Fulfill the Vow, take +2 spirit and +1 experience."
+      default: false
+    - text: "When you study a foe's tactics before or during a fight, you may Secure an Advantage +shadow (instead of wits). On a hit, also take +1 momentum."
+      default: false
+
+- name: Thunder-Bringer
+  type: combat_talent
+  requires: "If you wield a mighty hammer"
+  abilities:
+    - text: "When you Face Danger, Secure an Advantage, or Compel by hitting or breaking an inanimate object, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+# ─── Companion Assets ────────────────────────────────────────────────────────
+
+- name: Cave Lion
+  type: companion
+  health: 3
+  requires: "Your cat takes down its prey"
+  abilities:
+    - name: Eager
+      text: "When your cat chases down big game, you may Resupply with +edge (instead of +wits). If you do, take +1 supply or +1 momentum on a strong hit."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Giant Spider
+  type: companion
+  health: 2
+  requires: "Your spider uncovers secrets"
+  abilities:
+    - name: Discreet
+      text: "When you Secure an Advantage by sending your spider to scout a place, add +1 and take +1 momentum on a hit."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Hawk
+  type: companion
+  health: 3
+  requires: "Your hawk can aid you while it is aloft"
+  abilities:
+    - name: Far-seeing
+      text: "When you Undertake a Journey, or when you Resupply by hunting for small game, add +1."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Horse
+  type: companion
+  health: 5
+  requires: "You and your horse ride as one"
+  abilities:
+    - name: Swift
+      text: "When you Face Danger +edge using your horse's speed and grace, or when you Undertake a Journey, add +1."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Hound
+  type: companion
+  health: 4
+  requires: "Your hound is your steadfast companion"
+  abilities:
+    - name: Sharp
+      text: "When you Gather Information using your hound's keen senses to track your quarry or investigate a scene, add +1 and take +1 momentum on a hit. When you Secure an Advantage by sending your hound to scout a path, add +1 and take +1 momentum on a hit."
+      default: true
+    - name: Loyal
+      text: "When you make a move aided by your hound's loyalty and companionship, add +1."
+      default: false
+    - name: Tenacious
+      text: "When your hound pursues a quarry, you may Secure an Advantage +wits. On a hit, your hound has the quarry cornered or at bay; take +2 momentum."
+      default: false
+
+- name: Kindred
+  type: companion
+  requires: "Your friend stands by you"
+  abilities:
+    - name: Skilled
+      text: "When you make a move outside of combat aided by your companion's expertise, add +1."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Mammoth
+  type: companion
+  health: 5
+  requires: "Your mammoth walks a resolute path"
+  abilities:
+    - name: Lumbering
+      text: "When your mammoth travels with you as you Undertake a Journey, you may add +2 but suffer -1 momentum (decide before rolling)."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Owl
+  type: companion
+  health: 3
+  requires: "Your owl soars through the darkness"
+  abilities:
+    - name: Nocturnal
+      text: "If you Resupply at night by sending your owl to hunt, take +2 momentum on a hit. When you Enter the Fray +wits against an ambush in darkness, add +1."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Raven
+  type: companion
+  health: 2
+  requires: "Your raven heeds your call"
+  abilities:
+    - name: Sly
+      text: "When you Secure an Advantage or Face Danger +shadow using your raven to perform trickery (such as creating a distraction or stealing a small object), add +1 and take +1 momentum on a hit."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+- name: Young Wyvern
+  type: companion
+  health: 3
+  requires: "Your wyvern won't devour you. For now"
+  abilities:
+    - name: Insatiable
+      text: "When you Undertake a Journey and score a hit, you may suffer -1 supply in exchange for +2 momentum."
+      default: true
+    - name: ""
+      text: ""
+      default: false
+    - name: ""
+      text: ""
+      default: false
+
+# ─── Path Assets ─────────────────────────────────────────────────────────────
+
+- name: Alchemist
+  type: path
+  abilities:
+    - text: "When you create an elixir, choose an effect: Deftness (edge), audacity (heart), vigor (iron), slyness (shadow), or clarity (wits). Then roll +wits. On a strong hit, create two doses. On a weak hit, create one. When you drink an elixir, add +1 and use that stat in place of any other for one move."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Animal Kin
+  type: path
+  abilities:
+    - text: "When you make a move to pacify, calm, control, aid, or fend off an animal (or an animal or beast companion), add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Banner-Sworn
+  type: path
+  requires: "Once you mark a bond with a leader or faction"
+  abilities:
+    - text: "When you Swear an Iron Vow to serve your leader or faction on a mission, you may reroll any dice. When you Fulfill Your Vow and return to your leader, take +2 experience."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Battle-Scarred
+  type: path
+  requires: "Once you become maimed"
+  abilities:
+    - text: "You focus your energies: Reduce your edge or iron by 1 and add +2 to wits or heart, or +1 to each (to a maximum of +4)."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Blade-Bound
+  type: path
+  requires: "Once you mark a bond with a kin-blade, a sentient weapon imbued with the spirit of your ancestor"
+  abilities:
+    - text: "When you Enter the Fray or Draw the Circle while wielding your kin-blade, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Bonded
+  type: path
+  abilities:
+    - text: "When you make a move which gives you an add for sharing a bond, add +1 more."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Commander
+  type: path
+  abilities:
+    - text: "You lead a warband with +4 strength. Roll +strength when you command your warband to Face Danger, Secure an Advantage, Compel, or Battle."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Dancer
+  type: path
+  abilities:
+    - text: "When you Secure an Advantage +edge by dancing for an audience, add +1 and take +2 momentum on a hit. On a strong hit, also add +2 (one time only) when you make your next move."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Devotant
+  type: path
+  abilities:
+    - text: "When you say your daily prayers, you may Secure an Advantage by asking your god to grant a blessing. If you do, roll +your god's stat. On a strong hit, take +2 momentum. On a weak hit, take +1 momentum."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Empowered
+  type: path
+  abilities:
+    - text: "When you Sojourn and score a weak hit or miss, you may claim the rights of hospitality warranted by your title or lineage. If you do, roll +heart. On a strong hit, take +2 momentum. On a weak hit, take +1 momentum."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Fated
+  type: path
+  abilities:
+    - text: "When you Face Death or Face Desolation while your epic background vow is unfulfilled, it is not yet your time. Instead of rolling, you may choose to survive and press on."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Fortune Hunter
+  type: path
+  abilities:
+    - text: "When you Swear an Iron Vow to someone under the promise of payment, add +1 and give the quest a special mark. When you successfully Fulfill the Vow, take the payment and +1 experience."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Herbalist
+  type: path
+  abilities:
+    - text: "When you attempt to Heal using herbal remedies, and you have at least +1 supply, choose one (decide before rolling). * Add +2. * On a hit, take +1 supply."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Honorbound
+  type: path
+  abilities:
+    - text: "When you Turn the Tide, envision how your vows give you strength in this moment. Then, when you make your move, add +2 (instead of +1) and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Improviser
+  type: path
+  abilities:
+    - text: "When you Check Your Gear, you may roll +wits (instead of +supply). If you do, envision how you make do with a clever solution, and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Infiltrator
+  type: path
+  abilities:
+    - text: "When you make a move to breach, traverse, or hide within an area held by an enemy, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Lorekeeper
+  type: path
+  abilities:
+    - text: "You are the bearer of a mystical archive. When you Secure an Advantage or Gather Information using lore recalled from your studies, add +1."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Loyalist
+  type: path
+  abilities:
+    - text: "When you Aid Your Ally, add +1 and take +1 momentum on a hit. This is in addition to the benefits taken by your ally."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Masked
+  type: path
+  requires: "Once you mark a bond with elves, and are gifted a mask of precious elderwood"
+  abilities:
+    - text: "Choose your mask's material and add +1 to two linked stats (max +4 each). * Thunderwood: Edge / Health * Bloodwood: Iron / Health * Ghostwood: Shadow / Spirit * Whisperwood: Wits / Spirit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Oathbreaker
+  type: path
+  requires: "Once you Forsake Your Vow"
+  abilities:
+    - text: "This asset counts as a debility. One time only, when you Swear an Iron Vow to redeem yourself (extreme or greater), give that vow a special mark. When you Fulfill the Vow, clear this asset and take +3 experience."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Outcast
+  type: path
+  abilities:
+    - text: "When your supply is reduced to 0, suffer any remaining -supply as -momentum. Then, roll +wits. On a strong hit, you manage to scrape by and take +1 supply."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Pretender
+  type: path
+  abilities:
+    - text: "When you establish a false identity, roll +shadow. On a strong hit, you may add +2 when you make moves using this identity to deceive or hide."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Revenant
+  type: path
+  requires: "Once you Face Death and return to the world of the living"
+  abilities:
+    - text: "When you are at 0 health, and Endure Harm or Face Death, add +1. If you then burn momentum to improve your result, envision what bond or vow keeps you in the world."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Rider
+  type: path
+  requires: "If you are with your horse companion"
+  abilities:
+    - text: "When you Heal your horse, or when you Face Danger to calm or encourage it, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Ritualist
+  type: path
+  requires: "Once you Fulfill Your Vow (formidable or greater) in service to an elder mystic, and Forge a Bond to train with them"
+  abilities:
+    - text: "When you Secure an Advantage to ready yourself for a ritual, envision how you prepare. Then, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Shadow-Kin
+  type: path
+  requires: "Once you become corrupted"
+  abilities:
+    - text: "You harden your heart: Reduce your heart stat by 1 and add up to +2 to shadow (to a maximum of +4)."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Sighted
+  type: path
+  abilities:
+    - text: "When you Face Danger or Gather Information to identify or detect mystic forces, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Slayer
+  type: path
+  abilities:
+    - text: "When you Gather Information by tracking a beast or horror, or when you Secure an Advantage by readying yourself for a fight against them, add +1 and take +2 momentum on a hit."
+      default: true
+    - text: "When you Strike or Clash against a beast or horror, add +1. Take +1 momentum on a weak hit."
+      default: false
+    - text: "When you kill a notable beast or horror, you may call upon your experience. If you do, add +1 when you make moves against a beast or horror in your next fight."
+      default: false
+
+- name: Spirit-Bound
+  type: path
+  abilities:
+    - text: "You are haunted by someone whose death you caused through your actions or failures. When you consult with their spirit to Secure an Advantage or Gather Information, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Storyweaver
+  type: path
+  abilities:
+    - text: "When you Secure an Advantage, Compel, or Forge a Bond by sharing an inspiring or enlightening song, poem, or tale, envision the story you tell. Then, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Trickster
+  type: path
+  abilities:
+    - text: "When you Face Danger, Secure an Advantage, or Compel by lying, bluffing, stealing, or cheating, add +1."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Veteran
+  type: path
+  abilities:
+    - text: "When you burn momentum to improve your result in combat, envision how your hard-won fighting experience gives you the upper hand. Then, take +1 momentum after the burn."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Waterborn
+  type: path
+  abilities:
+    - text: "When you Face Danger, Gather Information, or Secure an Advantage related to your knowledge of watercraft, water travel, or aquatic environments, add +1."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Wayfinder
+  type: path
+  abilities:
+    - text: "When you Undertake a Journey, take +1 momentum on a strong hit. If you burn momentum to improve your result, also take +1 momentum after the burn."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Weaponmaster
+  type: path
+  requires: "Once you Fulfill Your Vow (formidable or greater) in service to a seasoned warrior, and Forge a Bond to train with them"
+  abilities:
+    - text: "When you Secure an Advantage by sizing up your foe in a fight, or in a charged situation which may lead to a fight, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Wildblood
+  type: path
+  abilities:
+    - text: "When you Face Danger, Secure an Advantage, or Gather Information using your knowledge of tracking, woodcraft, or woodland creatures, add +1."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Wright
+  type: path
+  abilities:
+    - text: "When you Secure an Advantage by crafting a useful item using your specialty, or when you Face Danger to create or repair an item in a perilous situation, add +1 and take +1 momentum on a hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+# ─── Ritual Assets ───────────────────────────────────────────────────────────
+
+- name: Augur
+  type: ritual
+  abilities:
+    - text: "When you summon a flock of crows and ask a single question, roll +wits. On a strong hit, you interpret their calls as a helpful omen. Envision the answer and take +2 momentum. On a weak hit, the answer is unclear."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Awakening
+  type: ritual
+  abilities:
+    - text: "When you create a simulacrum, roll +heart. On a strong hit, your creation is given unnatural life. If it aids you as you make a move, treat a weak hit as a strong hit."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Bind
+  type: ritual
+  abilities:
+    - text: "When you wear an animal pelt and dance in moonlight, roll +wits. On a strong hit, you or an ally may wear the pelt and add +1 when making moves that call upon the nature of that animal."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Communion
+  type: ritual
+  abilities:
+    - text: "When you surround the remains of a recently deceased intelligent creature with lit candles, and summon its spirit, roll +heart. Add +1 if you share a bond with the spirit. On a strong hit, you may ask it three questions."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Divination
+  type: ritual
+  abilities:
+    - text: "When you take a drop of blood from a willing subject (not yourself) and cast the rune-carved stones, roll +heart. On a strong hit, you may ask two questions about the subject."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Invoke
+  type: ritual
+  abilities:
+    - text: "When you consume the mystical essence of your surroundings, roll +wits. On a strong hit, add the value of your action die to your essence track (max 6)."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Keen
+  type: ritual
+  abilities:
+    - text: "When you hold a weapon and sing a keen for those it has killed, roll +heart. On a strong hit, the wielder inflicts +1 harm when they Strike or Clash (one fight)."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Leech
+  type: ritual
+  abilities:
+    - text: "When you mark your hands or weapon with an intricate blood rune, roll +iron. On a strong hit, the rune thirsts for fresh blood. One time only, when you Strike or Clash and score a hit, take +2 health."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Lightbearer
+  type: ritual
+  abilities:
+    - text: "When you focus on a source of light and capture its essence, roll +wits. On a strong hit, set your light track to +6. On a weak hit, set it to +3."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Scry
+  type: ritual
+  abilities:
+    - text: "When you look into flames to study a remote person or location, roll +shadow. You or someone with you must have knowledge of the target. On a strong hit, you may study it at will for the rest of the scene."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Shadow-Walk
+  type: ritual
+  abilities:
+    - text: "When you cloak yourself with the gossamer veil of the shadow realms, roll +shadow. On a strong hit, take +1 momentum. Then, reroll any dice (one time only) when you make a move by ambushing or hiding."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Sway
+  type: ritual
+  abilities:
+    - text: "When you speak a person's name three times to the wind, roll +wits. On a strong hit, the wind whispers of this person's need. Envision what it tells you and take +2 momentum."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Talisman
+  type: ritual
+  abilities:
+    - text: "When you fashion a charm, envision it and name the specific person or creature it protects against. Then roll +wits. On a strong hit, when the wearer Endures Harm or Endures Stress caused by your named foe, add +2."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Tether
+  type: ritual
+  abilities:
+    - text: "When you commune with the spirits of a place, roll +heart. If you share a bond with someone there, add +1. On a strong hit, you are bound to this place. When you return, take +2 momentum."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Totem
+  type: ritual
+  abilities:
+    - text: "When you hold a totem of your animal or beast companion and focus on it, roll +heart. On a strong hit, you are bound together. Add +1 and take +1 momentum when your companion aids you on your next move."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Visage
+  type: ritual
+  abilities:
+    - text: "When you paint yourself in blood and ash, roll +wits. On a strong hit, you may add +2 and take +1 momentum on a hit when you Secure an Advantage +shadow to intimidate or unsettle."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
+
+- name: Ward
+  type: ritual
+  abilities:
+    - text: "When you walk a wide circle, sprinkling the ground with salt, roll +wits. On a strong hit, choose two. On a weak hit, choose one. * When a foe first crosses the ward, take +2 momentum. * A foe cannot cross the ward without first breaking it. * The ward lasts for a day."
+      default: true
+    - text: ""
+      default: false
+    - text: ""
+      default: false
