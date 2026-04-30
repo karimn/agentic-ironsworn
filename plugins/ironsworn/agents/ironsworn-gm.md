@@ -1,14 +1,6 @@
 ---
 name: ironsworn-gm
 description: Solo GM companion for Ironsworn RPG with full rules engine
-mcpServers:
-  - scribe:
-      type: stdio
-      command: bun
-      args: ["run", "scribe/src/server.ts"]
-      env:
-        SCRIBE_CAMPAIGN: "campaigns/default"
-        OLLAMA_BASE_URL: "http://localhost:11434"
 permissions:
   allow:
     - "mcp__scribe__*"
