@@ -774,3 +774,75 @@ export async function listProvenance(
     conn.closeSync();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Export / Import helpers
+// ---------------------------------------------------------------------------
+
+export interface LoreEntityExport {
+  id: string;
+  canonical: string;
+  aliases: string[];
+  type: string;
+  summary: string;
+  content: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoreRelationExport {
+  from_id: string;
+  to_id: string;
+  relation: string;
+  notes?: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function exportLore(
+  campaignPath: string,
+): Promise<{ entities: LoreEntityExport[]; relations: LoreRelationExport[] }> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const entRows = (
+      await conn.runAndReadAll(
+        `SELECT id, canonical, aliases, type, summary, content, metadata, created_at, updated_at
+         FROM lore_entities ORDER BY created_at`,
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+
+    const relRows = (
+      await conn.runAndReadAll(
+        `SELECT from_id, to_id, relation, notes, metadata, created_at
+         FROM lore_relations ORDER BY created_at`,
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+
+    const entities: LoreEntityExport[] = entRows.map((r) => ({
+      id: String(r["id"]),
+      canonical: String(r["canonical"]),
+      aliases: Array.isArray(r["aliases"]) ? (r["aliases"] as unknown[]).map(String) : [],
+      type: String(r["type"]),
+      summary: String(r["summary"]),
+      content: JSON.parse(typeof r["content"] === "string" ? r["content"] : "{}") as Record<string, unknown>,
+      metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
+      created_at: String(r["created_at"]),
+      updated_at: String(r["updated_at"]),
+    }));
+
+    const relations: LoreRelationExport[] = relRows.map((r) => ({
+      from_id: String(r["from_id"]),
+      to_id: String(r["to_id"]),
+      relation: String(r["relation"]),
+      notes: r["notes"] != null ? String(r["notes"]) : undefined,
+      metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
+      created_at: String(r["created_at"]),
+    }));
+
+    return { entities, relations };
+  } finally {
+    conn.closeSync();
+  }
+}

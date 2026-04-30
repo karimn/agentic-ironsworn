@@ -24,10 +24,18 @@ what they suggest about the character's life so far.
 
 ## Two Modes
 
+Unless the player has already indicated their preference, open with `AskUserQuestion`:
+```
+question: "How would you like to build your character?"
+options:
+  - value: "guided"  label: "Guided"   description: "Walk through each step together — name, stats, assets, vows. Small detours into backstory welcome."
+  - value: "random"  label: "Random"   description: "I'll generate a complete character from oracles and present it. You can refine anything afterwards."
+defaultValue: "guided"
+```
+
 **Guided** (default): Walk through each step in conversation. Ask, listen, reflect back, confirm, then write.
 
-**Random**: If the player says "random", "surprise me", "just make something", or similar — roll on
-oracles for name and vow seeds, shuffle stats, pick thematic assets, and present the full character
+**Random**: Roll on oracles for name and vow seeds, shuffle stats, pick thematic assets, and present the full character
 as a fait accompli. Then let the player refine anything they want.
 
 ---
@@ -50,12 +58,16 @@ If they want to discover-as-we-go, that's fine — proceed and reflect back what
 
 ### Step 1: Name
 
-Ask for a name, or offer to roll one:
+Use `AskUserQuestion`:
+```
+question: "What's your character's name?"
+options:
+  - value: "player_named"  label: "I have a name in mind"  description: "Tell me and I'll record it."
+  - value: "roll_oracle"   label: "Roll on the oracle"     description: "I'll roll on Ironlander Names twice and offer both."
+  - value: "elf_names"     label: "Elf Names oracle"       description: "Roll on the Elf Names table instead."
+```
 
-> "What's your character's name? Or I can roll on the Ironlander Names oracle."
-
-If rolling: call `roll_oracle` with table "Ironlander Names" (or "Elf Names" if they want that).
-Roll twice and offer both options.
+If rolling: call `roll_oracle` with the chosen table twice and offer both results.
 
 **Write it:** `override("name", "...")` 
 

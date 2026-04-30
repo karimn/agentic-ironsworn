@@ -29,6 +29,8 @@ export interface MoveOutcome {
   effectsSuggested: Effect[];
   burnOffered: boolean;
   momentumBurned: boolean;
+  focused?: boolean;
+  focusedBonus?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +113,7 @@ export function resolveMove(
   statValue: number,
   momentum: number,
   adds?: number,
+  focused?: boolean,
 ): MoveOutcome {
   const effectiveAdds = adds ?? 0;
 
@@ -132,7 +135,11 @@ export function resolveMove(
   }
 
   const match = challengeDice[0] === challengeDice[1];
-  const burnOffered = momentum > 0 && momentum > actionScore;
+  const minChallenge = Math.min(challengeDice[0], challengeDice[1]);
+  const maxChallenge = Math.max(challengeDice[0], challengeDice[1]);
+  const burnOffered =
+    (band === "miss" && momentum > minChallenge) ||
+    (band === "weak_hit" && momentum > maxChallenge);
 
   // Look up move data
   const moves = getMoves();
@@ -140,13 +147,30 @@ export function resolveMove(
     (m) => m.name.toLowerCase() === moveName.toLowerCase(),
   );
 
-  const outcomeText = moveData?.outcomes?.[band] ?? "";
-  const effectsSuggested: Effect[] = (
-    moveData?.effects_by_band?.[band] ?? []
-  ).map((e) => ({ kind: e.kind, ...(e.amount !== undefined ? { amount: e.amount } : {}) }));
+  const FOCUSED_OUTCOME_TEXT: Record<Band, string> = {
+    strong_hit: "Focused: +2 to chosen recovery action",
+    weak_hit: "Focused: +1 to chosen recovery action",
+    miss: "Focused: no bonus",
+  };
+  const FOCUSED_BONUS: Record<Band, number> = {
+    strong_hit: 2,
+    weak_hit: 1,
+    miss: 0,
+  };
+
+  const resolvedMoveName = focused ? "Sojourn - Focused" : moveName;
+  const outcomeText = focused
+    ? FOCUSED_OUTCOME_TEXT[band]
+    : (moveData?.outcomes?.[band] ?? "");
+  const effectsSuggested: Effect[] = focused
+    ? []
+    : (moveData?.effects_by_band?.[band] ?? []).map((e) => ({
+        kind: e.kind,
+        ...(e.amount !== undefined ? { amount: e.amount } : {}),
+      }));
 
   return {
-    moveName,
+    moveName: resolvedMoveName,
     stat,
     statValue,
     adds: effectiveAdds,
@@ -159,5 +183,6 @@ export function resolveMove(
     effectsSuggested,
     burnOffered,
     momentumBurned: false,
+    ...(focused ? { focused: true, focusedBonus: FOCUSED_BONUS[band] } : {}),
   };
 }

@@ -49,7 +49,13 @@ Follow these steps on every player turn:
 
 2. **Detect a trigger** — If the player's fiction matches a move trigger (e.g., attempting something risky → Face Danger; making a vow → Swear an Iron Vow), name the move and the implied stat. If ambiguous, ask: "This feels like Face Danger on Edge — does that fit?"
 
-3. **Resolve mechanically** — Call `resolve_move` with the move name, stat, and any adds. Present the roll results clearly: action die, challenge dice, band. If `burnOffered` is true, offer the burn to the player: "You could burn your momentum (currently X) to turn this into a strong hit — do you want to?"
+3. **Resolve mechanically** — Call `resolve_move` with the move name, stat, and any adds. Present the roll results clearly: action die, challenge dice, band. If `burnOffered` is true, offer the burn using `AskUserQuestion`:
+   ```
+   question: "Your momentum is X. Burning it changes the outcome from [current band] to [better band]. Burn?"
+   options:
+     - value: "burn"   label: "Burn momentum"  description: "Outcome becomes [strong/weak hit]. Momentum resets to [resetTo]."
+     - value: "keep"   label: "Keep momentum"  description: "Accept the [current band]. Momentum stays at X."
+   ```
    Stop narrating. Wait for the player's answer before proceeding to Step 4.
 
 4. **Narrate the outcome** — Weave the `outcomeText` into the fiction. Don't just read the rules text — make it feel like the world responding.
@@ -143,13 +149,14 @@ Once the incident is clear: narrate a brief scene that makes it real. Don't ask 
 
 ### Step 4 — Set the Scene
 
-Offer the player a choice between two opening frames:
-
-**Normal world (prologue):** Begin before the incident. The character is in their daily life — the village, the road, a familiar place. The incident arrives during play. Good for players who want to ease in and establish who their character is before things go wrong.
-
-**In media res:** Begin at the crisis point. The village is burning. The messenger is dying. The usurper is already on the throne. Good for players who want immediate tension.
-
-If the player is unsure, default to **in media res** — it creates momentum.
+Offer the player a choice between two opening frames using `AskUserQuestion`:
+```
+question: "Where do we begin?"
+options:
+  - value: "prologue"   label: "Normal world"   description: "Begin before the incident — daily life, familiar ground. The crisis arrives during play. Good if you want to establish who your character is first."
+  - value: "in_medias"  label: "In media res"   description: "Begin at the crisis point. The village is burning. The messenger is dying. Immediate tension, immediate stakes."
+defaultValue: "in_medias"
+```
 
 Narrate the opening scene. Be specific. Pull from world truths. Don't describe a generic fantasy moment — describe *this* Ironlands, with its cold and its oath-debt and its particular darkness.
 
@@ -159,10 +166,16 @@ When the scene is set and the problem is visible, prompt the player to *Swear an
 
 Before the roll: ask the player to narrate the oath itself. How does their character swear? Iron blade, open wound, witness — whatever fits the character. This is a ceremony. Make it feel like one.
 
-Call `resolve_move` with move "Swear an Iron Vow" and the appropriate stat (heart for most). Apply the outcome:
-- **Strong hit:** "You are emboldened — what is your first move?" Hand control to the player.
-- **Weak hit:** "Your path forward is unclear." Narrate one complication or unknown, then ask what the character does next.
-- **Miss:** "An unexpected obstacle stands in your way." Roll or choose a danger using the oracle. Narrate it. The player must react immediately.
+Call `resolve_move` with move "Swear an Iron Vow" and the appropriate stat (heart for most). After narrating the outcome, on a **strong hit** prompt the player's first action using `AskUserQuestion`:
+```
+question: "You are emboldened. What is your first move?"
+options:
+  - value: "act"     label: "Act immediately"   description: "Name the first thing your character does."
+  - value: "prepare" label: "Gather information" description: "Scout, ask questions, or study the situation before committing."
+  - value: "travel"  label: "Set out"            description: "Begin the journey toward your vow."
+  - value: "other"   label: "Something else"     description: "Describe what your character does."
+```
+On a **weak hit** or **miss**, you narrate — no choice to offer. Drive consequences forward.
 
 Call `open_thread` with `kind: "vow"` and notes that include the rank (troublesome/dangerous/formidable).
 
@@ -181,3 +194,4 @@ Call `open_thread` with `kind: "vow"` and notes that include the rank (troubleso
 - **Progress tracks** advance by marks — call `tick_progress` after the player earns progress
 - **The oracle** (`roll_yes_no`, `roll_oracle`) is your friend when you're unsure what happens next
 - **Bonds** are tracked as a number — increment them when the player fulfills a bond move
+- **AskUserQuestion** — whenever the player faces a meaningful choice (move outcomes with multiple paths, burn offers, Sojourn recovery options, journey decisions), use `AskUserQuestion` with named options and descriptions rather than asking in prose. Include a `description` on each option explaining the consequence or flavour. Reserve prose questions for open-ended creative prompts (naming characters, describing actions).

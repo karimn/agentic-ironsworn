@@ -7,10 +7,18 @@ import {
   sufferHarm,
   sufferStress,
   consumeSupply,
+  restoreHealth,
+  restoreSpirit,
+  restoreSupply,
   inflictDebility,
   clearDebility,
   overrideField,
+  gainExperience,
+  spendExperience,
   appendJournal,
+  companionSufferHarm,
+  companionRestoreHealth,
+  upsertCompanion,
   Character,
 } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
@@ -30,6 +38,7 @@ function characterDigest(char: Character) {
     supply: char.supply,
     debilities: activeDebilities,
     bonds: char.bonds,
+    experience: char.experience,
   };
 }
 
@@ -37,10 +46,10 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "take_momentum",
     "Add or remove momentum from the character",
-    { delta: z.number().int().describe("Amount to add (positive) or remove (negative)") },
-    async ({ delta }) => {
+    { n: z.number().int().describe("Amount to add (positive) or remove (negative)") },
+    async ({ n }) => {
       try {
-        const result = await takeMomentum(campaignPath, delta);
+        const result = await takeMomentum(campaignPath, n);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -125,6 +134,63 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await consumeSupply(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "restore_health",
+    "Restore character health by n points (clamped to max 5)",
+    { n: z.number().int().positive().describe("Amount of health to restore") },
+    async ({ n }) => {
+      try {
+        const result = await restoreHealth(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "restore_spirit",
+    "Restore character spirit by n points (clamped to max 5)",
+    { n: z.number().int().positive().describe("Amount of spirit to restore") },
+    async ({ n }) => {
+      try {
+        const result = await restoreSpirit(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "restore_supply",
+    "Restore character supply by n points (clamped to max 5)",
+    { n: z.number().int().positive().describe("Amount of supply to restore") },
+    async ({ n }) => {
+      try {
+        const result = await restoreSupply(campaignPath, n);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -248,7 +314,14 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "fulfill_progress",
-    "Mark a progress track as completed",
+    [
+      "Fulfill a progress track: marks it completed and grants the character 1 XP.",
+      "",
+      "Canonical vow fulfillment flow:",
+      "1. roll_progress — roll against the vow's progress score to see the outcome",
+      "2. fulfill_progress — (this tool) marks the track complete and awards 1 XP",
+      "3. close_thread — narrative resolution; also marks the matching progress track completed",
+    ].join("\n"),
     { track_name: z.string().describe("Name of the progress track to fulfill (case-insensitive)") },
     async ({ track_name }) => {
       try {
@@ -262,10 +335,18 @@ export function register(server: McpServer, campaignPath: string): void {
             isError: true,
           };
         }
+        const before = structuredClone(character);
         character.progressTracks[idx]!.completed = true;
+        character.experience += 1;
         await saveCharacter(campaignPath, character);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "fulfillProgress",
+          before,
+          after: character,
+        });
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx] }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], experience: character.experience }) }],
         };
       } catch (e) {
         return {
@@ -329,6 +410,118 @@ export function register(server: McpServer, campaignPath: string): void {
         await saveCharacter(campaignPath, entry.before);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, restored: characterDigest(entry.before) }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+  server.tool(
+    "companion_suffer_harm",
+    "Reduce a companion's health by n points",
+    {
+      companion_name: z.string().describe("Name of the companion (case-insensitive)"),
+      n: z.number().int().positive().describe("Amount of harm to suffer"),
+    },
+    async ({ companion_name, n }) => {
+      try {
+        const result = await companionSufferHarm(campaignPath, companion_name, n);
+        const companion = result.after.companions.find(
+          (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, companion }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "companion_restore_health",
+    "Restore a companion's health by n points",
+    {
+      companion_name: z.string().describe("Name of the companion (case-insensitive)"),
+      n: z.number().int().positive().describe("Amount of health to restore"),
+    },
+    async ({ companion_name, n }) => {
+      try {
+        const result = await companionRestoreHealth(campaignPath, companion_name, n);
+        const companion = result.after.companions.find(
+          (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, companion }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "upsert_companion",
+    "Add a new companion or update an existing companion's health",
+    {
+      companion_name: z.string().describe("Name of the companion"),
+      health: z.number().int().min(0).max(5).describe("Health value (0-5)"),
+    },
+    async ({ companion_name, health }) => {
+      try {
+        const result = await upsertCompanion(campaignPath, companion_name, health);
+        const companion = result.after.companions.find(
+          (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, companion }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "gain_experience",
+    "Add experience points to the character",
+    { n: z.number().int().positive().describe("Amount of experience to gain") },
+    async ({ n }) => {
+      try {
+        const result = await gainExperience(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "spend_experience",
+    "Spend experience points from the character",
+    { n: z.number().int().positive().describe("Amount of experience to spend") },
+    async ({ n }) => {
+      try {
+        const result = await spendExperience(campaignPath, n);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
         };
       } catch (e) {
         return {
