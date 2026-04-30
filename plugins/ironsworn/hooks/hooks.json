@@ -1,0 +1,12 @@
+{
+  "SessionStart": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "if [ -f \"$PWD/.claude/.ironsworn-initialized\" ]; then exit 0; fi; printf '{\"additionalContext\": \"IMPORTANT: This folder has not been set up as an Ironsworn campaign yet. Before doing anything else, tell the user: This folder is not set up as an Ironsworn campaign yet. Would you like to run /ironsworn-init to set it up? If they say no or want to skip, create the file .claude/.ironsworn-initialized in the current directory so they are not asked again.\"}'"
+        }
+      ]
+    }
+  ]
+}
