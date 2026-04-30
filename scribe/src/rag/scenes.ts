@@ -160,6 +160,69 @@ export async function recordScene(
   }
 }
 
+export interface SceneExport {
+  id: string;
+  text: string;
+  timestamp: string;
+  kind: string;
+}
+
+export async function exportScenes(campaignPath: string): Promise<SceneExport[]> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const rows = (
+      await conn.runAndReadAll(
+        `SELECT id, text, timestamp, kind FROM scenes ORDER BY timestamp`,
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+    return rows.map((r) => ({
+      id: String(r["id"]),
+      text: String(r["text"]),
+      timestamp: String(r["timestamp"]),
+      kind: String(r["kind"]),
+    }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function importScene(
+  campaignPath: string,
+  id: string,
+  text: string,
+  timestamp: string,
+  kind: string,
+): Promise<boolean> {
+  const instance = await getDb(campaignPath);
+
+  const checkConn = await instance.connect();
+  let exists = false;
+  try {
+    const rows = (
+      await checkConn.runAndReadAll(`SELECT id FROM scenes WHERE id = ?`, [id])
+    ).getRowObjectsJS() as unknown[];
+    exists = rows.length > 0;
+  } finally {
+    checkConn.closeSync();
+  }
+  if (exists) return false;
+
+  const [embedding] = await Promise.all([getEmbedding(text)]);
+  const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+
+  const conn = await openWriteConn(instance);
+  try {
+    await conn.run(
+      `INSERT INTO scenes (id, text, embedding, timestamp, kind) VALUES (?, ?, ${embeddingLiteral}, ?, ?)`,
+      [id, text, timestamp, kind],
+    );
+    return true;
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function searchScenes(
   campaignPath: string,
   query: string,
