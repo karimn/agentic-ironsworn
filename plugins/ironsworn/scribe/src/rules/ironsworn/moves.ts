@@ -62,25 +62,33 @@ interface MoveData {
 // Load moves
 // ---------------------------------------------------------------------------
 
-// scribe/src/rules/ironsworn/ → 4 levels up → repo root
-const MOVES_PATH = (() => {
-  const repoRoot = resolve(
+// Prefer SCRIBE_PLUGIN_ROOT when running inside a Claude Code plugin install.
+// Fall back to walking up from source when running out of the dev tree so
+// `bun test` and `bun run` keep working with zero config.
+function resolveMovesPath(): string {
+  const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
+  if (pluginRoot) {
+    return resolve(pluginRoot, "data", "ironsworn", "moves.yaml");
+  }
+  // Fall back to walking up from source to the plugin root for dev-time use.
+  // scribe/src/rules/ironsworn/ → scribe/src/rules/ → scribe/src/ → scribe/ → plugin root
+  const pluginRootFallback = resolve(
     dirname(fileURLToPath(import.meta.url)),
     "..",
     "..",
     "..",
     "..",
   );
-  return resolve(repoRoot, "data", "ironsworn", "moves.yaml");
-})();
+  return resolve(pluginRootFallback, "data", "ironsworn", "moves.yaml");
+}
 
 let _moves: MoveData[] | null = null;
 
 function loadMoves(): MoveData[] {
-  if (!existsSync(MOVES_PATH)) {
+  if (!existsSync(resolveMovesPath())) {
     return [];
   }
-  const raw = readFileSync(MOVES_PATH, "utf-8");
+  const raw = readFileSync(resolveMovesPath(), "utf-8");
   const parsed = parse(raw) as unknown;
   if (!Array.isArray(parsed)) return [];
   return parsed as MoveData[];

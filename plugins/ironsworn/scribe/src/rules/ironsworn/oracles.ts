@@ -44,25 +44,32 @@ export interface YesNoResult {
 // Oracle data loading
 // ---------------------------------------------------------------------------
 
-// scribe/src/rules/ironsworn/ → 4 levels up → repo root
-const ORACLES_PATH = (() => {
-  const repoRoot = resolve(
+// Prefer SCRIBE_PLUGIN_ROOT when running inside a Claude Code plugin install.
+// Fall back to walking up from source when running out of the dev tree so
+// `bun test` and `bun run` keep working with zero config.
+function resolveOraclesPath(): string {
+  const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
+  if (pluginRoot) {
+    return resolve(pluginRoot, "data", "ironsworn", "oracles.yaml");
+  }
+  // Fall back to walking up from source to the plugin root for dev-time use.
+  const pluginRootFallback = resolve(
     dirname(fileURLToPath(import.meta.url)),
     "..",
     "..",
     "..",
     "..",
   );
-  return resolve(repoRoot, "data", "ironsworn", "oracles.yaml");
-})();
+  return resolve(pluginRootFallback, "data", "ironsworn", "oracles.yaml");
+}
 
 let _oracles: OracleTable[] | null = null;
 
 function loadOracles(): OracleTable[] {
-  if (!existsSync(ORACLES_PATH)) {
+  if (!existsSync(resolveOraclesPath())) {
     return [];
   }
-  const raw = readFileSync(ORACLES_PATH, "utf-8");
+  const raw = readFileSync(resolveOraclesPath(), "utf-8");
   const parsed = parse(raw) as unknown;
   if (!Array.isArray(parsed)) return [];
   return parsed as OracleTable[];
@@ -73,6 +80,10 @@ function getOracles(): OracleTable[] {
     _oracles = loadOracles();
   }
   return _oracles;
+}
+
+export function getOracleTables(): OracleTable[] {
+  return getOracles();
 }
 
 // ---------------------------------------------------------------------------
