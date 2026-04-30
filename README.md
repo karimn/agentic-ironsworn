@@ -26,5 +26,4 @@ This repo is structured so that everything shipped to users lives under
 
 The rulebook RAG ingestion pipeline used to build
 `plugins/ironsworn/data/ironsworn.duckdb` is a separate Julia project:
-[TomeRAG.jl](https://github.com/karimn/TomeRAG.jl) (link will be updated
-once that repo is published).
+[TomeRAG.jl](https://github.com/karimn/tomerag-jl).
