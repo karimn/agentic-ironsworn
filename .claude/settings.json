@@ -1,4 +1,18 @@
 {
+  "sandbox": {
+    "filesystem": {
+      "allowWrite": [
+        "/media/karim/Code-Drive/karimn-code/rpg-rules"
+      ]
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun test *)",
+      "Bash(bun run *)",
+      "Bash(cd * && bun test*)"
+    ]
+  },
   "hooks": {
     "WorktreeCreate": [
       {

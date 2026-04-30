@@ -5,6 +5,7 @@ import { listThreads } from "../state/threads.js";
 import { getNpc } from "../state/npcs.js";
 import { searchRules, lookupMove } from "../rag/query.js";
 import { searchScenes } from "../rag/scenes.js";
+import { lookupAsset } from "../rules/ironsworn/assets.js";
 
 function characterDigest(char: Awaited<ReturnType<typeof loadCharacter>>) {
   const activeDebilities = Object.fromEntries(
@@ -180,6 +181,31 @@ export function register(server: McpServer, campaignPath: string): void {
         const results = await searchScenes(campaignPath, query, k);
         return {
           content: [{ type: "text", text: JSON.stringify(results) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "lookup_asset",
+    "Look up an Ironsworn asset by exact name — returns type, health (companions), and all abilities with default markers",
+    { name: z.string().describe("Asset name to look up (e.g. 'Hound', 'Swordmaster', 'Slayer')") },
+    async ({ name }) => {
+      try {
+        const asset = lookupAsset(name);
+        if (!asset) {
+          return {
+            content: [{ type: "text", text: `Asset not found: "${name}"` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(asset) }],
         };
       } catch (e) {
         return {
