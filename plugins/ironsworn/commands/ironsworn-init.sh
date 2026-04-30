@@ -148,12 +148,8 @@ echo ""
 echo "Scaffold"
 echo "─────────────────────────────────────────"
 
-for f in "${created[@]+"${created[@]}"}"; do
-  echo "  ✓ created  $f"
-done
-for f in "${skipped[@]+"${skipped[@]}"}"; do
-  echo "  – skipped  $f  (already exists)"
-done
+for f in "${created[@]:-}"; do [ -n "$f" ] && echo "  ✓ created  $f"; done
+for f in "${skipped[@]:-}"; do [ -n "$f" ] && echo "  – skipped  $f  (already exists)"; done
 
 echo ""
 echo "Campaign folder ready. Start the GM with @ironsworn-gm"
