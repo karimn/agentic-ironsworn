@@ -1,0 +1,29 @@
+{
+  "sandbox": {
+    "filesystem": {
+      "allowWrite": [
+        "/media/karim/Code-Drive/karimn-code/rpg-rules"
+      ]
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun test *)",
+      "Bash(bun run *)",
+      "Bash(cd * && bun test*)"
+    ]
+  },
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Symlinking shared data into worktree...",
+            "command": "WORKTREE=$(jq -r '.worktree_path // .path // \"\"'); if [ -n \"$WORKTREE\" ] && [ -d \"$WORKTREE\" ]; then mkdir -p \"$WORKTREE/data/ironsworn\" && ln -sf \"$(pwd)/data/ironsworn.duckdb\" \"$WORKTREE/data/ironsworn/ironsworn.duckdb\" && ln -sfn \"$HOME/.rpg-data/campaigns\" \"$WORKTREE/campaigns\" && ln -sfn \"$HOME/.rpg-data/remember\" \"$WORKTREE/.remember\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
