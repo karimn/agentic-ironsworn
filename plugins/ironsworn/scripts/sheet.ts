@@ -1,18 +1,18 @@
 #!/usr/bin/env bun
 /**
  * Display the current character sheet from disk. Zero tokens — pure JSON read.
- * Usage: bun run scripts/sheet.ts  (or ! bun run sheet from scribe/)
- * Respects SCRIBE_CAMPAIGN env var (default: campaigns/default).
+ * Run from the host repo that holds your campaign directory: `bun run ${CLAUDE_PLUGIN_ROOT}/scripts/sheet.ts`
+ * Respects SCRIBE_CAMPAIGN env var (default: campaigns/default), resolved relative to the current working directory.
  */
 
 import { readFileSync } from "fs";
 import { join } from "path";
 
 // ── Load character ────────────────────────────────────────────────────────────
-const repoRoot    = join(import.meta.dir, "..");
+const hostRoot    = process.cwd();
 const campaignDir = process.env.SCRIBE_CAMPAIGN
-  ? join(repoRoot, process.env.SCRIBE_CAMPAIGN)
-  : join(repoRoot, "campaigns/default");
+  ? join(hostRoot, process.env.SCRIBE_CAMPAIGN)
+  : join(hostRoot, "campaigns/default");
 
 let char: any;
 try {
