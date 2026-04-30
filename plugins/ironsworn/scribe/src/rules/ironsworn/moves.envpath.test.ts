@@ -9,9 +9,9 @@ describe("moves.ts — SCRIBE_PLUGIN_ROOT resolution", () => {
 
   beforeEach(() => {
     tmpRoot = mkdtempSync(join(tmpdir(), "scribe-plugin-root-"));
-    mkdirSync(join(tmpRoot, "data", "ironsworn"), { recursive: true });
+    mkdirSync(join(tmpRoot, "data"), { recursive: true });
     writeFileSync(
-      join(tmpRoot, "data", "ironsworn", "moves.yaml"),
+      join(tmpRoot, "data", "moves.yaml"),
       "- name: Test Move\n  trigger: test\n  stat_options: [edge]\n  stat_hint: ''\n  roll_type: action\n  outcomes:\n    strong_hit: s\n    weak_hit: w\n    miss: m\n",
     );
     process.env.SCRIBE_PLUGIN_ROOT = tmpRoot;
@@ -23,7 +23,7 @@ describe("moves.ts — SCRIBE_PLUGIN_ROOT resolution", () => {
     rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it("loads moves from SCRIBE_PLUGIN_ROOT/data/ironsworn/moves.yaml when env var is set", async () => {
+  it("loads moves from SCRIBE_PLUGIN_ROOT/data/moves.yaml when env var is set", async () => {
     // Dynamic import AFTER env var is set so the module-level path resolution picks it up.
     // Using a query param defeats Bun's module cache so each test gets a fresh load.
     const mod = await import("./moves.ts?t=" + Date.now());

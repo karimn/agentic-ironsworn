@@ -68,7 +68,7 @@ interface MoveData {
 function resolveMovesPath(): string {
   const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
   if (pluginRoot) {
-    return resolve(pluginRoot, "data", "ironsworn", "moves.yaml");
+    return resolve(pluginRoot, "data", "moves.yaml");
   }
   // Fall back to walking up from source to the plugin root for dev-time use.
   // scribe/src/rules/ironsworn/ → scribe/src/rules/ → scribe/src/ → scribe/ → plugin root
@@ -79,7 +79,7 @@ function resolveMovesPath(): string {
     "..",
     "..",
   );
-  return resolve(pluginRootFallback, "data", "ironsworn", "moves.yaml");
+  return resolve(pluginRootFallback, "data", "moves.yaml");
 }
 
 let _moves: MoveData[] | null = null;

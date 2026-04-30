@@ -9,9 +9,9 @@ describe("oracles.ts — SCRIBE_PLUGIN_ROOT resolution", () => {
 
   beforeEach(() => {
     tmpRoot = mkdtempSync(join(tmpdir(), "scribe-plugin-root-"));
-    mkdirSync(join(tmpRoot, "data", "ironsworn"), { recursive: true });
+    mkdirSync(join(tmpRoot, "data"), { recursive: true });
     writeFileSync(
-      join(tmpRoot, "data", "ironsworn", "oracles.yaml"),
+      join(tmpRoot, "data", "oracles.yaml"),
       "- name: Test Oracle\n  dice: d10\n  rolls:\n  - min: 1\n    max: 10\n    outcome: anything\n",
     );
     process.env.SCRIBE_PLUGIN_ROOT = tmpRoot;
@@ -23,7 +23,7 @@ describe("oracles.ts — SCRIBE_PLUGIN_ROOT resolution", () => {
     rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it("loads oracles from SCRIBE_PLUGIN_ROOT/data/ironsworn/oracles.yaml when env var is set", async () => {
+  it("loads oracles from SCRIBE_PLUGIN_ROOT/data/oracles.yaml when env var is set", async () => {
     // Dynamic import AFTER env var is set so the module-level path resolution picks it up.
     // Using a query param defeats Bun's module cache so each test gets a fresh load.
     const mod = await import("./oracles.ts?t=" + Date.now());

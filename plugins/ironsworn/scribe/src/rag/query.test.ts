@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { searchRules, lookupMove } from "./query.js";
 
 const DB_EXISTS = existsSync(
-  new URL("../../../data/ironsworn/ironsworn.duckdb", import.meta.url)
+  new URL("../../../data/ironsworn.duckdb", import.meta.url)
     .pathname,
 );
 

@@ -50,7 +50,7 @@ export interface YesNoResult {
 function resolveOraclesPath(): string {
   const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
   if (pluginRoot) {
-    return resolve(pluginRoot, "data", "ironsworn", "oracles.yaml");
+    return resolve(pluginRoot, "data", "oracles.yaml");
   }
   // Fall back to walking up from source to the plugin root for dev-time use.
   const pluginRootFallback = resolve(
@@ -60,7 +60,7 @@ function resolveOraclesPath(): string {
     "..",
     "..",
   );
-  return resolve(pluginRootFallback, "data", "ironsworn", "oracles.yaml");
+  return resolve(pluginRootFallback, "data", "oracles.yaml");
 }
 
 let _oracles: OracleTable[] | null = null;

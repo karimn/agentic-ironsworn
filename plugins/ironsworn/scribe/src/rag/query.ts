@@ -15,7 +15,7 @@ export function resolveDbPath(): string {
 
   const pluginRoot = process.env["SCRIBE_PLUGIN_ROOT"];
   if (pluginRoot) {
-    return resolve(pluginRoot, "data", "ironsworn", "ironsworn.duckdb");
+    return resolve(pluginRoot, "data", "ironsworn.duckdb");
   }
 
   // Dev fallback: scribe/src/rag/ → scribe/src/ → scribe/ → plugin root
@@ -25,7 +25,7 @@ export function resolveDbPath(): string {
     "..",
     "..",
   );
-  return resolve(pluginRootFallback, "data", "ironsworn", "ironsworn.duckdb");
+  return resolve(pluginRootFallback, "data", "ironsworn.duckdb");
 }
 
 // ---------------------------------------------------------------------------

@@ -24,12 +24,12 @@ describe("query.ts — resolveDbPath", () => {
 
   it("uses SCRIBE_PLUGIN_ROOT when DB_PATH is not set", () => {
     process.env.SCRIBE_PLUGIN_ROOT = "/my/plugin";
-    expect(resolveDbPath()).toBe("/my/plugin/data/ironsworn/ironsworn.duckdb");
+    expect(resolveDbPath()).toBe("/my/plugin/data/ironsworn.duckdb");
   });
 
   it("falls back to plugin-relative walk when neither env var is set", () => {
     const result = resolveDbPath();
-    // Should resolve to .../plugins/ironsworn/data/ironsworn/ironsworn.duckdb
-    expect(result).toMatch(/plugins\/ironsworn\/data\/ironsworn\/ironsworn\.duckdb$/);
+    // Should resolve to .../plugins/ironsworn/data/ironsworn.duckdb
+    expect(result).toMatch(/plugins\/ironsworn\/data\/ironsworn\.duckdb$/);
   });
 });
