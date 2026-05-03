@@ -5,8 +5,8 @@ import { dirname } from "node:path";
 import { loadCharacter, saveCharacter } from "../state/character.js";
 import { loadThreads, saveThreads } from "../state/threads.js";
 import { listNpcs, writeNpcRaw } from "../state/npcs.js";
-import { exportLore, upsertLore, linkLore, type LoreType } from "../rag/lore.js";
-import { exportScenes, importScene } from "../rag/scenes.js";
+import { exportLore, upsertLore, linkLore, checkpointLore, type LoreType } from "../rag/lore.js";
+import { exportScenes, importScene, checkpointScenes } from "../rag/scenes.js";
 
 interface CampaignExport {
   version: 1;
@@ -29,6 +29,14 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ output_path, include_scenes }) => {
       try {
+        // Flush WAL to the .duckdb files before reading so the export reflects
+        // all in-memory writes. Without CHECKPOINT the tracked binaries stay
+        // frozen and a clone / crash loses all session data.
+        await Promise.all([
+          checkpointLore(campaignPath).catch(() => undefined),
+          checkpointScenes(campaignPath).catch(() => undefined),
+        ]);
+
         const [character, threads, npcs, { entities, relations }, scenes] = await Promise.all([
           loadCharacter(campaignPath).catch(() => null),
           loadThreads(campaignPath),
