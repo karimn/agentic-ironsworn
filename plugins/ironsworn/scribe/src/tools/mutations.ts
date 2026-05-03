@@ -22,7 +22,7 @@ import {
   Character,
 } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
-import { tickProgress } from "../rules/ironsworn/progress.js";
+import { tickProgress, vowXp } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -315,15 +315,22 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "fulfill_progress",
     [
-      "Fulfill a progress track: marks it completed and grants the character 1 XP.",
+      "Fulfill a progress track: marks it completed.",
+      "For vow tracks, also grants XP based on the rank and the roll outcome from roll_progress.",
+      "Non-vow tracks (journey, combat, etc.) always grant 0 XP.",
       "",
       "Canonical vow fulfillment flow:",
       "1. roll_progress — roll against the vow's progress score to see the outcome",
-      "2. fulfill_progress — (this tool) marks the track complete and awards 1 XP",
+      "2. fulfill_progress — (this tool) marks the track complete and awards XP (vows only)",
       "3. close_thread — narrative resolution; also marks the matching progress track completed",
     ].join("\n"),
-    { track_name: z.string().describe("Name of the progress track to fulfill (case-insensitive)") },
-    async ({ track_name }) => {
+    {
+      track_name: z.string().describe("Name of the progress track to fulfill (case-insensitive)"),
+      outcome: z
+        .enum(["strong_hit", "weak_hit", "miss"])
+        .describe("The outcome of the roll_progress roll for this track"),
+    },
+    async ({ track_name, outcome }) => {
       try {
         const character = await loadCharacter(campaignPath);
         const idx = character.progressTracks.findIndex(
@@ -336,8 +343,10 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
         const before = structuredClone(character);
-        character.progressTracks[idx]!.completed = true;
-        character.experience += 1;
+        const track = character.progressTracks[idx]!;
+        track.completed = true;
+        const xpGained = vowXp(track, outcome);
+        character.experience += xpGained;
         await saveCharacter(campaignPath, character);
         await appendJournal(campaignPath, {
           timestamp: new Date().toISOString(),
@@ -346,7 +355,7 @@ export function register(server: McpServer, campaignPath: string): void {
           after: character,
         });
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], experience: character.experience }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], xpGained, experience: character.experience }) }],
         };
       } catch (e) {
         return {

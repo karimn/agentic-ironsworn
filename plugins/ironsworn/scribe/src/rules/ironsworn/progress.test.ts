@@ -1,11 +1,11 @@
 import { describe, it, expect } from "bun:test";
-import { rollProgress, tickProgress, TICKS_PER_MARK, classifyBand } from "./progress.js";
+import { rollProgress, tickProgress, TICKS_PER_MARK, classifyBand, vowXp, VOW_XP } from "./progress.js";
 import { ProgressTrack } from "../../state/character.js";
 
-const makeTrack = (rank: ProgressTrack["rank"], ticks: number = 0): ProgressTrack => ({
-  name: "Test Vow",
+const makeTrack = (rank: ProgressTrack["rank"], ticks: number = 0, kind: ProgressTrack["kind"] = "vow"): ProgressTrack => ({
+  name: "Test Track",
   rank,
-  kind: "vow",
+  kind,
   ticks,
   completed: false,
 });
@@ -87,5 +87,52 @@ describe("rollProgress", () => {
       else if (beatsFirst || beatsSecond) expect(r.band).toBe("weak_hit");
       else expect(r.band).toBe("miss");
     }
+  });
+});
+
+describe("VOW_XP table", () => {
+  it("has correct strong_hit values for all ranks", () => {
+    expect(VOW_XP.troublesome.strong_hit).toBe(1);
+    expect(VOW_XP.dangerous.strong_hit).toBe(2);
+    expect(VOW_XP.formidable.strong_hit).toBe(3);
+    expect(VOW_XP.extreme.strong_hit).toBe(4);
+    expect(VOW_XP.epic.strong_hit).toBe(5);
+  });
+
+  it("has correct weak_hit values for all ranks", () => {
+    expect(VOW_XP.troublesome.weak_hit).toBe(0);
+    expect(VOW_XP.dangerous.weak_hit).toBe(1);
+    expect(VOW_XP.formidable.weak_hit).toBe(2);
+    expect(VOW_XP.extreme.weak_hit).toBe(2);
+    expect(VOW_XP.epic.weak_hit).toBe(3);
+  });
+});
+
+describe("vowXp", () => {
+  it("returns 0 for non-vow tracks regardless of outcome", () => {
+    expect(vowXp(makeTrack("formidable", 0, "journey"), "strong_hit")).toBe(0);
+    expect(vowXp(makeTrack("extreme",    0, "combat"),  "strong_hit")).toBe(0);
+    expect(vowXp(makeTrack("dangerous",  0, "bond"),    "weak_hit")).toBe(0);
+    expect(vowXp(makeTrack("epic",       0, "other"),   "strong_hit")).toBe(0);
+  });
+
+  it("returns 0 for a miss on a vow", () => {
+    expect(vowXp(makeTrack("epic"), "miss")).toBe(0);
+  });
+
+  it("awards XP for a vow strong_hit matching the rank table", () => {
+    expect(vowXp(makeTrack("troublesome"), "strong_hit")).toBe(1);
+    expect(vowXp(makeTrack("dangerous"),   "strong_hit")).toBe(2);
+    expect(vowXp(makeTrack("formidable"),  "strong_hit")).toBe(3);
+    expect(vowXp(makeTrack("extreme"),     "strong_hit")).toBe(4);
+    expect(vowXp(makeTrack("epic"),        "strong_hit")).toBe(5);
+  });
+
+  it("awards XP for a vow weak_hit matching the rank table", () => {
+    expect(vowXp(makeTrack("troublesome"), "weak_hit")).toBe(0);
+    expect(vowXp(makeTrack("dangerous"),   "weak_hit")).toBe(1);
+    expect(vowXp(makeTrack("formidable"),  "weak_hit")).toBe(2);
+    expect(vowXp(makeTrack("extreme"),     "weak_hit")).toBe(2);
+    expect(vowXp(makeTrack("epic"),        "weak_hit")).toBe(3);
   });
 });
