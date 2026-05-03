@@ -9,6 +9,32 @@ export const TICKS_PER_MARK: Record<ProgressTrack["rank"], number> = {
   epic: 1,
 };
 
+/**
+ * XP awarded when fulfilling a vow, indexed by rank then outcome.
+ * Only vows award XP (journeys, combat, etc. grant 0).
+ * Source: Ironsworn core rules, Fulfill Your Vow move.
+ */
+export const VOW_XP: Record<ProgressTrack["rank"], Record<"strong_hit" | "weak_hit", number>> = {
+  troublesome: { strong_hit: 1, weak_hit: 0 },
+  dangerous:   { strong_hit: 2, weak_hit: 1 },
+  formidable:  { strong_hit: 3, weak_hit: 2 },
+  extreme:     { strong_hit: 4, weak_hit: 2 },
+  epic:        { strong_hit: 5, weak_hit: 3 },
+};
+
+/**
+ * Returns the XP earned for fulfilling a progress track.
+ * Only vows award XP; all other track kinds return 0.
+ */
+export function vowXp(
+  track: ProgressTrack,
+  outcome: "strong_hit" | "weak_hit" | "miss",
+): number {
+  if (track.kind !== "vow") return 0;
+  if (outcome === "miss") return 0;
+  return VOW_XP[track.rank][outcome];
+}
+
 export interface ProgressRollResult {
   track: ProgressTrack;
   progressScore: number;
