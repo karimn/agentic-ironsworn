@@ -846,3 +846,34 @@ export async function exportLore(
     conn.closeSync();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Checkpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * Flush the WAL to the main database file.
+ *
+ * DuckDB uses a write-ahead log (WAL) for durability. Without an explicit
+ * CHECKPOINT the WAL can grow unbounded and the tracked `.duckdb` binary
+ * stays frozen at its initial state — losing all writes on a new clone.
+ * This must be called with the vss extension loaded because the HNSW index
+ * on lore_entities will be replayed during the checkpoint.
+ *
+ * Safe to call at any time; no-op if the DB has not been opened yet.
+ */
+export async function checkpointLore(campaignPath: string): Promise<void> {
+  const cached = _dbPromises.get(campaignPath);
+  if (cached === undefined) return;
+
+  const instance = await cached;
+  const conn = await instance.connect();
+  try {
+    // vss must be loaded before checkpointing a DB that contains an HNSW index.
+    await conn.run("INSTALL vss;");
+    await conn.run("LOAD vss;");
+    await conn.run("CHECKPOINT;");
+  } finally {
+    conn.closeSync();
+  }
+}

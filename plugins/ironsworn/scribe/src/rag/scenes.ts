@@ -223,6 +223,34 @@ export async function importScene(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Checkpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * Flush the WAL to the main database file.
+ *
+ * See lore.ts checkpointLore for full rationale. The scenes DB also carries
+ * an HNSW index, so vss must be loaded before issuing the CHECKPOINT.
+ *
+ * Safe to call at any time; no-op if the DB has not been opened yet.
+ */
+export async function checkpointScenes(campaignPath: string): Promise<void> {
+  const cached = _dbPromises.get(campaignPath);
+  if (cached === undefined) return;
+
+  const instance = await cached;
+  const conn = await instance.connect();
+  try {
+    // vss must be loaded before checkpointing a DB that contains an HNSW index.
+    await conn.run("INSTALL vss;");
+    await conn.run("LOAD vss;");
+    await conn.run("CHECKPOINT;");
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function searchScenes(
   campaignPath: string,
   query: string,
