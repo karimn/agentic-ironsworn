@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "agentic-ironsworn",
+  "name": "agentic-rpg",
   "description": "Tabletop RPG plugins for Claude Code — solo play companions with full rules engines",
   "owner": {
     "name": "Karim Naguib"

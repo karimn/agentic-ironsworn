@@ -17,7 +17,7 @@ graph that remembers the places, people, and factions you build as you play.
 ## Install
 
 ```
-/plugin marketplace add https://github.com/karimn/agentic-ironsworn
+/plugin marketplace add https://github.com/karimn/agentic-rpg
 /plugin install ironsworn
 ```
 
@@ -27,7 +27,7 @@ Scribe has native dependencies (DuckDB). Install them once after the plugin
 lands on disk:
 
 ```bash
-cd ~/.claude/plugins/cache/agentic-ironsworn/ironsworn/*/scribe
+cd ~/.claude/plugins/cache/agentic-rpg/ironsworn/*/scribe
 bun install
 ```
 

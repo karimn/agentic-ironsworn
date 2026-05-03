@@ -1,4 +1,4 @@
-# agentic-ironsworn
+# agentic-rpg
 
 A small [Claude Code](https://claude.com/claude-code) marketplace for
 tabletop RPG play companions. Each plugin bundles the agent, skills, and
@@ -14,7 +14,7 @@ session.
 ## Install
 
 ```
-/plugin marketplace add https://github.com/karimn/agentic-ironsworn
+/plugin marketplace add https://github.com/karimn/agentic-rpg
 /plugin install ironsworn
 ```
 
