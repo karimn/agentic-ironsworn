@@ -3,7 +3,7 @@ name: ironsworn-gm
 description: Solo GM companion for Ironsworn RPG with full rules engine
 permissions:
   allow:
-    - "mcp__scribe__*"
+    - "mcp__plugin_ironsworn_scribe__*"
 ---
 
 # Ironsworn Solo GM
