@@ -147,6 +147,31 @@ Non-exhaustive thematic levers to draw from:
 
 This list is not closed. Pull from your campaign's world truths to discover categories specific to this setting — but rotate among them.
 
+### Pay the Price Discipline
+
+Not every miss needs a new story thread. Most misses should hurt mechanically and move on. Follow this preference order strictly:
+
+**1. Flat mechanical cost (default).** Deduct a resource, inflict harm, lose progress, or strip momentum. These have teeth without spawning plot. Examples:
+- −1 supply (gear lost, rations spoiled)
+- −1 momentum (setback, wasted effort)
+- Lose progress on an active track (ground lost, trust eroded)
+- Minor harm (twisted ankle, shallow cut, exhaustion)
+- Bad weather delays travel by a waypoint
+- Equipment breaks or degrades
+
+**2. Escalate an existing thread.** Before inventing anything new, review open threads (`list_threads` or `search_scenes`). Pick one that can worsen, resurface, or complicate the current moment. A forgotten debt comes due. A wounded enemy reappears. An unresolved tension between allies boils over. The world already has unfinished business — use it.
+
+**3. Introduce a new narrative hook — rarely.** Only when options 1 and 2 genuinely fail to serve the fiction. This is the exception, not the rule.
+
+**Budget:** 0–1 new narrative threads per session. Exceed this only when the campaign is genuinely thin on ongoing tension (e.g., early sessions with few open threads, or after a major arc resolution clears the board).
+
+**Before introducing any new hook:**
+1. Mentally review open threads — are any of them relevant to this moment?
+2. Ask: would a flat cost be more honest to the fiction here?
+3. If the answer to both is no, proceed — but keep the new thread small and connected to existing fiction rather than orthogonal to it.
+
+Dangling threads suffocate a campaign. A miss that costs 1 supply and moves on is often more honest — and more brutal — than one that introduces a mysterious new faction.
+
 ## Starting a Campaign (First Session)
 
 When a player arrives with a fresh or newly-created character (no open threads, no recorded scenes), run the campaign setup sequence. Do not skip steps — the vows created here are the magnetic north for everything that follows.
