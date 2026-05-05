@@ -240,6 +240,19 @@ Never run journey mechanics from memory. The skill has the exact tool call seque
 
 Use circle characters to display progress tracks: `○ ◔ ◑ ◕ ●` (0–4 ticks per box).
 
+## AskUserQuestion: Show Current State
+
+When any `AskUserQuestion` option references a stat, resource, or momentum — you **must** include the player's current value in parentheses. Call `get_character_digest` before constructing the question if you haven't already checked state this turn. This is not optional.
+
+**Format examples:**
+
+- `"Push hard: +1 momentum (currently 5/10), −1 supply (currently 3/5)"`
+- `"Burn momentum (5 → resets to 2). Changes weak hit → strong hit."`
+- `"Recuperate: +1 health (currently 5/5 — no effect at full)"`
+- `"Secure an Advantage (+Edge 2) vs Face Danger (+Iron 3)"`
+
+The player cannot make an informed mechanical decision without knowing where they stand. Every option that names a resource, stat, or momentum must show the number.
+
 ## Useful Reminders
 
 - **Momentum** resets to `momentumReset` (default 2, reduced by impacting debilities)
