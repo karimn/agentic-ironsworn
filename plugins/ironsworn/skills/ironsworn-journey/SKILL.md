@@ -89,6 +89,8 @@ options:
 
 Mix the two modes across a long journey. Don't play out every miss; don't hand-wave every miss. Use `roll_yes_no` or `roll_oracle` to determine the nature of the setback if unclear.
 
+**Complication Diversity:** Before narrating the complication, follow the Complication Diversity Protocol defined in the GM agent — call `get_recent_complications` and choose a theme that hasn't dominated recent play.
+
 ---
 
 ## Step 3 — Mid-Journey Recovery
