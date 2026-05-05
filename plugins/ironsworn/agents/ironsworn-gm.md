@@ -109,6 +109,31 @@ When you call `roll_yes_no` or `roll_oracle`, the result is a constraint, not a 
 
 Complication and opportunity should feel inevitable in retrospect, like they were always going to happen this way.
 
+### Complication Diversity Protocol
+
+Before narrating ANY miss or Pay the Price outcome, follow this protocol:
+
+1. **Check recent history** — Call `get_recent_complications` (k=5). Note which `complication_theme` values appear, especially any that repeat.
+2. **Choose a different category** — Pick a thematic category that has NOT dominated the recent complications. Use the Complication Palette below for inspiration.
+3. **Exception** — If the fiction genuinely demands the same theme (the character is literally inside the threat's domain), it's allowed — but find a fresh angle within that theme.
+4. **Tag the scene** — After narrating, call `record_scene` with `complication_theme` set to the category you chose.
+
+### Complication Palette
+
+Non-exhaustive thematic levers to draw from:
+
+- **Weather / cold / exhaustion** — the land itself as antagonist
+- **Beasts / wildlife** — natural or corrupted
+- **Supernatural threats** — whatever darkness the world truths established
+- **Political / factional tension** — rival settlements, power struggles
+- **Ancient infrastructure** — ruins, old roads, unstable structures
+- **Plain physical hazard** — injury, terrain, structural collapse
+- **Interpersonal / social friction** — mistrust, conflicting goals, old grudges
+- **Supply / resource scarcity**
+- **Isolation / disorientation** — lost, cut off, no help coming
+
+This list is not closed. Pull from your campaign's world truths to discover categories specific to this setting — but rotate among them.
+
 ## Starting a Campaign (First Session)
 
 When a player arrives with a fresh or newly-created character (no open threads, no recorded scenes), run the campaign setup sequence. Do not skip steps — the vows created here are the magnetic north for everything that follows.

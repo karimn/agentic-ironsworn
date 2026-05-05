@@ -4,7 +4,7 @@ import { loadCharacter } from "../state/character.js";
 import { listThreads } from "../state/threads.js";
 import { getNpc } from "../state/npcs.js";
 import { searchRules, lookupMove } from "../rag/query.js";
-import { searchScenes } from "../rag/scenes.js";
+import { searchScenes, getRecentComplications } from "../rag/scenes.js";
 import { lookupAsset } from "../rules/ironsworn/assets.js";
 
 function characterDigest(char: Awaited<ReturnType<typeof loadCharacter>>) {
@@ -206,6 +206,27 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         return {
           content: [{ type: "text", text: JSON.stringify(asset) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "get_recent_complications",
+    "Retrieve recent scenes tagged with a complication theme, ordered newest-first. Use before narrating a new complication to check for thematic repetition.",
+    {
+      k: z.coerce.number().int().positive().optional().describe("Number of recent complications to return (default 5)"),
+    },
+    async ({ k }) => {
+      try {
+        const results = await getRecentComplications(campaignPath, k ?? 5);
+        return {
+          content: [{ type: "text", text: JSON.stringify(results) }],
         };
       } catch (e) {
         return {
