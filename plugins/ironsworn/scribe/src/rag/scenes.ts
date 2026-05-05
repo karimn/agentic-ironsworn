@@ -17,6 +17,7 @@ export interface Scene {
   text: string;
   timestamp: string;
   kind: string;
+  complication_theme?: string;
   score?: number;
 }
 
@@ -44,11 +45,12 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
 
     await conn.run(`
       CREATE TABLE IF NOT EXISTS scenes (
-        id        TEXT PRIMARY KEY,
-        text      TEXT NOT NULL,
-        embedding FLOAT[768] NOT NULL,
-        timestamp TEXT NOT NULL,
-        kind      TEXT NOT NULL DEFAULT 'scene'
+        id                 TEXT PRIMARY KEY,
+        text               TEXT NOT NULL,
+        embedding          FLOAT[768] NOT NULL,
+        timestamp          TEXT NOT NULL,
+        kind               TEXT NOT NULL DEFAULT 'scene',
+        complication_theme TEXT
       )
     `);
 
@@ -136,6 +138,7 @@ export async function recordScene(
   campaignPath: string,
   summary: string,
   kind?: string,
+  complicationTheme?: string,
 ): Promise<void> {
   const [embedding, instance] = await Promise.all([
     getEmbedding(summary),
@@ -151,9 +154,9 @@ export async function recordScene(
   const conn = await openWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO scenes (id, text, embedding, timestamp, kind)
-       VALUES (?, ?, ${embeddingLiteral}, ?, ?)`,
-      [id, summary, timestamp, sceneKind],
+      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme)
+       VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?)`,
+      [id, summary, timestamp, sceneKind, complicationTheme ?? null],
     );
   } finally {
     conn.closeSync();
@@ -165,6 +168,7 @@ export interface SceneExport {
   text: string;
   timestamp: string;
   kind: string;
+  complication_theme?: string;
 }
 
 export async function exportScenes(campaignPath: string): Promise<SceneExport[]> {
@@ -173,7 +177,7 @@ export async function exportScenes(campaignPath: string): Promise<SceneExport[]>
   try {
     const rows = (
       await conn.runAndReadAll(
-        `SELECT id, text, timestamp, kind FROM scenes ORDER BY timestamp`,
+        `SELECT id, text, timestamp, kind, complication_theme FROM scenes ORDER BY timestamp`,
       )
     ).getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((r) => ({
@@ -181,6 +185,7 @@ export async function exportScenes(campaignPath: string): Promise<SceneExport[]>
       text: String(r["text"]),
       timestamp: String(r["timestamp"]),
       kind: String(r["kind"]),
+      complication_theme: r["complication_theme"] != null ? String(r["complication_theme"]) : undefined,
     }));
   } finally {
     conn.closeSync();
@@ -193,6 +198,7 @@ export async function importScene(
   text: string,
   timestamp: string,
   kind: string,
+  complicationTheme?: string,
 ): Promise<boolean> {
   const instance = await getDb(campaignPath);
 
@@ -214,8 +220,8 @@ export async function importScene(
   const conn = await openWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO scenes (id, text, embedding, timestamp, kind) VALUES (?, ?, ${embeddingLiteral}, ?, ?)`,
-      [id, text, timestamp, kind],
+      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme) VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?)`,
+      [id, text, timestamp, kind, complicationTheme ?? null],
     );
     return true;
   } finally {
@@ -268,7 +274,7 @@ export async function searchScenes(
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
-      `SELECT id, text, timestamp, kind,
+      `SELECT id, text, timestamp, kind, complication_theme,
               array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
        FROM scenes
        ORDER BY score DESC
@@ -283,12 +289,49 @@ export async function searchScenes(
       text: String(row["text"] ?? ""),
       timestamp: String(row["timestamp"] ?? ""),
       kind: String(row["kind"] ?? "scene"),
+      complication_theme: row["complication_theme"] != null ? String(row["complication_theme"]) : undefined,
       score:
         typeof row["score"] === "number"
           ? row["score"]
           : typeof row["score"] === "bigint"
             ? Number(row["score"])
             : undefined,
+    }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export interface ComplicationScene {
+  summary: string;
+  complication_theme: string;
+  kind: string;
+  timestamp: string;
+}
+
+export async function getRecentComplications(
+  campaignPath: string,
+  k: number = 5,
+): Promise<ComplicationScene[]> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const result = await conn.runAndReadAll(
+      `SELECT text, complication_theme, kind, timestamp
+       FROM scenes
+       WHERE complication_theme IS NOT NULL
+       ORDER BY timestamp DESC
+       LIMIT ?`,
+      [k],
+    );
+
+    const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+
+    return rows.map((row) => ({
+      summary: String(row["text"] ?? ""),
+      complication_theme: String(row["complication_theme"] ?? ""),
+      kind: String(row["kind"] ?? "scene"),
+      timestamp: String(row["timestamp"] ?? ""),
     }));
   } finally {
     conn.closeSync();
