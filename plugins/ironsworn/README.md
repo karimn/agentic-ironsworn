@@ -62,6 +62,22 @@ Everything under `<SCRIBE_CAMPAIGN>/`:
 
 Version-control these if you want a replayable save.
 
+## License & Attribution
+
+The plugin code is released under the [MIT License](../../LICENSE).
+
+This plugin includes content from **Ironsworn** by Shawn Tomkin
+(www.ironswornrpg.com), licensed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International License
+(https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+> This work is based on Ironsworn (found at www.ironswornrpg.com), created by
+> Shawn Tomkin, and licensed for our use under the Creative Commons
+> Attribution-NonCommercial-ShareAlike 4.0 International license
+> (creativecommons.org/licenses/by-nc-sa/4.0/).
+
+This is **not** an official Ironsworn product.
+
 ## Caveats
 
 - `@duckdb/node-api` uses a native addon. If `bun install` fails on your OS,
