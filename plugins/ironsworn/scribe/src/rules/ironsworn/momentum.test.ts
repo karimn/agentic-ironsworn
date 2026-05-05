@@ -13,7 +13,9 @@ const makeChar = (momentum: number, momentumReset: number = 2): Character => ({
   debilities: Object.fromEntries(DEBILITIES.map(d => [d, false])),
   assets: [],
   progressTracks: [],
+  companions: [],
   bonds: 0,
+  experience: 0,
   customState: {},
 });
 

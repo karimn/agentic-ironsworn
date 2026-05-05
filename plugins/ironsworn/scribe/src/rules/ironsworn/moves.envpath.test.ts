@@ -29,7 +29,7 @@ describe("moves.ts — SCRIBE_PLUGIN_ROOT resolution", () => {
     const mod = await import("./moves.ts?t=" + Date.now());
     const moves = mod.getMoves();
     expect(Array.isArray(moves)).toBe(true);
-    const move = moves.find((m) => m.name === "Test Move");
+    const move = moves.find((m: { name: string }) => m.name === "Test Move");
     expect(move).toBeDefined();
     expect(move?.name).toBe("Test Move");
   });
