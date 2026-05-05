@@ -8,6 +8,7 @@ import * as loreTools from "./tools/lore.js";
 import * as campaignTools from "./tools/campaign.js";
 import { checkpointLore } from "./rag/lore.js";
 import { checkpointScenes } from "./rag/scenes.js";
+import { startPeriodicCheckpoint } from "./checkpoint.js";
 
 const CAMPAIGN_PATH = process.env.SCRIBE_CAMPAIGN ?? "campaigns/default";
 
@@ -49,6 +50,8 @@ async function shutdown(signal: string): Promise<void> {
 
 process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
 process.on("SIGINT",  () => { void shutdown("SIGINT"); });
+
+startPeriodicCheckpoint(CAMPAIGN_PATH);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

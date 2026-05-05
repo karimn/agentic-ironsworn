@@ -21,6 +21,28 @@ interface CampaignExport {
 
 export function register(server: McpServer, campaignPath: string): void {
   server.tool(
+    "checkpoint_now",
+    "Force an immediate DuckDB checkpoint, flushing the WAL to the tracked .duckdb files. Use after bulk writes or before ending a session.",
+    {},
+    async () => {
+      try {
+        await Promise.all([
+          checkpointLore(campaignPath),
+          checkpointScenes(campaignPath),
+        ]);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, message: "Checkpoint complete" }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "export_campaign",
     "Serialise all campaign data to a portable JSON file. Includes character, threads, NPCs, lore, and scenes. Set include_scenes=false for a lighter world-pack export (lore + NPCs + threads only).",
     {
