@@ -55,10 +55,13 @@ export function register(server: McpServer, campaignPath: string): void {
       kind: z.string().optional().describe("Kind of scene (e.g. 'combat', 'exploration', 'social')"),
       npcs: z.array(z.string()).optional().describe("NPC names introduced in this scene to verify are recorded"),
       lore_ids: z.array(z.string()).optional().describe("Lore entity IDs or canonical names introduced in this scene to verify are recorded"),
+      complication_theme: z.string().optional().describe(
+        "Freeform thematic category of the complication (e.g. 'weather', 'beasts', 'fungal-network', 'physical-hazard'). Set only when the scene involves a miss/complication."
+      ),
     },
-    async ({ summary, kind, npcs, lore_ids }) => {
+    async ({ summary, kind, npcs, lore_ids, complication_theme }) => {
       try {
-        await recordScene(campaignPath, summary, kind);
+        await recordScene(campaignPath, summary, kind, complication_theme);
         recordMutation(campaignPath);
         const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
