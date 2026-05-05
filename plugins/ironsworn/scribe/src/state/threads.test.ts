@@ -16,6 +16,7 @@ const SAMPLE_CHARACTER: Character = {
   debilities: Object.fromEntries(DEBILITIES.map((d) => [d, false])),
   assets: [],
   progressTracks: [],
+  companions: [],
   bonds: 0,
   experience: 0,
   customState: {},

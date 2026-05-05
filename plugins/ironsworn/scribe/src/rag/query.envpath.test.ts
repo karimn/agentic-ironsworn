@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { resolveDbPath } from "./query.ts";
+import { resolveDbPath } from "./query.js";
 
 describe("query.ts — resolveDbPath", () => {
   const originalPluginRoot = process.env.SCRIBE_PLUGIN_ROOT;

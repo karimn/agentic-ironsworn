@@ -11,7 +11,7 @@ const SAMPLE_CHAR = {
   momentum: 2, momentumReset: 2,
   health: 5, spirit: 5, supply: 3,
   debilities: Object.fromEntries(DEBILITIES.map(d => [d, false])),
-  assets: [], progressTracks: [], bonds: 0, customState: {},
+  assets: [], progressTracks: [], companions: [], bonds: 0, experience: 0, customState: {},
 };
 
 let campaignDir: string;

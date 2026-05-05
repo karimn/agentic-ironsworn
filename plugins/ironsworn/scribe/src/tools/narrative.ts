@@ -4,7 +4,7 @@ import { recordScene } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore } from "../rag/lore.js";
-import { loadCharacter, saveCharacter } from "../state/character.js";
+import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
 import { recordMutation } from "../checkpoint.js";
 
 // ---------------------------------------------------------------------------
@@ -93,10 +93,10 @@ export function register(server: McpServer, campaignPath: string): void {
         const thread = await openThread(campaignPath, title, kind, notes);
 
         // Issue #2: auto-create a matching progress track for vow threads
-        let track: { name: string; rank: string; kind: string; ticks: number; completed: boolean } | undefined;
+        let track: ProgressTrack | undefined;
         if (kind === "vow" && rank !== undefined) {
           const character = await loadCharacter(campaignPath);
-          track = { name: title, rank, kind: "vow", ticks: 0, completed: false };
+          track = { name: title, rank: rank as ProgressTrack["rank"], kind: "vow", ticks: 0, completed: false };
           character.progressTracks.push(track);
           await saveCharacter(campaignPath, character);
         }

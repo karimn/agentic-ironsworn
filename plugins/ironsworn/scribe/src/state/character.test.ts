@@ -301,7 +301,7 @@ describe("experience field (issue #9)", () => {
 
   it("loadCharacter fills in experience=0 when field is missing (legacy data)", async () => {
     // Write a character JSON without the experience field (simulating old data)
-    const legacy = structuredClone(SAMPLE) as Record<string, unknown>;
+    const legacy = structuredClone(SAMPLE) as unknown as Record<string, unknown>;
     delete legacy.experience;
     await writeFile(join(campaignDir, "character.json"), JSON.stringify(legacy, null, 2), "utf-8");
 
