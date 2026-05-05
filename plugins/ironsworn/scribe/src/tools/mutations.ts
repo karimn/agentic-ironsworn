@@ -25,6 +25,7 @@ import { burnMomentum } from "../rules/ironsworn/momentum.js";
 import { tickProgress, vowXp } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { recordMutation } from "../checkpoint.js";
 
 function characterDigest(char: Character) {
   const activeDebilities = Object.fromEntries(
@@ -50,6 +51,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await takeMomentum(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -77,6 +79,7 @@ export function register(server: McpServer, campaignPath: string): void {
           before: result.before,
           after: result.after,
         });
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -96,6 +99,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await sufferHarm(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -115,6 +119,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await sufferStress(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -134,6 +139,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await consumeSupply(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -153,6 +159,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await restoreHealth(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -172,6 +179,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await restoreSpirit(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -191,6 +199,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await restoreSupply(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -210,6 +219,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ name }) => {
       try {
         const result = await inflictDebility(campaignPath, name);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -229,6 +239,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ name }) => {
       try {
         const result = await clearDebility(campaignPath, name);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -270,6 +281,7 @@ export function register(server: McpServer, campaignPath: string): void {
           before,
           after: character,
         });
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, track: updatedTrack }) }],
         };
@@ -300,6 +312,7 @@ export function register(server: McpServer, campaignPath: string): void {
         const newTrack = { name, rank, kind, ticks: 0, completed: false };
         character.progressTracks.push(newTrack);
         await saveCharacter(campaignPath, character);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, track: newTrack }) }],
         };
@@ -354,6 +367,7 @@ export function register(server: McpServer, campaignPath: string): void {
           before,
           after: character,
         });
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], xpGained, experience: character.experience }) }],
         };
@@ -376,6 +390,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ path, value }) => {
       try {
         const result = await overrideField(campaignPath, path, value);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
         };
@@ -417,6 +432,7 @@ export function register(server: McpServer, campaignPath: string): void {
         const lastLine = lines[lines.length - 1]!;
         const entry = JSON.parse(lastLine) as { before: Character; after: Character };
         await saveCharacter(campaignPath, entry.before);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, restored: characterDigest(entry.before) }) }],
         };
@@ -438,6 +454,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ companion_name, n }) => {
       try {
         const result = await companionSufferHarm(campaignPath, companion_name, n);
+        recordMutation(campaignPath);
         const companion = result.after.companions.find(
           (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
         );
@@ -463,6 +480,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ companion_name, n }) => {
       try {
         const result = await companionRestoreHealth(campaignPath, companion_name, n);
+        recordMutation(campaignPath);
         const companion = result.after.companions.find(
           (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
         );
@@ -488,6 +506,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ companion_name, health }) => {
       try {
         const result = await upsertCompanion(campaignPath, companion_name, health);
+        recordMutation(campaignPath);
         const companion = result.after.companions.find(
           (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
         );
@@ -510,6 +529,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await gainExperience(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
         };
@@ -529,6 +549,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ n }) => {
       try {
         const result = await spendExperience(campaignPath, n);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
         };

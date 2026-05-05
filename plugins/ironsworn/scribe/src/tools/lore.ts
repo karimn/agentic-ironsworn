@@ -9,6 +9,7 @@ import {
   LORE_TYPES,
   type LoreType,
 } from "../rag/lore.js";
+import { recordMutation } from "../checkpoint.js";
 
 export function register(server: McpServer, campaignPath: string): void {
   const provenanceSchema = z
@@ -39,6 +40,7 @@ export function register(server: McpServer, campaignPath: string): void {
           ...input,
           type: input.type as LoreType,
         });
+        recordMutation(campaignPath);
         return { content: [{ type: "text", text: JSON.stringify(result) }] };
       } catch (e) {
         return {
@@ -107,6 +109,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ from, to, relation, notes, metadata, provenance }) => {
       try {
         const result = await linkLore(campaignPath, { from, to, relation, notes, metadata, provenance });
+        recordMutation(campaignPath);
         return { content: [{ type: "text", text: JSON.stringify(result) }] };
       } catch (e) {
         return {

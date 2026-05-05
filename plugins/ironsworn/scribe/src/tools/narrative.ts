@@ -5,6 +5,7 @@ import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore } from "../rag/lore.js";
 import { loadCharacter, saveCharacter } from "../state/character.js";
+import { recordMutation } from "../checkpoint.js";
 
 // ---------------------------------------------------------------------------
 // Warning helpers (exported for testing)
@@ -58,6 +59,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ summary, kind, npcs, lore_ids }) => {
       try {
         await recordScene(campaignPath, summary, kind);
+        recordMutation(campaignPath);
         const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, warnings }) }],
@@ -96,6 +98,7 @@ export function register(server: McpServer, campaignPath: string): void {
           await saveCharacter(campaignPath, character);
         }
 
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrack: track ?? null }) }],
         };
@@ -133,6 +136,7 @@ export function register(server: McpServer, campaignPath: string): void {
           }
         }
 
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrackCompleted: trackUpdated }) }],
         };
@@ -156,6 +160,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ name, description, impression }) => {
       try {
         await upsertNpc(campaignPath, name, description, impression);
+        recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true }) }],
         };
