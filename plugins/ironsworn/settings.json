@@ -13,5 +13,18 @@
       "Bash(cd * && bun test*)"
     ]
   },
-  "hooks": {}
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash plugins/ironsworn/scripts/check-version-bump.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
