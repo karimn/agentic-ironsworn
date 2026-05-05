@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { recordScene } from "../rag/scenes.js";
+import { recordScene, getScene, updateScene, deleteScene } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore } from "../rag/lore.js";
@@ -66,6 +66,69 @@ export function register(server: McpServer, campaignPath: string): void {
         const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, warnings }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "update_scene",
+    "Update an existing scene record. Only provided fields are changed.",
+    {
+      id: z.string().describe("ID of the scene to update"),
+      summary: z.string().optional().describe("New summary text (replaces existing)"),
+      kind: z.string().optional().describe("New kind of scene"),
+      npcs: z.array(z.string()).optional().describe("NPC names to verify are recorded"),
+      lore_ids: z.array(z.string()).optional().describe("Lore entity IDs to verify are recorded"),
+    },
+    async ({ id, summary, kind, npcs, lore_ids }) => {
+      try {
+        const existing = await getScene(campaignPath, id);
+        if (existing === null) {
+          return {
+            content: [{ type: "text", text: `Error: Scene not found: ${id}` }],
+            isError: true,
+          };
+        }
+        await updateScene(campaignPath, id, { summary, kind });
+        recordMutation(campaignPath);
+        const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "delete_scene",
+    "Delete a scene record by ID",
+    {
+      id: z.string().describe("ID of the scene to delete"),
+    },
+    async ({ id }) => {
+      try {
+        const existing = await getScene(campaignPath, id);
+        if (existing === null) {
+          return {
+            content: [{ type: "text", text: `Error: Scene not found: ${id}` }],
+            isError: true,
+          };
+        }
+        await deleteScene(campaignPath, id);
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id }) }],
         };
       } catch (e) {
         return {

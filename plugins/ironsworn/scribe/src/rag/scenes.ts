@@ -163,6 +163,89 @@ export async function recordScene(
   }
 }
 
+export async function getScene(
+  campaignPath: string,
+  id: string,
+): Promise<Scene | null> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const rows = (
+      await conn.runAndReadAll(
+        `SELECT id, text, timestamp, kind, complication_theme FROM scenes WHERE id = ?`,
+        [id],
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+    if (rows.length === 0) return null;
+    const row = rows[0]!;
+    return {
+      id: String(row["id"]),
+      text: String(row["text"]),
+      timestamp: String(row["timestamp"]),
+      kind: String(row["kind"]),
+      complication_theme: row["complication_theme"] != null ? String(row["complication_theme"]) : undefined,
+    };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function updateScene(
+  campaignPath: string,
+  id: string,
+  fields: { summary?: string; kind?: string; complication_theme?: string },
+): Promise<void> {
+  const instance = await getDb(campaignPath);
+
+  // Build SET clauses for provided fields
+  const setClauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (fields.summary !== undefined) {
+    // Re-embed when summary changes
+    const embedding = await getEmbedding(fields.summary);
+    const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+    setClauses.push(`text = ?`);
+    params.push(fields.summary);
+    setClauses.push(`embedding = ${embeddingLiteral}`);
+  }
+  if (fields.kind !== undefined) {
+    setClauses.push(`kind = ?`);
+    params.push(fields.kind);
+  }
+  if (fields.complication_theme !== undefined) {
+    setClauses.push(`complication_theme = ?`);
+    params.push(fields.complication_theme);
+  }
+
+  if (setClauses.length === 0) return;
+
+  params.push(id);
+
+  const conn = await openWriteConn(instance);
+  try {
+    await conn.run(
+      `UPDATE scenes SET ${setClauses.join(", ")} WHERE id = ?`,
+      params,
+    );
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function deleteScene(
+  campaignPath: string,
+  id: string,
+): Promise<void> {
+  const instance = await getDb(campaignPath);
+  const conn = await openWriteConn(instance);
+  try {
+    await conn.run(`DELETE FROM scenes WHERE id = ?`, [id]);
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export interface SceneExport {
   id: string;
   text: string;
