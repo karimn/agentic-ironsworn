@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { recordScene, searchScenes, getRecentComplications } from "./scenes.js";
+import { recordScene, searchScenes, getRecentComplications, getScene, updateScene, deleteScene } from "./scenes.js";
 
 // Check if Ollama is running
 async function ollamaAvailable(): Promise<boolean> {
@@ -68,5 +68,91 @@ describe("getRecentComplications", () => {
     await recordScene(campaignDir, "Blizzard hit.", "exploration", "weather");
     const results = await getRecentComplications(campaignDir, 2);
     expect(results).toHaveLength(2);
+  });
+});
+
+describe("getScene", () => {
+  it("returns null for non-existent scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    // Record a scene to initialize the DB
+    await recordScene(campaignDir, "A placeholder scene.");
+    const result = await getScene(campaignDir, "non-existent-id");
+    expect(result).toBeNull();
+  });
+
+  it("returns scene by ID after recording", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "The hero enters the dark cave.", "exploration");
+    const scenes = await searchScenes(campaignDir, "dark cave", 1);
+    expect(scenes.length).toBeGreaterThan(0);
+    const scene = await getScene(campaignDir, scenes[0].id);
+    expect(scene).not.toBeNull();
+    expect(scene!.text).toContain("dark cave");
+    expect(scene!.kind).toBe("exploration");
+  });
+});
+
+describe("updateScene", () => {
+  it("updates the summary text of an existing scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "Original scene text.", "combat");
+    const scenes = await searchScenes(campaignDir, "Original scene", 1);
+    const id = scenes[0].id;
+
+    await updateScene(campaignDir, id, { summary: "Updated scene text." });
+
+    const updated = await getScene(campaignDir, id);
+    expect(updated).not.toBeNull();
+    expect(updated!.text).toBe("Updated scene text.");
+  });
+
+  it("updates the kind of an existing scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "A quiet campfire.", "exploration");
+    const scenes = await searchScenes(campaignDir, "campfire", 1);
+    const id = scenes[0].id;
+
+    await updateScene(campaignDir, id, { kind: "social" });
+
+    const updated = await getScene(campaignDir, id);
+    expect(updated).not.toBeNull();
+    expect(updated!.kind).toBe("social");
+    // text unchanged
+    expect(updated!.text).toContain("campfire");
+  });
+
+  it("does nothing when no fields are provided", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "Unchanged scene.", "combat");
+    const scenes = await searchScenes(campaignDir, "Unchanged scene", 1);
+    const id = scenes[0].id;
+
+    await updateScene(campaignDir, id, {});
+
+    const unchanged = await getScene(campaignDir, id);
+    expect(unchanged).not.toBeNull();
+    expect(unchanged!.text).toBe("Unchanged scene.");
+  });
+});
+
+describe("deleteScene", () => {
+  it("removes a scene by ID", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "Scene to delete.", "exploration");
+    const scenes = await searchScenes(campaignDir, "Scene to delete", 1);
+    const id = scenes[0].id;
+
+    await deleteScene(campaignDir, id);
+
+    const deleted = await getScene(campaignDir, id);
+    expect(deleted).toBeNull();
+  });
+
+  it("does not fail when deleting non-existent ID", async () => {
+    if (!(await ollamaAvailable())) return;
+    // Initialize DB with a scene
+    await recordScene(campaignDir, "A scene.");
+    // deleteScene on non-existent ID should not throw
+    await deleteScene(campaignDir, "non-existent-id");
   });
 });
