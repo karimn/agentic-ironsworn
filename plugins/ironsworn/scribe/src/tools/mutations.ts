@@ -47,7 +47,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "take_momentum",
     "Add or remove momentum from the character",
-    { n: z.number().int().describe("Amount to add (positive) or remove (negative)") },
+    { n: z.coerce.number().int().describe("Amount to add (positive) or remove (negative)") },
     async ({ n }) => {
       try {
         const result = await takeMomentum(campaignPath, n);
@@ -95,7 +95,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "suffer_harm",
     "Reduce character health by n points",
-    { n: z.number().int().positive().describe("Amount of harm to suffer") },
+    { n: z.coerce.number().int().positive().describe("Amount of harm to suffer") },
     async ({ n }) => {
       try {
         const result = await sufferHarm(campaignPath, n);
@@ -115,7 +115,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "suffer_stress",
     "Reduce character spirit by n points",
-    { n: z.number().int().positive().describe("Amount of stress to suffer") },
+    { n: z.coerce.number().int().positive().describe("Amount of stress to suffer") },
     async ({ n }) => {
       try {
         const result = await sufferStress(campaignPath, n);
@@ -135,7 +135,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "consume_supply",
     "Reduce character supply by n points",
-    { n: z.number().int().positive().describe("Amount of supply to consume") },
+    { n: z.coerce.number().int().positive().describe("Amount of supply to consume") },
     async ({ n }) => {
       try {
         const result = await consumeSupply(campaignPath, n);
@@ -155,7 +155,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "restore_health",
     "Restore character health by n points (clamped to max 5)",
-    { n: z.number().int().positive().describe("Amount of health to restore") },
+    { n: z.coerce.number().int().positive().describe("Amount of health to restore") },
     async ({ n }) => {
       try {
         const result = await restoreHealth(campaignPath, n);
@@ -175,7 +175,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "restore_spirit",
     "Restore character spirit by n points (clamped to max 5)",
-    { n: z.number().int().positive().describe("Amount of spirit to restore") },
+    { n: z.coerce.number().int().positive().describe("Amount of spirit to restore") },
     async ({ n }) => {
       try {
         const result = await restoreSpirit(campaignPath, n);
@@ -195,7 +195,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "restore_supply",
     "Restore character supply by n points (clamped to max 5)",
-    { n: z.number().int().positive().describe("Amount of supply to restore") },
+    { n: z.coerce.number().int().positive().describe("Amount of supply to restore") },
     async ({ n }) => {
       try {
         const result = await restoreSupply(campaignPath, n);
@@ -257,7 +257,7 @@ export function register(server: McpServer, campaignPath: string): void {
     "Tick a named progress track by the given number of marks",
     {
       track_name: z.string().describe("Name of the progress track to tick (case-insensitive)"),
-      marks: z.number().int().positive().optional().describe("Number of marks to tick (default 1)"),
+      marks: z.coerce.number().int().positive().optional().describe("Number of marks to tick (default 1)"),
     },
     async ({ track_name, marks }) => {
       try {
@@ -449,7 +449,7 @@ export function register(server: McpServer, campaignPath: string): void {
     "Reduce a companion's health by n points",
     {
       companion_name: z.string().describe("Name of the companion (case-insensitive)"),
-      n: z.number().int().positive().describe("Amount of harm to suffer"),
+      n: z.coerce.number().int().positive().describe("Amount of harm to suffer"),
     },
     async ({ companion_name, n }) => {
       try {
@@ -475,7 +475,7 @@ export function register(server: McpServer, campaignPath: string): void {
     "Restore a companion's health by n points",
     {
       companion_name: z.string().describe("Name of the companion (case-insensitive)"),
-      n: z.number().int().positive().describe("Amount of health to restore"),
+      n: z.coerce.number().int().positive().describe("Amount of health to restore"),
     },
     async ({ companion_name, n }) => {
       try {
@@ -501,7 +501,7 @@ export function register(server: McpServer, campaignPath: string): void {
     "Add a new companion or update an existing companion's health",
     {
       companion_name: z.string().describe("Name of the companion"),
-      health: z.number().int().min(0).max(5).describe("Health value (0-5)"),
+      health: z.coerce.number().int().min(0).max(5).describe("Health value (0-5)"),
     },
     async ({ companion_name, health }) => {
       try {
@@ -525,7 +525,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "gain_experience",
     "Add experience points to the character",
-    { n: z.number().int().positive().describe("Amount of experience to gain") },
+    { n: z.coerce.number().int().positive().describe("Amount of experience to gain") },
     async ({ n }) => {
       try {
         const result = await gainExperience(campaignPath, n);
@@ -545,7 +545,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "spend_experience",
     "Spend experience points from the character",
-    { n: z.number().int().positive().describe("Amount of experience to spend") },
+    { n: z.coerce.number().int().positive().describe("Amount of experience to spend") },
     async ({ n }) => {
       try {
         const result = await spendExperience(campaignPath, n);
