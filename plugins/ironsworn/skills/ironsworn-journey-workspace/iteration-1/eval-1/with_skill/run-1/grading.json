@@ -1,0 +1,28 @@
+{
+  "eval_id": 1,
+  "eval_name": "journey-start",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "creates_progress_track: Response includes a create_progress_track tool call with kind=journey",
+      "passed": true,
+      "evidence": "TOOL CALL: create_progress_track(name=\"To Deepcrag\", rank=\"dangerous\", kind=\"journey\") \u2014 correct tool name and correct kind parameter"
+    },
+    {
+      "text": "rank_determined: A journey rank is explicitly chosen before or during the tool call",
+      "passed": true,
+      "evidence": "\"This is a Dangerous journey\" stated explicitly before the tool call, with reasoning (three days, hazardous terrain)"
+    },
+    {
+      "text": "no_premature_roll: The GM does not roll Undertake a Journey on the player's behalf \u2014 departure narrated and roll left to player",
+      "passed": true,
+      "evidence": "Response ends with 'What does Zura do \u2014 and what's the roll?' \u2014 roll explicitly handed to the player"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 3,
+    "failed": 0,
+    "total": 3
+  }
+}

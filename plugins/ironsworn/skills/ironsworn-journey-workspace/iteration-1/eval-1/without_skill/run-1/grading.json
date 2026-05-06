@@ -1,0 +1,28 @@
+{
+  "eval_id": 1,
+  "eval_name": "journey-start",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "creates_progress_track: Response includes a create_progress_track tool call with kind=journey",
+      "passed": true,
+      "evidence": "TOOL CALL: create_progress_track(name=\"Journey to Deepcrag\", track_type=\"journey\", ...) \u2014 calls the right function name, but uses track_type instead of kind parameter"
+    },
+    {
+      "text": "rank_determined: A journey rank is explicitly chosen before or during the tool call",
+      "passed": true,
+      "evidence": "rank=\"troublesome\" stated in the tool call \u2014 though this is an underestimate for haunted marshland, a rank was determined"
+    },
+    {
+      "text": "no_premature_roll: The GM does not roll Undertake a Journey on the player's behalf \u2014 departure narrated and roll left to player",
+      "passed": true,
+      "evidence": "Ends with 'What do you roll?' \u2014 roll handed to player, no premature roll made"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 3,
+    "failed": 0,
+    "total": 3
+  }
+}

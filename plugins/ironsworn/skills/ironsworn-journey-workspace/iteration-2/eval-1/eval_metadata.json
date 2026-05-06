@@ -1,0 +1,11 @@
+{
+  "eval_id": 1,
+  "eval_name": "journey-start",
+  "prompt": "I want to travel from Stillwater to the ruined fortress of Deepcrag, which is three days north across haunted marshland. How do we begin?",
+  "assertions": [
+    {"text": "Creates a progress track via create_progress_track with kind journey"},
+    {"text": "Assigns a rank (Dangerous or Formidable) appropriate for the description"},
+    {"text": "Narrates the departure scene"},
+    {"text": "Does NOT invent gear or weapons not mentioned by the player"}
+  ]
+}

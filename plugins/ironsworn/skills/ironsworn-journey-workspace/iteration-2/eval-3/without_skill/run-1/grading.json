@@ -1,0 +1,44 @@
+{
+  "expectations": [
+    {
+      "text": "Uses roll_progress (not resolve_move) for the arrival roll",
+      "passed": true,
+      "evidence": "Response shows: \"Tool: roll_progress, Arguments: { move: 'Reach Your Destination', progress_score: 6 }\""
+    },
+    {
+      "text": "Does NOT call resolve_move for this progress roll",
+      "passed": true,
+      "evidence": "No resolve_move call appears in the response. Only roll_progress, update_progress_track, take_momentum, and mark_experience are called."
+    },
+    {
+      "text": "Narrates the arrival or complication based on the outcome",
+      "passed": true,
+      "evidence": "Response includes: \"The road narrows. The air grows colder... And then, cresting a ridge of frost-bitten pine, you see it. Deepcrag.\""
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 148.9
+  },
+  "claims": [
+    {
+      "claim": "mark_experience grants 2 ticks for completing a Dangerous journey",
+      "type": "factual",
+      "verified": false,
+      "evidence": "Ironsworn Reach Your Destination strong hit grants: choose one (act with +1 OR +1 momentum). Experience ticks are not part of this move. The without_skill response invents an experience reward that doesn't exist in the rules."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "The without_skill response invents a mark_experience tool call that doesn't correspond to Reach Your Destination rules. An assertion checking that NO experience is awarded here would catch this hallucination."
+      }
+    ],
+    "overall": "The eval passes all assertions but misses a rules hallucination. Consider adding an assertion: 'Does NOT call mark_experience (Reach Your Destination does not award experience ticks)'."
+  }
+}

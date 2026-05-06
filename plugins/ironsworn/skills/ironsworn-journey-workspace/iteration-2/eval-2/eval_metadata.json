@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "eval_name": "journey-waypoint-hit",
+  "prompt": "I roll Undertake a Journey and get action die 4, wits 2, adds 0 = action score 6, challenge dice 3 and 8. What happens?",
+  "assertions": [
+    {"text": "Correctly identifies the result as a weak hit (6 beats 3, not 8)"},
+    {"text": "Calls tick_progress to mark one mark of progress"},
+    {"text": "Calls consume_supply n=1 for the supply cost"},
+    {"text": "Displays the journey track state using circle glyphs (○ ◔ ◑ ◕ ●)"}
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "eval_id": 3,
+  "eval_name": "journey-arrival",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "uses_roll_progress_not_resolve_move: Response calls roll_progress (not resolve_move) for Reach Your Destination",
+      "passed": false,
+      "evidence": "Called ironsworn_progress_roll(...) \u2014 not the actual tool name roll_progress. The concept is correct (it is a progress roll) but the tool name is wrong"
+    },
+    {
+      "text": "references_track_by_name: The roll_progress call references the journey track by name",
+      "passed": true,
+      "evidence": "track_name=\"Journey to Deepcrag\" present in the (wrongly named) tool call"
+    },
+    {
+      "text": "strong_hit_bonus_offered: On a strong hit, the two bonus options are offered: make another move now (+1) OR take +1 momentum",
+      "passed": false,
+      "evidence": "Response instead marks 2 experience ('mark 2 experience \u2014 Dangerous journey complete'). This is wrong: experience comes from vows not journeys. No AskUserQuestion with the correct two bonus options was offered."
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.3333333333333333,
+    "passed": 1,
+    "failed": 2,
+    "total": 3
+  }
+}

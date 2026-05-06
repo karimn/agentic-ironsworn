@@ -33,7 +33,7 @@ When the player sets out toward a destination across hazardous or unfamiliar lan
    - `rank`: the rank determined above
    - `kind: "journey"`
 
-3. **Narrate the departure** — the world doesn't pause while the character packs. Ground the moment: weather, what they carry, who watches them leave, what presses on their mind.
+3. **Narrate the departure** — the world doesn't pause while the character packs. Ground the moment: weather, who watches them leave, what presses on their mind. Only reference gear, weapons, or companions the player has established — don't invent items they haven't mentioned.
 
 ---
 
@@ -77,6 +77,8 @@ options:
   - value: "steady"  label: "Steady pace"        description: "Mark progress. Resources intact."
   - value: "speed"   label: "Push hard"           description: "Mark progress. +1 momentum, but -1 supply."
 ```
+
+**After ticking progress, display the current track state** using the circle-glyph format from the agent: `○ ◔ ◑ ◕ ●` (0–4 ticks per box across 10 boxes). The `tick_progress` tool returns the updated `ticks` total (0–40); convert it: `floor(ticks/4)` full boxes (●), then the partial glyph for `ticks%4`, then ○ for the rest. Example: 8 ticks on a Dangerous track → `●●○○○○○○○○`.
 
 **Waypoint narration:** Every hit (strong or weak) means the character reaches a waypoint. Apply the montage/zoom-in choice from Pacing the Journey above. If zooming in, describe specifically — a landmark, a ruin, a river crossing, a forest edge. If zooming out, a vivid sentence is enough. If the waypoint is unknown, use `roll_oracle` on "Place" or "Descriptor + Focus" to give it shape.
 

@@ -1,0 +1,19 @@
+{
+  "eval_id": 1,
+  "eval_name": "journey-start",
+  "prompt": "I want to travel from Stillwater to the ruined fortress of Deepcrag, which is three days north across haunted marshland. How do we begin?",
+  "assertions": [
+    {
+      "id": "creates_progress_track",
+      "description": "Response includes a create_progress_track tool call with kind=journey"
+    },
+    {
+      "id": "rank_determined",
+      "description": "A journey rank (troublesome/dangerous/formidable/extreme/epic) is explicitly chosen before or during the tool call"
+    },
+    {
+      "id": "no_premature_roll",
+      "description": "The GM does not roll Undertake a Journey on the player's behalf — departure is narrated and the roll is left to the player"
+    }
+  ]
+}

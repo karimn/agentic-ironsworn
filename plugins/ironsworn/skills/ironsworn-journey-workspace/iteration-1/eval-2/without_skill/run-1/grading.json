@@ -1,0 +1,28 @@
+{
+  "eval_id": 2,
+  "eval_name": "journey-waypoint-hit",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "identifies_weak_hit: Response correctly identifies this as a weak hit (action score 6 beats challenge die 3 but not 8)",
+      "passed": true,
+      "evidence": "\"Beats the 3 but not the 8 \u2014 WEAK HIT\" \u2014 correctly identified"
+    },
+    {
+      "text": "ticks_progress: Response includes a tick_progress tool call for the journey track",
+      "passed": false,
+      "evidence": "Called update_progress_track(ticks=+2) instead of tick_progress \u2014 wrong tool name AND wrong tick count (+2 vs +8 for dangerous rank)"
+    },
+    {
+      "text": "consumes_supply: Response includes a consume_supply tool call (weak hit on Undertake costs -1 supply)",
+      "passed": false,
+      "evidence": "Called update_stat(stat=\"supply\", delta=-1) instead of consume_supply \u2014 wrong tool name"
+    }
+  ],
+  "summary": {
+    "pass_rate": 0.3333333333333333,
+    "passed": 1,
+    "failed": 2,
+    "total": 3
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "eval_id": 2,
+  "eval_name": "journey-waypoint-hit",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "identifies_weak_hit: Response correctly identifies this as a weak hit (action score 6 beats challenge die 3 but not 8)",
+      "passed": true,
+      "evidence": "\"6 beats 3, falls short of 8 \u2014 Weak Hit\" \u2014 correctly identified"
+    },
+    {
+      "text": "ticks_progress: Response includes a tick_progress tool call for the journey track",
+      "passed": true,
+      "evidence": "TOOL CALL: tick_progress(track_name=\"Journey to Deepcrag\", ticks=8) \u2014 correct tool name (note: uses ticks=8 directly rather than marks=1; functionally equivalent intention)"
+    },
+    {
+      "text": "consumes_supply: Response includes a consume_supply tool call (weak hit on Undertake costs -1 supply)",
+      "passed": true,
+      "evidence": "TOOL CALL: consume_supply(n=1) \u2014 correct tool and correct amount"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 3,
+    "failed": 0,
+    "total": 3
+  }
+}

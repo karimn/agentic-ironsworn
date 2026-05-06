@@ -1,0 +1,43 @@
+{
+  "skill_name": "ironsworn-journey",
+  "evals": [
+    {
+      "id": 1,
+      "name": "journey-start",
+      "prompt": "I want to travel from Stillwater to the ruined fortress of Deepcrag, which is three days north across haunted marshland. How do we begin?",
+      "expected_output": "GM determines a rank (likely Dangerous or Formidable), creates a journey progress track via create_progress_track with kind journey, narrates the departure scene without inventing gear or companions the player hasn't established, then prompts for the first Undertake a Journey roll",
+      "assertions": [
+        {"text": "Creates a progress track via create_progress_track with kind=journey"},
+        {"text": "Assigns a rank of Dangerous or Formidable (appropriate for the description)"},
+        {"text": "Narrates the departure scene"},
+        {"text": "Does NOT invent gear, weapons, or companions not established by the player"}
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "journey-waypoint-hit",
+      "prompt": "I roll Undertake a Journey and get action die 4, wits 2, adds 0 = action score 6, challenge dice 3 and 8. What happens?",
+      "expected_output": "Weak hit (6 beats 3 but not 8). GM ticks progress once via tick_progress, consumes 1 supply via consume_supply, narrates a waypoint scene, and displays the track state using circle glyphs",
+      "assertions": [
+        {"text": "Correctly identifies the result as a weak hit (6 beats 3, not 8)"},
+        {"text": "Calls tick_progress to mark one mark of progress"},
+        {"text": "Calls consume_supply n=1 for the supply cost"},
+        {"text": "Displays journey track state using circle glyphs (○ ◔ ◑ ◕ ●) showing 10 boxes"}
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "journey-arrival",
+      "prompt": "We've been traveling for a while. The journey progress track for 'Journey to Deepcrag' has 6 marks filled (24 ticks on a Dangerous track). I think we're close — let's see if we arrive.",
+      "expected_output": "GM uses roll_progress (not resolve_move) against the journey track, narrates the arrival or complication based on the outcome, and does NOT call resolve_move",
+      "assertions": [
+        {"text": "Uses roll_progress (not resolve_move) for the arrival roll"},
+        {"text": "Does NOT call resolve_move for this progress roll"},
+        {"text": "Narrates the arrival or complication based on the outcome"}
+      ],
+      "files": []
+    }
+  ]
+}

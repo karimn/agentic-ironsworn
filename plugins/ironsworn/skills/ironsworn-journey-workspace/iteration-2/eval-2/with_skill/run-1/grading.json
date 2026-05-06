@@ -1,0 +1,45 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly identifies the result as a weak hit (6 beats 3, not 8)",
+      "passed": true,
+      "evidence": "Response states: \"Action score 6 beats challenge die 3 — yes. Action score 6 does not beat challenge die 8 — no. Result: Weak Hit\""
+    },
+    {
+      "text": "Calls tick_progress to mark one mark of progress",
+      "passed": true,
+      "evidence": "Response shows tool call for tick_progress and displays updated track at 8 ticks (2 boxes on Dangerous rank = 1 mark): ● ● ○ ○ ○ ○ ○ ○ ○ ○"
+    },
+    {
+      "text": "Calls consume_supply n=1 for the supply cost",
+      "passed": true,
+      "evidence": "Response includes consume_supply call and narrates: \"Supply reduced by 1.\""
+    },
+    {
+      "text": "Displays journey track state using circle glyphs (○ ◔ ◑ ◕ ●) showing 10 boxes",
+      "passed": true,
+      "evidence": "Response displays: \"● ● ○ ○ ○ ○ ○ ○ ○ ○\" with annotation \"8 ticks of 40 — 2 of 10 boxes filled\""
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 67.1
+  },
+  "claims": [
+    {
+      "claim": "Dangerous rank = 2 ticks per mark (shown as 2 boxes)",
+      "type": "factual",
+      "verified": true,
+      "evidence": "Skill specifies Dangerous = 8 ticks per mark, 4 ticks per box → 2 boxes per mark. Track shows ● ● = 2 full boxes = 8 ticks. Correct."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Assertions are well-targeted. The glyph display assertion is the key discriminating one and it passes."
+  }
+}

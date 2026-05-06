@@ -1,0 +1,15 @@
+{
+  "reviews": [
+    {
+      "run_id": "eval-1-with_skill",
+      "feedback": "The sword makes sense for Zura, but not necessarily for anyone else",
+      "timestamp": "2026-04-30T19:05:37.617Z"
+    },
+    {
+      "run_id": "eval-2-with_skill",
+      "feedback": "Report back the ticks diagram per the style the agent md specifies if any are listed",
+      "timestamp": "2026-04-30T19:05:37.617Z"
+    }
+  ],
+  "status": "in_progress"
+}

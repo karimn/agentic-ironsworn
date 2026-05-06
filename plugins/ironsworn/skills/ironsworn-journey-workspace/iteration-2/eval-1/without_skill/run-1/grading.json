@@ -1,0 +1,42 @@
+{
+  "expectations": [
+    {
+      "text": "Creates a progress track via create_progress_track with kind=journey",
+      "passed": true,
+      "evidence": "Response includes: [TOOL CALL: create_progress_track(name=\"Journey to Deepcrag\", rank=\"formidable\", kind=\"journey\")]"
+    },
+    {
+      "text": "Assigns a rank of Dangerous or Formidable (appropriate for the description)",
+      "passed": true,
+      "evidence": "Response states: \"This is a Formidable journey.\" Justification given for haunted, actively hostile terrain."
+    },
+    {
+      "text": "Narrates the departure scene",
+      "passed": true,
+      "evidence": "Response includes departure narration describing the marsh, Stillwater gate, and atmosphere."
+    },
+    {
+      "text": "Does NOT invent gear, weapons, or companions not established by the player",
+      "passed": true,
+      "evidence": "Response explicitly says: \"No supplies or equipment have been established yet. That's honest — I won't invent what you're carrying.\" No gear invented."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 102.9
+  },
+  "claims": [],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "The no-gear assertion passes for both with and without skill because the baseline agent was primed with 'No gear has been mentioned by the player yet' in the test prompt. To make this assertion discriminating, the test prompt should not include that hint — let the skill (not the prompt) do the work."
+      }
+    ],
+    "overall": "The gear-invention assertion is not discriminating because the test prompt explicitly hints at it. This assertion only tests the skill in iteration-1 where the original prompt didn't include the hint."
+  }
+}

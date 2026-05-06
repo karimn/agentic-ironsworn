@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "text": "Uses roll_progress (not resolve_move) for the arrival roll",
+      "passed": true,
+      "evidence": "Response shows: \"roll_progress(track_name: 'Journey to Deepcrag')\" with explicit note: \"Per the Ironsworn journey rules, I do not call resolve_move here. I call roll_progress.\""
+    },
+    {
+      "text": "Does NOT call resolve_move for this progress roll",
+      "passed": true,
+      "evidence": "Response explicitly states: \"Note: resolve_move was intentionally NOT called. Reach Your Destination is a progress roll — using resolve_move here would be incorrect per the skill rules.\""
+    },
+    {
+      "text": "Narrates the arrival or complication based on the outcome",
+      "passed": true,
+      "evidence": "Response includes arrival narration: \"Zura Rhian presses forward, and the skyline begins to change... The gates of Deepcrag are hewn directly into the cliff, iron-banded and scarred.\""
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 92.9
+  },
+  "claims": [
+    {
+      "claim": "record_scene called to capture the arrival beat",
+      "type": "process",
+      "verified": true,
+      "evidence": "Response shows record_scene tool call with arrival summary."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Solid assertions. The skill explicitly explains why resolve_move is wrong here, which is valuable instructional content."
+  }
+}

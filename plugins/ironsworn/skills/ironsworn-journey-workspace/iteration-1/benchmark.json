@@ -1,0 +1,263 @@
+{
+  "metadata": {
+    "skill_name": "ironsworn-journey",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-04-30T18:56:35Z",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 33.6,
+        "tokens": 11259,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "creates_progress_track: Response includes a create_progress_track tool call with kind=journey",
+          "passed": true,
+          "evidence": "TOOL CALL: create_progress_track(name=\"To Deepcrag\", rank=\"dangerous\", kind=\"journey\") \u2014 correct tool name and correct kind parameter"
+        },
+        {
+          "text": "rank_determined: A journey rank is explicitly chosen before or during the tool call",
+          "passed": true,
+          "evidence": "\"This is a Dangerous journey\" stated explicitly before the tool call, with reasoning (three days, hazardous terrain)"
+        },
+        {
+          "text": "no_premature_roll: The GM does not roll Undertake a Journey on the player's behalf \u2014 departure narrated and roll left to player",
+          "passed": true,
+          "evidence": "Response ends with 'What does Zura do \u2014 and what's the roll?' \u2014 roll explicitly handed to the player"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 26.3,
+        "tokens": 11066,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "identifies_weak_hit: Response correctly identifies this as a weak hit (action score 6 beats challenge die 3 but not 8)",
+          "passed": true,
+          "evidence": "\"6 beats 3, falls short of 8 \u2014 Weak Hit\" \u2014 correctly identified"
+        },
+        {
+          "text": "ticks_progress: Response includes a tick_progress tool call for the journey track",
+          "passed": true,
+          "evidence": "TOOL CALL: tick_progress(track_name=\"Journey to Deepcrag\", ticks=8) \u2014 correct tool name (note: uses ticks=8 directly rather than marks=1; functionally equivalent intention)"
+        },
+        {
+          "text": "consumes_supply: Response includes a consume_supply tool call (weak hit on Undertake costs -1 supply)",
+          "passed": true,
+          "evidence": "TOOL CALL: consume_supply(n=1) \u2014 correct tool and correct amount"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 32.3,
+        "tokens": 11399,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "uses_roll_progress_not_resolve_move: Response calls roll_progress (not resolve_move) for Reach Your Destination",
+          "passed": true,
+          "evidence": "TOOL CALL: roll_progress(track_name=\"Journey to Deepcrag\") \u2014 correct tool. Response also explicitly explains WHY: 'resolve_move is for action rolls... Reach Your Destination is a progress roll'"
+        },
+        {
+          "text": "references_track_by_name: The roll_progress call references the journey track by name",
+          "passed": true,
+          "evidence": "track_name=\"Journey to Deepcrag\" in the tool call"
+        },
+        {
+          "text": "strong_hit_bonus_offered: On a strong hit, the two bonus options are offered: make another move now (+1) OR take +1 momentum",
+          "passed": true,
+          "evidence": "AskUserQuestion with options 'Act immediately' (make another move +1) and 'Take momentum' (+1 momentum) \u2014 exactly correct"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 42.6,
+        "tokens": 11458,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "creates_progress_track: Response includes a create_progress_track tool call with kind=journey",
+          "passed": true,
+          "evidence": "TOOL CALL: create_progress_track(name=\"Journey to Deepcrag\", track_type=\"journey\", ...) \u2014 calls the right function name, but uses track_type instead of kind parameter"
+        },
+        {
+          "text": "rank_determined: A journey rank is explicitly chosen before or during the tool call",
+          "passed": true,
+          "evidence": "rank=\"troublesome\" stated in the tool call \u2014 though this is an underestimate for haunted marshland, a rank was determined"
+        },
+        {
+          "text": "no_premature_roll: The GM does not roll Undertake a Journey on the player's behalf \u2014 departure narrated and roll left to player",
+          "passed": true,
+          "evidence": "Ends with 'What do you roll?' \u2014 roll handed to player, no premature roll made"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333333333333333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 28.3,
+        "tokens": 10940,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "identifies_weak_hit: Response correctly identifies this as a weak hit (action score 6 beats challenge die 3 but not 8)",
+          "passed": true,
+          "evidence": "\"Beats the 3 but not the 8 \u2014 WEAK HIT\" \u2014 correctly identified"
+        },
+        {
+          "text": "ticks_progress: Response includes a tick_progress tool call for the journey track",
+          "passed": false,
+          "evidence": "Called update_progress_track(ticks=+2) instead of tick_progress \u2014 wrong tool name AND wrong tick count (+2 vs +8 for dangerous rank)"
+        },
+        {
+          "text": "consumes_supply: Response includes a consume_supply tool call (weak hit on Undertake costs -1 supply)",
+          "passed": false,
+          "evidence": "Called update_stat(stat=\"supply\", delta=-1) instead of consume_supply \u2014 wrong tool name"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333333333333333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 35.5,
+        "tokens": 11283,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "uses_roll_progress_not_resolve_move: Response calls roll_progress (not resolve_move) for Reach Your Destination",
+          "passed": false,
+          "evidence": "Called ironsworn_progress_roll(...) \u2014 not the actual tool name roll_progress. The concept is correct (it is a progress roll) but the tool name is wrong"
+        },
+        {
+          "text": "references_track_by_name: The roll_progress call references the journey track by name",
+          "passed": true,
+          "evidence": "track_name=\"Journey to Deepcrag\" present in the (wrongly named) tool call"
+        },
+        {
+          "text": "strong_hit_bonus_offered: On a strong hit, the two bonus options are offered: make another move now (+1) OR take +1 momentum",
+          "passed": false,
+          "evidence": "Response instead marks 2 experience ('mark 2 experience \u2014 Dangerous journey complete'). This is wrong: experience comes from vows not journeys. No AskUserQuestion with the correct two bonus options was offered."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 30.7333,
+        "stddev": 3.894,
+        "min": 26.3,
+        "max": 33.6
+      },
+      "tokens": {
+        "mean": 11241.3333,
+        "stddev": 167.2015,
+        "min": 11066,
+        "max": 11399
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5556,
+        "stddev": 0.3849,
+        "min": 0.3333,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 35.4667,
+        "stddev": 7.1501,
+        "min": 28.3,
+        "max": 42.6
+      },
+      "tokens": {
+        "mean": 11227.0,
+        "stddev": 263.5014,
+        "min": 10940,
+        "max": 11458
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.44",
+      "time_seconds": "-4.7",
+      "tokens": "+14"
+    }
+  },
+  "notes": []
+}

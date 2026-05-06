@@ -1,0 +1,45 @@
+{
+  "expectations": [
+    {
+      "text": "Creates a progress track via create_progress_track with kind=journey",
+      "passed": true,
+      "evidence": "Response includes: [TOOL CALL: create_progress_track(name: \"Journey to Deepcrag\", rank: \"dangerous\", kind: \"journey\")]"
+    },
+    {
+      "text": "Assigns a rank of Dangerous or Formidable (appropriate for the description)",
+      "passed": true,
+      "evidence": "Response states: \"This is Dangerous rank. The distance is significant — multiple days — and the hazard is real (haunted marsh, hostile or unknown terrain).\""
+    },
+    {
+      "text": "Narrates the departure scene",
+      "passed": true,
+      "evidence": "Response includes departure narration: \"You turn your back on Stillwater. The ground gives slightly underfoot the moment you leave the road...\""
+    },
+    {
+      "text": "Does NOT invent gear, weapons, or companions not established by the player",
+      "passed": true,
+      "evidence": "Departure narration describes only the environment (reeds, mist, marsh) without referencing any specific gear, weapons, or companions belonging to Zura."
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 93.5
+  },
+  "claims": [
+    {
+      "claim": "Bond bonus not applied since no bond with Stillwater confirmed",
+      "type": "process",
+      "verified": true,
+      "evidence": "Response notes: \"No bond bonus applied. We do not have confirmation that Zura holds a bond with Stillwater.\""
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Assertions look solid. One gap: no assertion checks that the player is prompted for the first Undertake a Journey roll — the skill requires this but it's not tested."
+  }
+}

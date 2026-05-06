@@ -1,0 +1,19 @@
+{
+  "eval_id": 3,
+  "eval_name": "journey-arrival",
+  "prompt": "We've been traveling for a while. The journey progress track for 'Journey to Deepcrag' has 6 marks filled (24 ticks on a Dangerous track). I think we're close — let's see if we arrive.",
+  "assertions": [
+    {
+      "id": "uses_roll_progress_not_resolve_move",
+      "description": "Response calls roll_progress (not resolve_move) for Reach Your Destination — this is a progress roll, not an action roll"
+    },
+    {
+      "id": "references_track_by_name",
+      "description": "The roll_progress call references the journey track by name (Journey to Deepcrag or similar)"
+    },
+    {
+      "id": "strong_hit_bonus_offered",
+      "description": "On a strong hit, the two bonus options are offered: make another move now (+1) OR take +1 momentum"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "expectations": [
+    {
+      "text": "Correctly identifies the result as a weak hit (6 beats 3, not 8)",
+      "passed": true,
+      "evidence": "Response states: \"6 > 3 (beat one), 6 < 8 (miss one) = WEAK HIT\""
+    },
+    {
+      "text": "Calls tick_progress to mark one mark of progress",
+      "passed": true,
+      "evidence": "Response calls mark_progress (different tool name but functionally equivalent): \"mark_progress({ track: 'Journey to Deepcrag', rank: 'Dangerous', ticks_to_add: 2 })\". Note: without skill, wrong tool name used."
+    },
+    {
+      "text": "Calls consume_supply n=1 for the supply cost",
+      "passed": true,
+      "evidence": "Response calls update_character({ stat: 'supply', delta: -1 }) and narrates 'Suffer -1 Supply'. Functionally equivalent, wrong tool name."
+    },
+    {
+      "text": "Displays journey track state using circle glyphs (○ ◔ ◑ ◕ ●) showing 10 boxes",
+      "passed": false,
+      "evidence": "Without skill, track displayed as text: \"Journey to Deepcrag progress: 2/40 ticks (1 box filled)\" — no glyph visualization produced."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 1,
+    "total": 4,
+    "pass_rate": 0.75
+  },
+  "timing": {
+    "executor_duration_seconds": 67.4
+  },
+  "claims": [],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Calls tick_progress to mark one mark of progress",
+        "reason": "Without skill uses mark_progress instead of tick_progress and still passes on a functional basis. Consider asserting the specific tool name to make this discriminating."
+      }
+    ],
+    "overall": "Glyph display is the key failing assertion — confirms the skill's added value for this eval."
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "eval_id": 3,
+  "eval_name": "journey-arrival",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "uses_roll_progress_not_resolve_move: Response calls roll_progress (not resolve_move) for Reach Your Destination",
+      "passed": true,
+      "evidence": "TOOL CALL: roll_progress(track_name=\"Journey to Deepcrag\") \u2014 correct tool. Response also explicitly explains WHY: 'resolve_move is for action rolls... Reach Your Destination is a progress roll'"
+    },
+    {
+      "text": "references_track_by_name: The roll_progress call references the journey track by name",
+      "passed": true,
+      "evidence": "track_name=\"Journey to Deepcrag\" in the tool call"
+    },
+    {
+      "text": "strong_hit_bonus_offered: On a strong hit, the two bonus options are offered: make another move now (+1) OR take +1 momentum",
+      "passed": true,
+      "evidence": "AskUserQuestion with options 'Act immediately' (make another move +1) and 'Take momentum' (+1 momentum) \u2014 exactly correct"
+    }
+  ],
+  "summary": {
+    "pass_rate": 1.0,
+    "passed": 3,
+    "failed": 0,
+    "total": 3
+  }
+}

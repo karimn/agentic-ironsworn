@@ -1,0 +1,10 @@
+{
+  "eval_id": 3,
+  "eval_name": "journey-arrival",
+  "prompt": "We've been traveling for a while. The journey progress track for 'Journey to Deepcrag' has 6 marks filled (24 ticks on a Dangerous track). I think we're close — let's see if we arrive.",
+  "assertions": [
+    {"text": "Uses roll_progress (not resolve_move) for the arrival roll"},
+    {"text": "Does NOT call resolve_move for this progress roll"},
+    {"text": "Narrates the arrival or complication based on the outcome"}
+  ]
+}

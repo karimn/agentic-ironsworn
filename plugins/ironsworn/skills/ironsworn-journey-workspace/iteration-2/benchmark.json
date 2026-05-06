@@ -1,0 +1,283 @@
+{
+  "metadata": {
+    "skill_name": "ironsworn-journey",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-05-06T16:44:17Z",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 93.5,
+        "tokens": 18243,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Creates a progress track via create_progress_track with kind=journey",
+          "passed": true,
+          "evidence": "Response includes: [TOOL CALL: create_progress_track(name: \"Journey to Deepcrag\", rank: \"dangerous\", kind: \"journey\")]"
+        },
+        {
+          "text": "Assigns a rank of Dangerous or Formidable (appropriate for the description)",
+          "passed": true,
+          "evidence": "Response states: \"This is Dangerous rank. The distance is significant \u2014 multiple days \u2014 and the hazard is real (haunted marsh, hostile or unknown terrain).\""
+        },
+        {
+          "text": "Narrates the departure scene",
+          "passed": true,
+          "evidence": "Response includes departure narration: \"You turn your back on Stillwater. The ground gives slightly underfoot the moment you leave the road...\""
+        },
+        {
+          "text": "Does NOT invent gear, weapons, or companions not established by the player",
+          "passed": true,
+          "evidence": "Departure narration describes only the environment (reeds, mist, marsh) without referencing any specific gear, weapons, or companions belonging to Zura."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 67.1,
+        "tokens": 17258,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies the result as a weak hit (6 beats 3, not 8)",
+          "passed": true,
+          "evidence": "Response states: \"Action score 6 beats challenge die 3 \u2014 yes. Action score 6 does not beat challenge die 8 \u2014 no. Result: Weak Hit\""
+        },
+        {
+          "text": "Calls tick_progress to mark one mark of progress",
+          "passed": true,
+          "evidence": "Response shows tool call for tick_progress and displays updated track at 8 ticks (2 boxes on Dangerous rank = 1 mark): \u25cf \u25cf \u25cb \u25cb \u25cb \u25cb \u25cb \u25cb \u25cb \u25cb"
+        },
+        {
+          "text": "Calls consume_supply n=1 for the supply cost",
+          "passed": true,
+          "evidence": "Response includes consume_supply call and narrates: \"Supply reduced by 1.\""
+        },
+        {
+          "text": "Displays journey track state using circle glyphs (\u25cb \u25d4 \u25d1 \u25d5 \u25cf) showing 10 boxes",
+          "passed": true,
+          "evidence": "Response displays: \"\u25cf \u25cf \u25cb \u25cb \u25cb \u25cb \u25cb \u25cb \u25cb \u25cb\" with annotation \"8 ticks of 40 \u2014 2 of 10 boxes filled\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 92.9,
+        "tokens": 18353,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses roll_progress (not resolve_move) for the arrival roll",
+          "passed": true,
+          "evidence": "Response shows: \"roll_progress(track_name: 'Journey to Deepcrag')\" with explicit note: \"Per the Ironsworn journey rules, I do not call resolve_move here. I call roll_progress.\""
+        },
+        {
+          "text": "Does NOT call resolve_move for this progress roll",
+          "passed": true,
+          "evidence": "Response explicitly states: \"Note: resolve_move was intentionally NOT called. Reach Your Destination is a progress roll \u2014 using resolve_move here would be incorrect per the skill rules.\""
+        },
+        {
+          "text": "Narrates the arrival or complication based on the outcome",
+          "passed": true,
+          "evidence": "Response includes arrival narration: \"Zura Rhian presses forward, and the skyline begins to change... The gates of Deepcrag are hewn directly into the cliff, iron-banded and scarred.\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 102.9,
+        "tokens": 27828,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Creates a progress track via create_progress_track with kind=journey",
+          "passed": true,
+          "evidence": "Response includes: [TOOL CALL: create_progress_track(name=\"Journey to Deepcrag\", rank=\"formidable\", kind=\"journey\")]"
+        },
+        {
+          "text": "Assigns a rank of Dangerous or Formidable (appropriate for the description)",
+          "passed": true,
+          "evidence": "Response states: \"This is a Formidable journey.\" Justification given for haunted, actively hostile terrain."
+        },
+        {
+          "text": "Narrates the departure scene",
+          "passed": true,
+          "evidence": "Response includes departure narration describing the marsh, Stillwater gate, and atmosphere."
+        },
+        {
+          "text": "Does NOT invent gear, weapons, or companions not established by the player",
+          "passed": true,
+          "evidence": "Response explicitly says: \"No supplies or equipment have been established yet. That's honest \u2014 I won't invent what you're carrying.\" No gear invented."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 67.4,
+        "tokens": 13478,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Correctly identifies the result as a weak hit (6 beats 3, not 8)",
+          "passed": true,
+          "evidence": "Response states: \"6 > 3 (beat one), 6 < 8 (miss one) = WEAK HIT\""
+        },
+        {
+          "text": "Calls tick_progress to mark one mark of progress",
+          "passed": true,
+          "evidence": "Response calls mark_progress (different tool name but functionally equivalent): \"mark_progress({ track: 'Journey to Deepcrag', rank: 'Dangerous', ticks_to_add: 2 })\". Note: without skill, wrong tool name used."
+        },
+        {
+          "text": "Calls consume_supply n=1 for the supply cost",
+          "passed": true,
+          "evidence": "Response calls update_character({ stat: 'supply', delta: -1 }) and narrates 'Suffer -1 Supply'. Functionally equivalent, wrong tool name."
+        },
+        {
+          "text": "Displays journey track state using circle glyphs (\u25cb \u25d4 \u25d1 \u25d5 \u25cf) showing 10 boxes",
+          "passed": false,
+          "evidence": "Without skill, track displayed as text: \"Journey to Deepcrag progress: 2/40 ticks (1 box filled)\" \u2014 no glyph visualization produced."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 148.9,
+        "tokens": 17791,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses roll_progress (not resolve_move) for the arrival roll",
+          "passed": true,
+          "evidence": "Response shows: \"Tool: roll_progress, Arguments: { move: 'Reach Your Destination', progress_score: 6 }\""
+        },
+        {
+          "text": "Does NOT call resolve_move for this progress roll",
+          "passed": true,
+          "evidence": "No resolve_move call appears in the response. Only roll_progress, update_progress_track, take_momentum, and mark_experience are called."
+        },
+        {
+          "text": "Narrates the arrival or complication based on the outcome",
+          "passed": true,
+          "evidence": "Response includes: \"The road narrows. The air grows colder... And then, cresting a ridge of frost-bitten pine, you see it. Deepcrag.\""
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 84.5,
+        "stddev": 15.0718,
+        "min": 67.1,
+        "max": 93.5
+      },
+      "tokens": {
+        "mean": 17951.3333,
+        "stddev": 602.958,
+        "min": 17258,
+        "max": 18353
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.9167,
+        "stddev": 0.1443,
+        "min": 0.75,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 106.4,
+        "stddev": 40.8626,
+        "min": 67.4,
+        "max": 148.9
+      },
+      "tokens": {
+        "mean": 19699.0,
+        "stddev": 7362.8101,
+        "min": 13478,
+        "max": 27828
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.08",
+      "time_seconds": "-21.9",
+      "tokens": "-1748"
+    }
+  },
+  "notes": []
+}
