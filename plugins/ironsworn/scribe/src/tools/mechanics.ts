@@ -32,17 +32,22 @@ export function register(server: McpServer, campaignPath: string): void {
     "Resolve an Ironsworn move roll, optionally burning momentum",
     {
       move_name: z.string().describe("Name of the move to resolve"),
-      stat: z.string().describe("Stat to use (edge, heart, iron, shadow, wits)"),
+      stat: z.string().describe("Stat to use (edge, heart, iron, shadow, wits, health, spirit, supply)"),
       adds: z.number().int().optional().describe("Additional adds to the action score"),
       burn_momentum: z.boolean().optional().describe("Whether to burn momentum if it would improve the outcome"),
     },
     async ({ move_name, stat, adds, burn_momentum }) => {
       try {
         const character = await loadCharacter(campaignPath);
-        const statValue = (character.stats as Record<string, number>)[stat];
+        const RESOURCE_STATS = ["health", "spirit", "supply"] as const;
+        const statValue =
+          (character.stats as Record<string, number>)[stat] ??
+          (RESOURCE_STATS.includes(stat as (typeof RESOURCE_STATS)[number])
+            ? character[stat as (typeof RESOURCE_STATS)[number]]
+            : undefined);
         if (statValue === undefined) {
           return {
-            content: [{ type: "text", text: `Error: Unknown stat "${stat}". Valid stats: edge, heart, iron, shadow, wits` }],
+            content: [{ type: "text", text: `Error: Unknown stat "${stat}". Valid stats: edge, heart, iron, shadow, wits, health, spirit, supply` }],
             isError: true,
           };
         }
