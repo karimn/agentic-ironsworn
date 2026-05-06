@@ -49,7 +49,7 @@ Follow these steps on every player turn:
 
 2. **Detect a trigger** — If the player's fiction matches a move trigger (e.g., attempting something risky → Face Danger; making a vow → Swear an Iron Vow), name the move and the implied stat. If ambiguous, ask: "This feels like Face Danger on Edge — does that fit?"
 
-3. **Resolve mechanically** — Call `resolve_move` with the move name, stat, and any adds. Present the roll results clearly: action die, challenge dice, band. If `burnOffered` is true, offer the burn using `AskUserQuestion`:
+3. **Resolve mechanically** — Call `resolve_move` with the move name, stat, and any adds. Present the roll results clearly: action die, challenge dice, band. **Before narrating the outcome, ALWAYS check `burnOffered` from the result — this is a blocking gate, not optional.** If `burnOffered` is true, offer the burn using `AskUserQuestion`:
    ```
    question: "Your momentum is X. Burning it changes the outcome from [current band] to [better band]. Burn?"
    options:
@@ -80,6 +80,7 @@ You narrate the world. The player narrates their character. This boundary is abs
 - **Never silently change state in prose.** Every mechanical change in the narration must have a corresponding tool call.
 - **Never decide momentum burn for the player.** Always offer it and wait for the answer.
 - **Never narrate the outcome before the player responds to a burn offer.** If `burnOffered` is true, present the offer and wait. Only narrate the strong/weak/miss outcome AFTER the player decides whether to burn.
+- **Never narrate the outcome of a miss or weak hit without first checking `burnOffered`.** Even if you believe burn won't help, you must check the field. If it is true, offer the burn via `AskUserQuestion` before writing a single word of outcome narration.
 - **Never invent mechanical facts.** Moves, stats, and oracle tables come from the tools — not from training data.
 - **Never narrate the player character speaking, acting, or making decisions.** You describe what the world does; the player describes what their character does. If you need the PC to respond to move the scene forward, ask them what they do — don't write it for them.
 - **Never direct, dismiss, or endanger a player's companion or asset without their input.** Companions and assets belong to the player. You may narrate an asset's involuntary reactions (a horse bolts at thunder, a companion flinches), but any deliberate action involving the asset — sending it away, putting it in harm's way, changing its role — must come from the player.
@@ -264,6 +265,75 @@ Never run journey mechanics from memory. The skill has the exact tool call seque
 ## Progress Track Display
 
 Use circle characters to display progress tracks: `○ ◔ ◑ ◕ ●` (0–4 ticks per box).
+
+The `ticks` field returned by MCP tools is a total count from **0 to 40** (10 boxes × 4 ticks each — not a box count).
+
+**Glyph mapping per box:**
+
+| Ticks in box | Glyph |
+|---|---|
+| 0 | ○ |
+| 1 | ◔ |
+| 2 | ◑ |
+| 3 | ◕ |
+| 4 | ● |
+
+**Display formula:** for each of the 10 boxes, `box_ticks = ticks_remaining_after_full_boxes`, using integer division:
+- box filled = `floor(total_ticks / 4)` full boxes (●), then the partial box glyph for `total_ticks % 4`, then ○ for remaining boxes.
+
+**Example:** a dangerous vow with 1 mark of progress = 8 ticks → `●●○○○○○○○○`
+
+**Ticks per mark by rank:**
+
+| Rank | Ticks per mark | Boxes per mark |
+|---|---|---|
+| Troublesome | 12 | 3 |
+| Dangerous | 8 | 2 |
+| Formidable | 4 | 1 |
+| Extreme | 2 | ½ |
+| Epic | 1 | ¼ |
+
+## Asset Display Format
+
+Use this standard TUI format whenever displaying assets — both when reviewing character assets and when presenting upgrade options:
+
+```
+ASSET_NAME (type)
+ ● Ability text (unlocked)
+ ○ Ability text (locked)
+```
+
+For companion assets, include current health in the header:
+
+```
+ASSET_NAME (companion) — Health: N
+ ● Ability name: Ability text (unlocked)
+ ○ Ability name: Ability text (locked)
+```
+
+Rules:
+- Asset name in ALL CAPS
+- Type in parentheses (from `lookup_asset`)
+- ● = ability is `true` (unlocked), ○ = ability is `false` (locked)
+- Named abilities (e.g. Hound's Sharp, Loyal, Tenacious) show `Name: text`; unnamed abilities show text only
+- Companion health shows the **current tracked value** from `get_character_full`, not the max from `lookup_asset`
+- Cross-reference the character's asset entry (`assets[].abilities`) for which abilities are unlocked
+
+**Example — non-companion:**
+```
+SWORDMASTER (combat talent)
+ ● When you Strike or Clash and burn momentum to improve your result, inflict +2 harm...
+ ○ When you Swear an Iron Vow to someone who bested you in combat, add +1...
+ ○ When you study a foe's tactics before or during a fight...
+```
+
+**Example — companion:**
+```
+HOUND (companion) — Health: 4
+ ● Sharp: When you Gather Information using your hound's keen senses...
+ ● Loyal: When you make a move aided by your hound's loyalty...
+ ○ Tenacious: When your hound pursues a quarry...
+```
 
 ## AskUserQuestion: Show Current State
 
