@@ -345,3 +345,27 @@ export async function spendExperience(
     char.experience -= n;
   });
 }
+
+export async function upgradeAsset(
+  campaignPath: string,
+  assetName: string,
+  abilityIndex: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "upgradeAsset", (char) => {
+    const asset = char.assets.find(
+      (a) => a.name.toLowerCase() === assetName.toLowerCase(),
+    );
+    if (!asset) {
+      throw new Error(`Asset not found: "${assetName}"`);
+    }
+    if (abilityIndex < 0 || abilityIndex >= asset.abilities.length) {
+      throw new Error(
+        `Ability index ${abilityIndex} out of range for asset "${assetName}" (has ${asset.abilities.length} abilities)`,
+      );
+    }
+    if (asset.abilities[abilityIndex]) {
+      throw new Error(`Ability ${abilityIndex} of "${assetName}" is already unlocked`);
+    }
+    asset.abilities[abilityIndex] = true;
+  });
+}

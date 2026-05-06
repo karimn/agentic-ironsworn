@@ -19,6 +19,7 @@ import {
   companionSufferHarm,
   companionRestoreHealth,
   upsertCompanion,
+  upgradeAsset,
   Character,
 } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
@@ -552,6 +553,32 @@ export function register(server: McpServer, campaignPath: string): void {
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "upgrade_asset",
+    "Unlock an asset ability by index. Use after spend_experience to persist the upgrade to the character sheet.",
+    {
+      asset_name: z.string().describe("Name of the asset (case-insensitive, e.g. 'Hound', 'Swordmaster')"),
+      ability_index: z.coerce.number().int().min(0).describe("Zero-based index of the ability to unlock"),
+    },
+    async ({ asset_name, ability_index }) => {
+      try {
+        const result = await upgradeAsset(campaignPath, asset_name, ability_index);
+        recordMutation(campaignPath);
+        const asset = result.after.assets.find(
+          (a) => a.name.toLowerCase() === asset_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, asset }) }],
         };
       } catch (e) {
         return {
