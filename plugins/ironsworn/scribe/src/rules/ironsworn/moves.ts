@@ -114,11 +114,12 @@ export function resolveMove(
   momentum: number,
   adds?: number,
   focused?: boolean,
+  prerolledChallengeDice?: [number, number],
 ): MoveOutcome {
   const effectiveAdds = adds ?? 0;
 
   const actionDie = roll("d6").rolls[0]!;
-  const challengeDice: [number, number] = [
+  const challengeDice: [number, number] = prerolledChallengeDice ?? [
     roll("d10").rolls[0]!,
     roll("d10").rolls[0]!,
   ];
@@ -184,5 +185,69 @@ export function resolveMove(
     burnOffered,
     momentumBurned: false,
     ...(focused ? { focused: true, focusedBonus: FOCUSED_BONUS[band] } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// applyMomentumBurn
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-evaluate a move outcome by replacing the action score with the
+ * character's current momentum value, keeping the original challenge dice.
+ * Returns the updated outcome with momentumBurned=true and burnOffered=false
+ * (since momentum is now spent).
+ */
+export function applyMomentumBurn(original: MoveOutcome, momentum: number): MoveOutcome {
+  const actionScore = Math.min(momentum, 10);
+  const { challengeDice } = original;
+
+  let band: Band;
+  if (actionScore > challengeDice[0] && actionScore > challengeDice[1]) {
+    band = "strong_hit";
+  } else if (actionScore > challengeDice[0] || actionScore > challengeDice[1]) {
+    band = "weak_hit";
+  } else {
+    band = "miss";
+  }
+
+  const match = challengeDice[0] === challengeDice[1];
+
+  const moves = getMoves();
+  const moveData = moves.find(
+    (m) => m.name.toLowerCase() === original.moveName.toLowerCase(),
+  );
+
+  const FOCUSED_OUTCOME_TEXT: Record<Band, string> = {
+    strong_hit: "Focused: +2 to chosen recovery action",
+    weak_hit: "Focused: +1 to chosen recovery action",
+    miss: "Focused: no bonus",
+  };
+  const FOCUSED_BONUS: Record<Band, number> = {
+    strong_hit: 2,
+    weak_hit: 1,
+    miss: 0,
+  };
+
+  const outcomeText = original.focused
+    ? FOCUSED_OUTCOME_TEXT[band]
+    : (moveData?.outcomes?.[band] ?? "");
+  const effectsSuggested: Effect[] = original.focused
+    ? []
+    : (moveData?.effects_by_band?.[band] ?? []).map((e) => ({
+        kind: e.kind,
+        ...(e.amount !== undefined ? { amount: e.amount } : {}),
+      }));
+
+  return {
+    ...original,
+    actionScore,
+    band,
+    match,
+    outcomeText,
+    effectsSuggested,
+    burnOffered: false,
+    momentumBurned: true,
+    ...(original.focused ? { focusedBonus: FOCUSED_BONUS[band] } : {}),
   };
 }
