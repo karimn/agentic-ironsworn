@@ -41,7 +41,7 @@ echo "────────────────────────�
 SETTINGS_CONTENT='{
   "statusLine": {
     "type": "command",
-    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '"'"'.workspace.project_dir'"'"'); char=\"$cwd/campaigns/default/character.json\"; if [ ! -f \"$char\" ]; then exit 0; fi; name=$(jq -r '"'"'.name // \"Hero\"'"'"' \"$char\"); hp=$(jq -r '"'"'.health'"'"' \"$char\"); sp=$(jq -r '"'"'.spirit'"'"' \"$char\"); su=$(jq -r '"'"'.supply'"'"' \"$char\"); mo=$(jq -r '"'"'.momentum'"'"' \"$char\"); echo \"$name | HP:$hp Sp:$sp Su:$su Mo:$mo\""
+    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '"'"'.workspace.project_dir'"'"'); char=\"$cwd/campaigns/default/character.json\"; if [ ! -f \"$char\" ]; then exit 0; fi; name=$(jq -r '"'"'.name // \"Hero\"'"'"' \"$char\"); hp=$(jq -r '"'"'.health'"'"' \"$char\"); sp=$(jq -r '"'"'.spirit'"'"' \"$char\"); su=$(jq -r '"'"'.supply'"'"' \"$char\"); mo=$(jq -r '"'"'.momentum'"'"' \"$char\"); colorval(){ v=$1; if [ \"$v\" -le 1 ] 2>/dev/null; then printf '"'"'\\033[31m%s\\033[0m'"'"' \"$v\"; elif [ \"$v\" -le 3 ] 2>/dev/null; then printf '"'"'\\033[33m%s\\033[0m'"'"' \"$v\"; else printf '"'"'\\033[32m%s\\033[0m'"'"' \"$v\"; fi; }; echo \"$name | HP:$(colorval $hp) Sp:$(colorval $sp) Su:$(colorval $su) Mo:$mo\""
   },
   "agent": "ironsworn-gm",
   "permissions": {
