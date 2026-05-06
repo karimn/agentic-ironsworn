@@ -7,9 +7,21 @@ const DB_EXISTS = existsSync(
     .pathname,
 );
 
+async function ollamaAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434"}/api/tags`,
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 describe("searchRules", () => {
   it("returns results for a rules query", async () => {
     if (!DB_EXISTS) return; // skip gracefully
+    if (!(await ollamaAvailable())) return; // skip when Ollama not running
     const results = await searchRules("face danger move", { k: 3 });
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]!.text.length).toBeGreaterThan(0);
