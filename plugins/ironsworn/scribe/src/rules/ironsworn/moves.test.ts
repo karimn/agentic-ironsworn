@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { resolveMove } from "./moves.js";
+import { resolveMove, applyMomentumBurn } from "./moves.js";
 
 describe("resolveMove", () => {
   it("returns a valid outcome structure", () => {
@@ -89,6 +89,13 @@ describe("resolveMove", () => {
     }
   });
 
+  it("accepts prerolled challenge dice and does not re-roll them", () => {
+    for (let i = 0; i < 50; i++) {
+      const r = resolveMove("Face Danger", "edge", 2, 5, 0, undefined, [9, 4]);
+      expect(r.challengeDice).toEqual([9, 4]);
+    }
+  });
+
   describe("focused roll (Sojourn)", () => {
     it("overrides moveName to 'Sojourn - Focused' when focused=true", () => {
       for (let i = 0; i < 20; i++) {
@@ -158,5 +165,64 @@ describe("resolveMove", () => {
       expect(r.focused).toBeUndefined();
       expect(r.focusedBonus).toBeUndefined();
     });
+  });
+});
+
+describe("applyMomentumBurn", () => {
+  it("replaces action score with momentum and re-evaluates the band (miss → weak hit)", () => {
+    // Reproduce the issue example: action die 1 + Iron 3 = 4 vs [9, 4] → miss.
+    // Momentum = 7. Burning gives action score 7 vs [9, 4] → weak hit (beats 4 but not 9).
+    const original = resolveMove("Strike", "iron", 3, 7, 0, undefined, [9, 4]);
+    // Force a known miss scenario by checking burnOffered
+    // We know: momentum=7, challengeDice=[9,4], minChallenge=4 < 7 → burnOffered=true for a miss
+    // But the actionScore from roll is random; we only test applyMomentumBurn directly.
+    const burned = applyMomentumBurn({ ...original, challengeDice: [9, 4], band: "miss" }, 7);
+    expect(burned.actionScore).toBe(7);
+    expect(burned.challengeDice).toEqual([9, 4]);
+    expect(burned.band).toBe("weak_hit"); // 7 > 4 but not > 9
+    expect(burned.momentumBurned).toBe(true);
+    expect(burned.burnOffered).toBe(false);
+  });
+
+  it("upgrades miss → strong hit when momentum beats both challenge dice", () => {
+    const original = resolveMove("Face Danger", "edge", 0, 9, 0, undefined, [3, 5]);
+    const burned = applyMomentumBurn({ ...original, challengeDice: [3, 5], band: "miss" }, 9);
+    expect(burned.actionScore).toBe(9);
+    expect(burned.band).toBe("strong_hit");
+    expect(burned.momentumBurned).toBe(true);
+  });
+
+  it("upgrades weak hit → strong hit when momentum beats both challenge dice", () => {
+    const original = resolveMove("Face Danger", "edge", 0, 8, 0, undefined, [4, 7]);
+    const burned = applyMomentumBurn({ ...original, challengeDice: [4, 7], band: "weak_hit" }, 8);
+    expect(burned.actionScore).toBe(8);
+    expect(burned.band).toBe("strong_hit");
+    expect(burned.momentumBurned).toBe(true);
+  });
+
+  it("caps momentum action score at 10", () => {
+    const original = resolveMove("Face Danger", "edge", 0, 10, 0, undefined, [5, 5]);
+    const burned = applyMomentumBurn({ ...original, challengeDice: [5, 5] }, 15);
+    expect(burned.actionScore).toBe(10);
+  });
+
+  it("preserves original challenge dice (does not re-roll)", () => {
+    const original = resolveMove("Face Danger", "edge", 2, 7, 0, undefined, [6, 3]);
+    const burned = applyMomentumBurn(original, 7);
+    expect(burned.challengeDice).toEqual([6, 3]);
+    // actionDie from original roll is preserved in the spread
+    expect(burned.actionDie).toBe(original.actionDie);
+  });
+
+  it("detects match correctly after burn", () => {
+    const original = resolveMove("Face Danger", "edge", 0, 8, 0, undefined, [7, 7]);
+    const burned = applyMomentumBurn({ ...original, challengeDice: [7, 7] }, 8);
+    expect(burned.match).toBe(true);
+  });
+
+  it("sets match=false when challenge dice differ", () => {
+    const original = resolveMove("Face Danger", "edge", 0, 9, 0, undefined, [4, 6]);
+    const burned = applyMomentumBurn({ ...original, challengeDice: [4, 6] }, 9);
+    expect(burned.match).toBe(false);
   });
 });

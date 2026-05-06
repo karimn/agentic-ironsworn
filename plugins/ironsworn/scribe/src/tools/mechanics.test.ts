@@ -45,6 +45,73 @@ afterEach(async () => {
   await rm(campaignDir, { recursive: true, force: true });
 });
 
+describe("resolve_move burn_momentum", () => {
+  it("applies momentum as the action score against the original challenge dice when burn_momentum=true and burnOffered", async () => {
+    // Use challenge dice [9, 8] and momentum=9.
+    // Max possible action score = min(6 + 2, 10) = 8 (edge=2, die max=6).
+    // 8 ties 8 (does not beat) and doesn't beat 9 → always a miss.
+    // momentum=9 > minChallenge(8) → burnOffered=true.
+    // After burn: actionScore=9, vs [9,8]: 9 ties 9 (no) but 9 > 8 → weak_hit.
+    const highMomentumChar = { ...CHARACTER, momentum: 9 };
+    await writeFile(join(campaignDir, "character.json"), JSON.stringify(highMomentumChar));
+
+    const result = await client.callTool({
+      name: "resolve_move",
+      arguments: {
+        move_name: "Face Danger",
+        stat: "edge",
+        adds: 0,
+        burn_momentum: true,
+        challenge_die_1: 9,
+        challenge_die_2: 8,
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    // After burn: momentum=9 replaces action score → weak_hit (9 > 8 but not > 9)
+    expect(parsed.momentumBurned).toBe(true);
+    expect(parsed.actionScore).toBe(9);
+    expect(parsed.band).toBe("weak_hit");
+    expect(parsed.challengeDice).toEqual([9, 8]);
+    expect(parsed.burnOffered).toBe(false);
+  });
+
+  it("skips burn and returns normal outcome when burn_momentum=true but burnOffered=false", async () => {
+    // momentum=2 (CHARACTER default), any roll — burnOffered will be false for most results
+    // Use challenge_die_1=1, challenge_die_2=1 so action score easily beats both
+    // and burnOffered=false (strong hit → no burn needed)
+    const result = await client.callTool({
+      name: "resolve_move",
+      arguments: {
+        move_name: "Face Danger",
+        stat: "edge",
+        adds: 0,
+        burn_momentum: true,
+        challenge_die_1: 1,
+        challenge_die_2: 1,
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    // No burn was needed (already a strong hit with momentum=2 vs [1,1])
+    // momentumBurned should be false
+    expect(parsed.momentumBurned).toBe(false);
+    expect(parsed.challengeDice).toEqual([1, 1]);
+  });
+
+  it("does not roll new dice when challenge_die_1 and challenge_die_2 are supplied", async () => {
+    // Run 20 times — challenge dice must always equal the supplied values
+    for (let i = 0; i < 20; i++) {
+      const result = await client.callTool({
+        name: "resolve_move",
+        arguments: { move_name: "Face Danger", stat: "edge", adds: 0, challenge_die_1: 7, challenge_die_2: 8 },
+      });
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.challengeDice).toEqual([7, 8]);
+    }
+  });
+});
+
 describe("resolve_move resource stats", () => {
   it("accepts supply as a valid stat", async () => {
     const result = await client.callTool({ name: "resolve_move", arguments: { move_name: "Make Camp", stat: "supply", adds: 0 } });

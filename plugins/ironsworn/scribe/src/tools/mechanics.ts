@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { roll } from "../rules/dice.js";
-import { resolveMove } from "../rules/ironsworn/moves.js";
+import { resolveMove, applyMomentumBurn } from "../rules/ironsworn/moves.js";
 import { rollProgress } from "../rules/ironsworn/progress.js";
 import { rollOracle, rollYesNo } from "../rules/ironsworn/oracles.js";
 import { loadCharacter, saveCharacter, appendJournal } from "../state/character.js";
@@ -29,14 +29,22 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "resolve_move",
-    "Resolve an Ironsworn move roll, optionally burning momentum",
+    "Resolve an Ironsworn move roll, optionally burning momentum. " +
+    "Pass challenge_die_1 and challenge_die_2 (from a prior roll) together with burn_momentum=true " +
+    "to apply a momentum burn against existing challenge dice without re-rolling.",
     {
       move_name: z.string().describe("Name of the move to resolve"),
       stat: z.string().describe("Stat to use (edge, heart, iron, shadow, wits, health, spirit, supply)"),
       adds: z.number().int().optional().describe("Additional adds to the action score"),
       burn_momentum: z.boolean().optional().describe("Whether to burn momentum if it would improve the outcome"),
+      challenge_die_1: z.number().int().min(1).max(10).optional().describe(
+        "First challenge die value from a prior roll (1-10). Required when burn_momentum=true to avoid re-rolling.",
+      ),
+      challenge_die_2: z.number().int().min(1).max(10).optional().describe(
+        "Second challenge die value from a prior roll (1-10). Required when burn_momentum=true to avoid re-rolling.",
+      ),
     },
-    async ({ move_name, stat, adds, burn_momentum }) => {
+    async ({ move_name, stat, adds, burn_momentum, challenge_die_1, challenge_die_2 }) => {
       try {
         const character = await loadCharacter(campaignPath);
         const RESOURCE_STATS = ["health", "spirit", "supply"] as const;
@@ -52,9 +60,19 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
 
-        const outcome = resolveMove(move_name, stat, statValue, character.momentum, adds);
+        // If caller supplied pre-rolled challenge dice (e.g. for a momentum burn),
+        // pass them through so we do not roll new dice.
+        const prerolledChallengeDice: [number, number] | undefined =
+          challenge_die_1 !== undefined && challenge_die_2 !== undefined
+            ? [challenge_die_1, challenge_die_2]
+            : undefined;
+
+        const outcome = resolveMove(move_name, stat, statValue, character.momentum, adds, undefined, prerolledChallengeDice);
 
         if (burn_momentum && outcome.burnOffered) {
+          // Re-evaluate the outcome using momentum as the action score,
+          // keeping the same challenge dice — do NOT roll fresh dice.
+          const burnedOutcome = applyMomentumBurn(outcome, character.momentum);
           const burnResult = burnMomentum(character);
           await saveCharacter(campaignPath, burnResult.after);
           await appendJournal(campaignPath, {
@@ -64,7 +82,7 @@ export function register(server: McpServer, campaignPath: string): void {
             after: burnResult.after,
           });
           return {
-            content: [{ type: "text", text: JSON.stringify({ ...outcome, momentumBurned: true }) }],
+            content: [{ type: "text", text: JSON.stringify(burnedOutcome) }],
           };
         }
 
