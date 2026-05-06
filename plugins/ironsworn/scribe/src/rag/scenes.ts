@@ -55,6 +55,10 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
     `);
 
     await conn.run(`
+      ALTER TABLE scenes ADD COLUMN IF NOT EXISTS complication_theme TEXT
+    `);
+
+    await conn.run(`
       CREATE INDEX IF NOT EXISTS scenes_embedding_idx
       ON scenes USING HNSW (embedding)
       WITH (metric = 'cosine')
