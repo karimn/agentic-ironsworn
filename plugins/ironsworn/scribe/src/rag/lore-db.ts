@@ -26,12 +26,11 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
     // index, so reads/writes still work but vector search is unavailable.
     let vssLoaded = false;
     try {
-      await conn.run("INSTALL vss;");
       await conn.run("LOAD vss;");
       await conn.run("SET hnsw_enable_experimental_persistence = true;");
       vssLoaded = true;
     } catch {
-      // vss unavailable; HNSW index skipped
+      // vss not pre-installed; HNSW index skipped
     }
 
     await conn.run(`

@@ -730,9 +730,11 @@ export async function checkpointLore(campaignPath: string): Promise<void> {
   const instance = await cached;
   const conn = await instance.connect();
   try {
-    // vss must be loaded before checkpointing a DB that contains an HNSW index.
-    await conn.run("INSTALL vss;");
-    await conn.run("LOAD vss;");
+    try {
+      await conn.run("LOAD vss;");
+    } catch {
+      // vss not pre-installed; checkpoint without HNSW
+    }
     await conn.run("CHECKPOINT;");
   } finally {
     conn.closeSync();
