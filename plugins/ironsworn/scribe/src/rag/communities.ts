@@ -12,7 +12,7 @@ import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
 import seedrandom from "seedrandom";
 import Anthropic from "@anthropic-ai/sdk";
-import { _getLoreDb, _openLoreWriteConn, _getLoreEmbedding } from "./lore.js";
+import { getLoreDb, openLoreWriteConn, getLoreEmbedding } from "./lore-db.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -199,7 +199,9 @@ export function clusterGraph(
       currentGraph.forEachNode((n) => { assignment[n] = i++; });
     } else {
       // Re-seed per level so each level has its own deterministic RNG stream.
-      const rng = seedrandom(`${seed}:${level}`);
+      // `global: false` is the default but stated explicitly: this returns a
+      // local PRNG and never replaces global Math.random.
+      const rng = seedrandom(`${seed}:${level}`, { global: false });
       assignment = louvain(currentGraph, {
         getEdgeWeight: "weight",
         resolution,
@@ -426,7 +428,7 @@ interface PersistedCommunity {
 }
 
 async function loadEntities(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof _getLoreDb>>["connect"]>>,
+  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
 ): Promise<SummarizerEntity[]> {
   const result = await conn.runAndReadAll(
     `SELECT id, canonical, type, summary FROM lore_entities`,
@@ -440,7 +442,7 @@ async function loadEntities(
 }
 
 async function loadRelations(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof _getLoreDb>>["connect"]>>,
+  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
 ): Promise<SummarizerRelation[]> {
   const result = await conn.runAndReadAll(
     `SELECT from_id, to_id, relation, notes FROM lore_relations`,
@@ -454,7 +456,7 @@ async function loadRelations(
 }
 
 async function loadExistingCommunities(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof _getLoreDb>>["connect"]>>,
+  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
 ): Promise<Map<string, PersistedCommunity>> {
   const result = await conn.runAndReadAll(
     `SELECT id, level, parent_id, member_ids, member_count, summary,
@@ -489,7 +491,7 @@ function embeddingLiteral(vec: number[] | null): string {
 }
 
 async function upsertCommunity(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof _getLoreDb>>["connect"]>>,
+  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
   c: BuiltCommunity,
   summary: string,
   embedding: number[] | null,
@@ -518,7 +520,7 @@ async function upsertCommunity(
 }
 
 async function updateParentOnly(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof _getLoreDb>>["connect"]>>,
+  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
   id: string,
   parent_id: string | null,
   now: string,
@@ -530,7 +532,7 @@ async function updateParentOnly(
 }
 
 async function writeEntityCommunities(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof _getLoreDb>>["connect"]>>,
+  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
   entityToLeaf: Map<string, string>,
 ): Promise<void> {
   // metadata is stored as a JSON string; we have to read-modify-write each row
@@ -574,10 +576,10 @@ export async function recomputeCommunities(
 ): Promise<RecomputeReport> {
   const start = Date.now();
   const summarizer = opts.summarizer ?? defaultSummarizer;
-  const embedder = opts.embedder ?? _getLoreEmbedding;
+  const embedder = opts.embedder ?? getLoreEmbedding;
 
-  const instance = await _getLoreDb(campaignPath);
-  const conn = await _openLoreWriteConn(instance);
+  const instance = await getLoreDb(campaignPath);
+  const conn = await openLoreWriteConn(instance);
 
   try {
     const [entities, relations, existing] = await Promise.all([
@@ -748,7 +750,7 @@ export async function listCommunities(
   campaignPath: string,
   opts: { level?: number; parent_id?: string | null; limit?: number } = {},
 ): Promise<CommunityListItem[]> {
-  const instance = await _getLoreDb(campaignPath);
+  const instance = await getLoreDb(campaignPath);
   const conn = await instance.connect();
   try {
     const where: string[] = [];
@@ -765,7 +767,9 @@ export async function listCommunities(
         params.push(opts.parent_id);
       }
     }
-    const limit = opts.limit ?? 100;
+    // Cap at 100 regardless of caller request — keeps tool output bounded for
+    // the GM agent and matches the schema description on list_communities.
+    const limit = Math.min(opts.limit ?? 100, 100);
     params.push(limit);
 
     const sql = `
@@ -792,7 +796,7 @@ export async function getCommunity(
   campaignPath: string,
   id: string,
 ): Promise<CommunityDetail | null> {
-  const instance = await _getLoreDb(campaignPath);
+  const instance = await getLoreDb(campaignPath);
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(

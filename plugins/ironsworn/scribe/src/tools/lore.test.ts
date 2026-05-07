@@ -17,7 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { register } from "./lore.js";
-import { _getLoreDb, _openLoreWriteConn } from "../rag/lore.js";
+import { getLoreDb, openLoreWriteConn } from "../rag/lore-db.js";
 
 let campaignDir: string;
 let server: McpServer;
@@ -31,7 +31,7 @@ let dbReady = false;
 beforeEach(async () => {
   campaignDir = await mkdtemp(join(tmpdir(), "scribe-tools-lore-test-"));
   try {
-    const inst = await _getLoreDb(campaignDir);
+    const inst = await getLoreDb(campaignDir);
     const probe = await inst.connect();
     probe.closeSync();
     dbReady = true;
@@ -63,8 +63,8 @@ async function seedCommunity(args: {
   member_ids: string[];
   summary: string;
 }): Promise<void> {
-  const inst = await _getLoreDb(campaignDir);
-  const conn = await _openLoreWriteConn(inst);
+  const inst = await getLoreDb(campaignDir);
+  const conn = await openLoreWriteConn(inst);
   try {
     const memberLit =
       args.member_ids.length === 0

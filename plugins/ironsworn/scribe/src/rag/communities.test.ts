@@ -324,9 +324,9 @@ describe("recomputeCommunities", () => {
     // recompute vs. the existing communities. Simulate "graph shrinks" by
     // wiping all entities directly. That'll force community deletion.
     // We use a helper: open the lore DB and TRUNCATE entities + relations.
-    const { _getLoreDb, _openLoreWriteConn } = await import("./lore.js");
-    const inst = await _getLoreDb(campaignDir);
-    const conn = await _openLoreWriteConn(inst);
+    const { getLoreDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getLoreDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
     try {
       await conn.run(`DELETE FROM lore_entities`);
       await conn.run(`DELETE FROM lore_relations`);
