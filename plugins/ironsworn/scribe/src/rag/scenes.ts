@@ -1,4 +1,4 @@
-import { DuckDBInstance } from "@duckdb/node-api";
+import { DuckDBInstance, DuckDBValue } from "@duckdb/node-api";
 import { mkdir } from "node:fs/promises";
 
 // ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ export async function updateScene(
 
   // Build SET clauses for provided fields
   const setClauses: string[] = [];
-  const params: unknown[] = [];
+  const params: DuckDBValue[] = [];
 
   if (fields.summary !== undefined) {
     // Re-embed when summary changes
