@@ -6,7 +6,7 @@ import { loadCharacter, saveCharacter } from "../state/character.js";
 import { loadThreads, saveThreads } from "../state/threads.js";
 import { listNpcs, writeNpcRaw } from "../state/npcs.js";
 import { exportLore, upsertLore, linkLore, checkpointLore, type LoreType } from "../rag/lore.js";
-import { exportScenes, importScene, checkpointScenes } from "../rag/scenes.js";
+import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
 
 interface CampaignExport {
   version: 1;
@@ -184,6 +184,8 @@ export function register(server: McpServer, campaignPath: string): void {
               String(s["text"]),
               String(s["timestamp"]),
               String(s["kind"] ?? "scene"),
+              s["complication_theme"] != null ? String(s["complication_theme"]) : undefined,
+              Array.isArray(s["beats"]) ? (s["beats"] as BeatExport[]) : undefined,
             );
             if (inserted) counts.scenes++;
           }

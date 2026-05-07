@@ -1,11 +1,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { recordScene, getScene, updateScene, deleteScene } from "../rag/scenes.js";
+import { recordScene, getScene, updateScene, deleteScene, type BeatInput } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore } from "../rag/lore.js";
 import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
 import { recordMutation } from "../checkpoint.js";
+
+const BeatInputSchema = z.object({
+  kind: z.enum(["narration", "dialogue", "move", "choice", "oracle"]).describe(
+    "Type of beat: narration (descriptive prose), dialogue (NPC/player speech), move (mechanical resolution), choice (player decision point), oracle (oracle roll + interpretation)"
+  ),
+  speaker: z.string().optional().describe("Speaker name for dialogue beats"),
+  text: z.string().describe("Full text of the beat"),
+  metadata: z.record(z.unknown()).optional().describe(
+    "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
+  ),
+});
 
 // ---------------------------------------------------------------------------
 // Warning helpers (exported for testing)
@@ -49,7 +60,7 @@ export async function buildSceneWarnings(
 export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "record_scene",
-    "Record a scene summary into the scene journal",
+    "Record a scene summary into the scene journal. Optionally include beats — ordered narrative units capturing the full texture of the scene.",
     {
       summary: z.string().describe("Scene summary text to record"),
       kind: z.string().optional().describe("Kind of scene (e.g. 'combat', 'exploration', 'social')"),
@@ -58,14 +69,17 @@ export function register(server: McpServer, campaignPath: string): void {
       complication_theme: z.string().optional().describe(
         "Freeform thematic category of the complication (e.g. 'weather', 'beasts', 'fungal-network', 'physical-hazard'). Set only when the scene involves a miss/complication."
       ),
+      beats: z.array(BeatInputSchema).optional().describe(
+        "Optional ordered narrative beats for the scene. When omitted, only the summary is stored (backward-compatible)."
+      ),
     },
-    async ({ summary, kind, npcs, lore_ids, complication_theme }) => {
+    async ({ summary, kind, npcs, lore_ids, complication_theme, beats }) => {
       try {
-        await recordScene(campaignPath, summary, kind, complication_theme);
+        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined);
         recordMutation(campaignPath);
         const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, warnings }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings }) }],
         };
       } catch (e) {
         return {

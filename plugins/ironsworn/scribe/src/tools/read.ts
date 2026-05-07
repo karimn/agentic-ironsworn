@@ -4,7 +4,7 @@ import { loadCharacter } from "../state/character.js";
 import { listThreads } from "../state/threads.js";
 import { getNpc } from "../state/npcs.js";
 import { searchRules, lookupMove } from "../rag/query.js";
-import { searchScenes, getRecentComplications } from "../rag/scenes.js";
+import { searchScenes, getRecentComplications, getScene, searchBeats } from "../rag/scenes.js";
 import { lookupAsset } from "../rules/ironsworn/assets.js";
 
 function characterDigest(char: Awaited<ReturnType<typeof loadCharacter>>) {
@@ -206,6 +206,58 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         return {
           content: [{ type: "text", text: JSON.stringify(asset) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "get_scene",
+    "Get a scene by ID, optionally including its full beat-by-beat narrative",
+    {
+      id: z.string().describe("ID of the scene to retrieve"),
+      include_beats: z.boolean().optional().describe("Include full beat-by-beat narrative (default false)"),
+    },
+    async ({ id, include_beats }) => {
+      try {
+        const scene = await getScene(campaignPath, id, { include_beats });
+        if (scene === null) {
+          return {
+            content: [{ type: "text", text: `Scene not found: ${id}` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: JSON.stringify(scene) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "search_beats",
+    "Search scene beats using semantic similarity. Finds specific moments of dialogue, narration, or move resolution across all scenes.",
+    {
+      query: z.string().describe("Search query"),
+      k: z.number().int().positive().optional().describe("Number of results to return (default 5)"),
+      kind: z.string().optional().describe("Filter by beat kind: narration, dialogue, move, choice, oracle"),
+      scene_id: z.string().optional().describe("Filter to beats from a specific scene"),
+    },
+    async ({ query, k, kind, scene_id }) => {
+      try {
+        const results = await searchBeats(campaignPath, query, k, { kind, scene_id });
+        return {
+          content: [{ type: "text", text: JSON.stringify(results) }],
         };
       } catch (e) {
         return {
