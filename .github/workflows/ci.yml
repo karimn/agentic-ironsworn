@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: plugins/ironsworn/scribe
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: plugins/ironsworn/scribe
+        run: bun run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: plugins/ironsworn/scribe
+        run: bun install --frozen-lockfile
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-nomic-embed-text-v1
+
+      - name: Cache DuckDB extensions
+        id: duckdb-ext-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.duckdb/extensions
+          key: duckdb-extensions-v1.5.2-fts-vss
+
+      - name: Pre-install DuckDB extensions
+        if: steps.duckdb-ext-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          curl -fsSL https://github.com/duckdb/duckdb/releases/download/v1.5.2/duckdb_cli-linux-amd64.zip -o /tmp/duckdb_cli.zip
+          unzip -q /tmp/duckdb_cli.zip -d /tmp/duckdb_cli
+          chmod +x /tmp/duckdb_cli/duckdb
+          /tmp/duckdb_cli/duckdb -c "INSTALL fts; INSTALL vss;"
+
+      - name: Start Ollama
+        run: ollama serve > /tmp/ollama.log 2>&1 &
+
+      - name: Pull embedding model
+        continue-on-error: true
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:11434/api/tags > /dev/null; then
+              echo "Ollama ready (attempt $i)"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Ollama did not start — serve log:" >&2
+              cat /tmp/ollama.log >&2
+            fi
+            sleep 2
+          done
+          ollama pull nomic-embed-text
+
+      - name: Diagnose environment
+        if: always()
+        run: |
+          echo "bun: $(bun --version)"
+          echo "DuckDB extensions: $(ls ~/.duckdb/extensions/ 2>/dev/null || echo none)"
+          echo "Ollama: $(curl -sf http://localhost:11434/api/tags 2>/dev/null | head -c 200 || echo 'not running')"
+        continue-on-error: true
+
+      - name: Run tests
+        id: bun-tests
+        working-directory: plugins/ironsworn/scribe
+        continue-on-error: true
+        run: bun test --timeout 60000 2>&1 | tee /tmp/test-output.txt
+        env:
+          OLLAMA_BASE_URL: http://localhost:11434
+
+      - name: Test summary
+        if: always()
+        run: |
+          {
+            echo "### Test Results (outcome: ${{ steps.bun-tests.outcome }})"
+            echo '```'
+            cat /tmp/test-output.txt 2>/dev/null || echo "(no output captured)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Assert tests passed
+        if: always()
+        run: |
+          if [ "${{ steps.bun-tests.outcome }}" != "success" ]; then
+            echo "bun test failed — see Test Results in step summary"
+            exit 1
+          fi
+
+  version-bump:
+    name: Plugin version bump
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main
+        run: git fetch origin main
+
+      - name: Check version bump
+        run: bash plugins/ironsworn/scripts/check-version-bump.sh

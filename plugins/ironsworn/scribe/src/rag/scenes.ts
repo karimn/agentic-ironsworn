@@ -1,4 +1,4 @@
-import { DuckDBInstance } from "@duckdb/node-api";
+import { DuckDBInstance, DuckDBValue } from "@duckdb/node-api";
 import { mkdir } from "node:fs/promises";
 
 // ---------------------------------------------------------------------------
@@ -36,12 +36,17 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
 
   const conn = await instance.connect();
   try {
-    await conn.run("INSTALL vss;");
-    await conn.run("LOAD vss;");
-    // HNSW persistence is gated behind an experimental flag in DuckDB. Without
-    // this, HNSW indexes can only be built on in-memory databases — which fails
-    // the moment we try to persist scenes to a campaign directory.
-    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+    // vss is required for HNSW vector indexes. If the extension CDN is
+    // unreachable, degrade gracefully: the table is created without the HNSW
+    // index, so reads/writes still work but vector search is unavailable.
+    let vssLoaded = false;
+    try {
+      await conn.run("LOAD vss;");
+      await conn.run("SET hnsw_enable_experimental_persistence = true;");
+      vssLoaded = true;
+    } catch {
+      // vss not pre-installed; HNSW index skipped
+    }
 
     await conn.run(`
       CREATE TABLE IF NOT EXISTS scenes (
@@ -58,11 +63,13 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       ALTER TABLE scenes ADD COLUMN IF NOT EXISTS complication_theme TEXT
     `);
 
-    await conn.run(`
-      CREATE INDEX IF NOT EXISTS scenes_embedding_idx
-      ON scenes USING HNSW (embedding)
-      WITH (metric = 'cosine')
-    `);
+    if (vssLoaded) {
+      await conn.run(`
+        CREATE INDEX IF NOT EXISTS scenes_embedding_idx
+        ON scenes USING HNSW (embedding)
+        WITH (metric = 'cosine')
+      `);
+    }
   } finally {
     conn.closeSync();
   }
@@ -88,7 +95,11 @@ async function openWriteConn(
   instance: DuckDBInstance,
 ): Promise<Awaited<ReturnType<DuckDBInstance["connect"]>>> {
   const conn = await instance.connect();
-  await conn.run("SET hnsw_enable_experimental_persistence = true;");
+  try {
+    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+  } catch {
+    // vss not loaded; skip HNSW persistence flag
+  }
   return conn;
 }
 
@@ -203,7 +214,7 @@ export async function updateScene(
 
   // Build SET clauses for provided fields
   const setClauses: string[] = [];
-  const params: unknown[] = [];
+  const params: DuckDBValue[] = [];
 
   if (fields.summary !== undefined) {
     // Re-embed when summary changes
@@ -336,8 +347,13 @@ export async function checkpointScenes(campaignPath: string): Promise<void> {
   const conn = await instance.connect();
   try {
     // vss must be loaded before checkpointing a DB that contains an HNSW index.
-    await conn.run("INSTALL vss;");
-    await conn.run("LOAD vss;");
+    // Swallow install errors if the CDN is unreachable; CHECKPOINT proceeds
+    // without the HNSW index in that case.
+    try {
+      await conn.run("LOAD vss;");
+    } catch {
+      // vss not pre-installed; checkpoint without HNSW
+    }
     await conn.run("CHECKPOINT;");
   } finally {
     conn.closeSync();
