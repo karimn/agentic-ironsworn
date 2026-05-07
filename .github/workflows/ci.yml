@@ -96,17 +96,30 @@ jobs:
         continue-on-error: true
 
       - name: Run tests
+        id: bun-tests
         working-directory: plugins/ironsworn/scribe
-        run: |
-          bun test --timeout 60000 2>&1 | tee /tmp/test-output.txt
-          EXIT=${PIPESTATUS[0]}
-          echo "### Test Results (exit $EXIT)" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat /tmp/test-output.txt >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          exit $EXIT
+        continue-on-error: true
+        run: bun test --timeout 60000 2>&1 | tee /tmp/test-output.txt
         env:
           OLLAMA_BASE_URL: http://localhost:11434
+
+      - name: Test summary
+        if: always()
+        run: |
+          {
+            echo "### Test Results (outcome: ${{ steps.bun-tests.outcome }})"
+            echo '```'
+            cat /tmp/test-output.txt 2>/dev/null || echo "(no output captured)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Assert tests passed
+        if: always()
+        run: |
+          if [ "${{ steps.bun-tests.outcome }}" != "success" ]; then
+            echo "bun test failed — see Test Results in step summary"
+            exit 1
+          fi
 
   version-bump:
     name: Plugin version bump
