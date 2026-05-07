@@ -4,15 +4,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { upsertLore, getLore, searchLore, linkLore, getLoreGraph, listProvenance } from "./lore.js";
 
+let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
+  if (_ollamaReady !== null) return _ollamaReady;
   try {
-    const res = await fetch(
-      `${process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434"}/api/tags`,
-    );
-    return res.ok;
+    const baseUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+    const res = await fetch(`${baseUrl}/api/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "nomic-embed-text", input: "t" }),
+    });
+    _ollamaReady = res.ok;
   } catch {
-    return false;
+    _ollamaReady = false;
   }
+  return _ollamaReady;
 }
 
 let campaignDir: string;
