@@ -8,14 +8,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@duckdb/node-api": "1.5.2-r.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "seedrandom": "^3.0.5",
     "yaml": "^2.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "typescript": "^5.8.0",
     "@types/node": "^22.0.0",
-    "@types/bun": "^1.2.0"
+    "@types/bun": "^1.2.0",
+    "@types/seedrandom": "^3.0.8",
+    "graphology-types": "^0.24.8"
   }
 }

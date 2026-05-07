@@ -9,6 +9,11 @@ import {
   LORE_TYPES,
   type LoreType,
 } from "../rag/lore.js";
+import {
+  recomputeCommunities,
+  listCommunities,
+  getCommunity,
+} from "../rag/communities.js";
 import { recordMutation } from "../checkpoint.js";
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -122,7 +127,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "get_lore_graph",
-    "Get a lore entity and its connected entities up to N hops away. Returns { root, nodes, edges } where root has full incoming/outgoing relations populated, but nodes[*].relations is always empty (use the edges array for connectivity, or call get_lore on a specific node id to get that node's full relations).",
+    "Get a lore entity and its connected entities up to N hops away. Returns { root, nodes, edges } where root has full incoming/outgoing relations populated, but nodes[*].relations is always empty (use the edges array for connectivity, or call get_lore on a specific node id to get that node's full relations). Each node also exposes `community_id` (the leaf community from recompute_communities, or null if unset).",
     {
       identifier: z.string().describe("Root entity (id, canonical, or alias)"),
       // Same MCP transport quirk as search_lore.k — accept numeric or stringified number.
@@ -134,6 +139,76 @@ export function register(server: McpServer, campaignPath: string): void {
         return {
           content: [{ type: "text", text: JSON.stringify(graph) }],
         };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "recompute_communities",
+    "GraphRAG Phase A+B: cluster lore entities via hierarchical Louvain, generate Claude-written summaries for each cluster, embed them, and write leaf community ids back onto entity metadata. Idempotent — re-running on an unchanged graph produces zero LLM calls. Requires ANTHROPIC_API_KEY for summary generation.",
+    {
+      seed: z.coerce.number().int().optional().describe("RNG seed for reproducible Louvain assignments (default 1)"),
+      resolution: z.coerce.number().positive().optional().describe("Louvain resolution; higher = more, smaller clusters (default 1)"),
+      max_level: z.coerce.number().int().positive().optional().describe("Hard cap on hierarchy depth (default 4)"),
+    },
+    async ({ seed, resolution, max_level }) => {
+      try {
+        const report = await recomputeCommunities(campaignPath, {
+          seed,
+          resolution,
+          maxLevel: max_level,
+        });
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(report) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "list_communities",
+    "List lore communities produced by recompute_communities. Filter by level (0 = leaf clusters; higher = parent rollups) or by parent_id. Returns id, level, parent_id, member_count, summary preview.",
+    {
+      level: z.coerce.number().int().nonnegative().optional().describe("Filter to communities at this hierarchy level"),
+      parent_id: z.string().optional().describe("Filter to direct children of this community id (use empty string for root rollups)"),
+      limit: z.coerce.number().int().positive().optional().describe("Max results (default 100)"),
+    },
+    async ({ level, parent_id, limit }) => {
+      try {
+        const opts: Parameters<typeof listCommunities>[1] = { level, limit };
+        if (parent_id !== undefined) {
+          opts.parent_id = parent_id.length === 0 ? null : parent_id;
+        }
+        const items = await listCommunities(campaignPath, opts);
+        return { content: [{ type: "text", text: JSON.stringify(items) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "get_community",
+    "Fetch a single community's full record: summary, direct member ids (entity ids at level 0; child community ids at higher levels), member_count, parent_id, metadata, timestamps. Returns null if not found.",
+    {
+      id: z.string().describe("Community id from list_communities or recompute_communities"),
+    },
+    async ({ id }) => {
+      try {
+        const community = await getCommunity(campaignPath, id);
+        return { content: [{ type: "text", text: JSON.stringify(community) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],

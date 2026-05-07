@@ -24,7 +24,11 @@ This repo ships a single Claude Code plugin: the **Ironsworn solo GM companion**
 - **`scribe/`** — MCP server that backs the agent with persistence and rules logic
 - **`.claude-plugin/plugin.json`** — version field; must be bumped on every PR (Stop hook enforces this)
 - **`settings.json`** — sandbox permissions and the Stop hook that runs `scripts/check-version-bump.sh`
-- **`.mcp.json`** — wires the scribe server; key env vars: `SCRIBE_CAMPAIGN` (campaign dir), `OLLAMA_BASE_URL`
+- **`.mcp.json`** — wires the scribe server; key env vars:
+  - `SCRIBE_CAMPAIGN` — campaign directory
+  - `OLLAMA_BASE_URL` — Ollama endpoint for embeddings
+  - `ANTHROPIC_API_KEY` — required for `recompute_communities` (Claude writes the cluster summaries)
+  - `SCRIBE_SUMMARY_MODEL` — optional model override for community summaries (default: `claude-haiku-4-5-20251001`)
 
 ### Scribe MCP server (`plugins/ironsworn/scribe/src/`)
 Entry point: `server.ts`. Tools are registered from six modules:
@@ -41,6 +45,8 @@ Entry point: `server.ts`. Tools are registered from six modules:
 Supporting modules:
 - `state/` — JSON-backed persistence for character, NPCs, threads
 - `rag/scenes.ts` + `rag/lore.ts` — DuckDB + Ollama embedding stores
+- `rag/lore-db.ts` — shared DuckDB schema/connection + Ollama embedding client (used by `lore.ts` and `communities.ts`)
+- `rag/communities.ts` — GraphRAG community detection + Claude summarization
 - `rules/` — pure Ironsworn logic (dice, moves, progress, assets, momentum, oracles)
 - `context/build.ts` — assembles GM session context from all sources
 - `checkpoint.ts` — periodic DuckDB WAL flush (every 5 min or 20 writes)
