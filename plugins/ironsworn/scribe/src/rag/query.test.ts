@@ -41,6 +41,7 @@ describe("searchRules", () => {
   it("returns results for a rules query", async () => {
     if (!DB_EXISTS) return; // skip gracefully
     if (!(await ollamaAvailable())) return; // skip when Ollama not running
+    if (!(await ftsAvailable())) return; // skip when fts extension unavailable
     const results = await searchRules("face danger move", { k: 3 });
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]!.text.length).toBeGreaterThan(0);
