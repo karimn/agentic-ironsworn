@@ -87,21 +87,23 @@ jobs:
           done
           ollama pull nomic-embed-text
 
+      - name: Diagnose environment
+        if: always()
+        run: |
+          echo "bun: $(bun --version)"
+          echo "DuckDB extensions: $(ls ~/.duckdb/extensions/ 2>/dev/null || echo none)"
+          echo "Ollama: $(curl -sf http://localhost:11434/api/tags 2>/dev/null | head -c 200 || echo 'not running')"
+        continue-on-error: true
+
       - name: Run tests
         working-directory: plugins/ironsworn/scribe
         run: |
-          bun test --timeout 60000 --reporter=junit --reporter-outfile=/tmp/test-results.xml; EXIT=$?
-          python3 -c "
-          import xml.etree.ElementTree as ET, sys
-          try:
-            tree = ET.parse('/tmp/test-results.xml')
-            for tc in tree.iter('testcase'):
-              for f in list(tc.iter('failure')) + list(tc.iter('error')):
-                print(f'FAIL: {tc.get(\"classname\",\"\")} > {tc.get(\"name\",\"\")}')
-                print(f.text[:500] if f.text else '')
-          except Exception as e:
-            print('Could not parse results:', e)
-          " || true
+          bun test --timeout 60000 2>&1 | tee /tmp/test-output.txt
+          EXIT=${PIPESTATUS[0]}
+          echo "### Test Results (exit $EXIT)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/test-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
           exit $EXIT
         env:
           OLLAMA_BASE_URL: http://localhost:11434
