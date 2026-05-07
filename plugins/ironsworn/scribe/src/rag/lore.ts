@@ -58,6 +58,8 @@ export interface LoreEntity {
   summary: string;
   content: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  /** Leaf community id from metadata.community when set by recompute_communities. */
+  community_id: string | null;
   relations: LoreRelation[];
 }
 
@@ -172,12 +174,48 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       CREATE INDEX IF NOT EXISTS lore_provenance_subject_idx
       ON lore_provenance (subject_kind, subject_id)
     `);
+
+    // GraphRAG community layer (issue #57). Hierarchical clusters of entities
+    // produced by recompute_communities. member_ids holds direct children:
+    // entity ids at level 0; child community ids at level > 0. embedding is
+    // nullable because summaries are generated only for created/changed
+    // communities — unchanged communities keep their existing summary+embedding
+    // across reruns. No HNSW index is built here; search_lore_global (Phase C)
+    // will add it when global search ships.
+    await conn.run(`
+      CREATE TABLE IF NOT EXISTS lore_communities (
+        id           TEXT PRIMARY KEY,
+        level        INTEGER NOT NULL,
+        parent_id    TEXT,
+        member_ids   TEXT[] NOT NULL DEFAULT [],
+        member_count INTEGER NOT NULL,
+        summary      TEXT NOT NULL DEFAULT '',
+        embedding    FLOAT[768],
+        metadata     TEXT NOT NULL DEFAULT '{}',
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+      )
+    `);
+
+    await conn.run(`
+      CREATE INDEX IF NOT EXISTS lore_communities_parent_idx
+      ON lore_communities (parent_id)
+    `);
+
+    await conn.run(`
+      CREATE INDEX IF NOT EXISTS lore_communities_level_idx
+      ON lore_communities (level)
+    `);
   } finally {
     conn.closeSync();
   }
 
   return instance;
 }
+
+// Exported so the communities module can share the same lazy DB cache without
+// reimplementing the init+migration logic.
+export { getDb as _getLoreDb, openWriteConn as _openLoreWriteConn };
 
 function getDb(campaignPath: string): Promise<DuckDBInstance> {
   const cached = _dbPromises.get(campaignPath);
@@ -207,6 +245,10 @@ async function openWriteConn(
 // ---------------------------------------------------------------------------
 // Embeddings
 // ---------------------------------------------------------------------------
+
+export async function _getLoreEmbedding(text: string): Promise<number[]> {
+  return getEmbedding(text);
+}
 
 async function getEmbedding(text: string): Promise<number[]> {
   let response: Response;
@@ -265,6 +307,11 @@ function parseJsonObject(raw: unknown): Record<string, unknown> {
 function rowToEntity(row: Record<string, unknown>): LoreEntity {
   const aliasesRaw = row["aliases"];
   const aliases = Array.isArray(aliasesRaw) ? aliasesRaw.map(String) : [];
+  const metadata = parseJsonObject(row["metadata"]);
+  const communityRaw = metadata["community"];
+  const community_id = typeof communityRaw === "string" && communityRaw.length > 0
+    ? communityRaw
+    : null;
 
   return {
     id: String(row["id"] ?? ""),
@@ -273,7 +320,8 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
     type: String(row["type"] ?? "concept") as LoreType,
     summary: String(row["summary"] ?? ""),
     content: parseJsonObject(row["content"]),
-    metadata: parseJsonObject(row["metadata"]),
+    metadata,
+    community_id,
     relations: [],  // populated by getLore after this; non-optional in the interface
   };
 }
