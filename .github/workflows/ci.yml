@@ -89,7 +89,20 @@ jobs:
 
       - name: Run tests
         working-directory: plugins/ironsworn/scribe
-        run: bun test --timeout 60000
+        run: |
+          bun test --timeout 60000 --reporter=junit --reporter-outfile=/tmp/test-results.xml; EXIT=$?
+          python3 -c "
+          import xml.etree.ElementTree as ET, sys
+          try:
+            tree = ET.parse('/tmp/test-results.xml')
+            for tc in tree.iter('testcase'):
+              for f in list(tc.iter('failure')) + list(tc.iter('error')):
+                print(f'FAIL: {tc.get(\"classname\",\"\")} > {tc.get(\"name\",\"\")}')
+                print(f.text[:500] if f.text else '')
+          except Exception as e:
+            print('Could not parse results:', e)
+          " || true
+          exit $EXIT
         env:
           OLLAMA_BASE_URL: http://localhost:11434
 
