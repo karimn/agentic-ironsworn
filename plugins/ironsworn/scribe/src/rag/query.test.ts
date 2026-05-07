@@ -1,11 +1,27 @@
 import { describe, it, expect } from "bun:test";
 import { existsSync } from "node:fs";
+import { DuckDBInstance } from "@duckdb/node-api";
 import { searchRules, lookupMove } from "./query.js";
 
 const DB_EXISTS = existsSync(
   new URL("../../../data/ironsworn.duckdb", import.meta.url)
     .pathname,
 );
+
+let _ftsAvailable: boolean | null = null;
+async function ftsAvailable(): Promise<boolean> {
+  if (_ftsAvailable !== null) return _ftsAvailable;
+  try {
+    const inst = await DuckDBInstance.create(":memory:");
+    const conn = await inst.connect();
+    await conn.run("INSTALL fts; LOAD fts;");
+    conn.closeSync();
+    _ftsAvailable = true;
+  } catch {
+    _ftsAvailable = false;
+  }
+  return _ftsAvailable;
+}
 
 async function ollamaAvailable(): Promise<boolean> {
   try {
@@ -31,6 +47,7 @@ describe("searchRules", () => {
 describe("lookupMove", () => {
   it("finds Face Danger by name", async () => {
     if (!DB_EXISTS) return; // skip gracefully
+    if (!(await ftsAvailable())) return; // skip when fts extension unavailable
     const result = await lookupMove("Face Danger");
     expect(result).not.toBeNull();
     expect(result?.contentType).toBe("move");
@@ -38,6 +55,7 @@ describe("lookupMove", () => {
 
   it("returns null for unknown move", async () => {
     if (!DB_EXISTS) return; // skip gracefully
+    if (!(await ftsAvailable())) return; // skip when fts extension unavailable
     const result = await lookupMove("zzz-nonexistent-move-zzz");
     expect(result).toBeNull();
   });

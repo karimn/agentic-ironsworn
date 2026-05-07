@@ -21,12 +21,18 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
 
   const conn = await instance.connect();
   try {
-    await conn.run("INSTALL vss;");
-    await conn.run("LOAD vss;");
-    // HNSW persistence is gated behind an experimental flag in DuckDB. Without
-    // this, HNSW indexes can only be built on in-memory databases — which fails
-    // the moment we try to persist lore to a campaign directory.
-    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+    // vss is required for HNSW vector indexes. If the extension CDN is
+    // unreachable, degrade gracefully: tables are created without the HNSW
+    // index, so reads/writes still work but vector search is unavailable.
+    let vssLoaded = false;
+    try {
+      await conn.run("INSTALL vss;");
+      await conn.run("LOAD vss;");
+      await conn.run("SET hnsw_enable_experimental_persistence = true;");
+      vssLoaded = true;
+    } catch {
+      // vss unavailable; HNSW index skipped
+    }
 
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_entities (
@@ -43,11 +49,13 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       )
     `);
 
-    await conn.run(`
-      CREATE INDEX IF NOT EXISTS lore_embedding_idx
-      ON lore_entities USING HNSW (embedding)
-      WITH (metric = 'cosine')
-    `);
+    if (vssLoaded) {
+      await conn.run(`
+        CREATE INDEX IF NOT EXISTS lore_embedding_idx
+        ON lore_entities USING HNSW (embedding)
+        WITH (metric = 'cosine')
+      `);
+    }
 
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_relations (
@@ -147,7 +155,11 @@ export async function openLoreWriteConn(
   instance: DuckDBInstance,
 ): Promise<Awaited<ReturnType<DuckDBInstance["connect"]>>> {
   const conn = await instance.connect();
-  await conn.run("SET hnsw_enable_experimental_persistence = true;");
+  try {
+    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+  } catch {
+    // vss not loaded; skip HNSW persistence flag
+  }
   return conn;
 }
 
