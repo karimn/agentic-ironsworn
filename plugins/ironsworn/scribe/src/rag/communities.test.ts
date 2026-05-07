@@ -8,6 +8,8 @@ import {
   recomputeCommunities,
   listCommunities,
   getCommunity,
+  _makeDefaultSummarizer,
+  type AnthropicLike,
   type SummarizerInput,
 } from "./communities.js";
 import { upsertLore, linkLore, getLore } from "./lore.js";
@@ -401,6 +403,130 @@ describe("listCommunities + getCommunity", () => {
 
     const missing = await getCommunity(campaignDir, "definitely-not-an-id");
     expect(missing).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// _makeDefaultSummarizer (Anthropic SDK path) — exercised with a stub client
+// so we cover prompt shape, message structure, and response parsing without
+// hitting the real API.
+// ---------------------------------------------------------------------------
+
+interface CapturedCall {
+  model: string;
+  max_tokens: number;
+  system: string;
+  messages: { role: "user"; content: string }[];
+}
+
+function makeStubClient(
+  reply: { content: { type: string; text?: string }[] },
+): { client: AnthropicLike; calls: CapturedCall[] } {
+  const calls: CapturedCall[] = [];
+  const client: AnthropicLike = {
+    messages: {
+      create: async (args) => {
+        calls.push(args);
+        return reply;
+      },
+    },
+  };
+  return { client, calls };
+}
+
+describe("_makeDefaultSummarizer", () => {
+  it("formats a leaf prompt with members and internal relations and concatenates text blocks", async () => {
+    const { client, calls } = makeStubClient({
+      content: [
+        { type: "text", text: "first half." },
+        { type: "text", text: "second half." },
+      ],
+    });
+    const summarize = _makeDefaultSummarizer(client);
+    const out = await summarize({
+      community_id: "abc123",
+      level: 0,
+      members: [
+        { id: "eldritch", canonical: "Eldritch", type: "npc", summary: "an NPC" },
+        { id: "tower", canonical: "Tower", type: "place", summary: "a ruin" },
+      ],
+      internal_relations: [
+        { from_id: "eldritch", to_id: "tower", relation: "haunts", notes: "since the war" },
+      ],
+      child_summaries: [],
+    });
+    expect(out).toBe("first half.\nsecond half.");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].max_tokens).toBe(400);
+    expect(calls[0].system).toMatch(/Ironsworn/);
+    expect(calls[0].messages).toHaveLength(1);
+    expect(calls[0].messages[0].role).toBe("user");
+    const prompt = calls[0].messages[0].content;
+    expect(prompt).toContain("level 0");
+    expect(prompt).toContain("Members:");
+    expect(prompt).toContain("Eldritch");
+    expect(prompt).toContain("Tower");
+    expect(prompt).toContain("Internal relations:");
+    expect(prompt).toContain("haunts");
+    expect(prompt).toContain("since the war");
+  });
+
+  it("formats a parent prompt with child summaries and omits the Members section", async () => {
+    const { client, calls } = makeStubClient({
+      content: [{ type: "text", text: "rolled-up summary" }],
+    });
+    const summarize = _makeDefaultSummarizer(client);
+    const out = await summarize({
+      community_id: "parent",
+      level: 2,
+      members: [],
+      internal_relations: [],
+      child_summaries: [
+        { id: "c1", summary: "child A summary", member_count: 3 },
+        { id: "c2", summary: "child B summary", member_count: 5 },
+      ],
+    });
+    expect(out).toBe("rolled-up summary");
+    const prompt = calls[0].messages[0].content;
+    expect(prompt).toContain("level 2");
+    expect(prompt).toContain("Sub-clusters:");
+    expect(prompt).toContain("child A summary");
+    expect(prompt).toContain("child B summary");
+    expect(prompt).toContain("8 entities"); // 3 + 5
+    expect(prompt).not.toContain("Members:");
+    expect(prompt).not.toContain("Internal relations:");
+  });
+
+  it("ignores non-text content blocks (e.g. tool_use)", async () => {
+    const { client } = makeStubClient({
+      content: [
+        { type: "tool_use" }, // shape doesn't matter — should be skipped
+        { type: "text", text: "just the text" },
+      ],
+    });
+    const out = await _makeDefaultSummarizer(client)({
+      community_id: "x",
+      level: 0,
+      members: [],
+      internal_relations: [],
+      child_summaries: [],
+    });
+    expect(out).toBe("just the text");
+  });
+
+  it("throws on an empty / whitespace-only response", async () => {
+    const { client } = makeStubClient({
+      content: [{ type: "text", text: "   \n  " }],
+    });
+    await expect(
+      _makeDefaultSummarizer(client)({
+        community_id: "x",
+        level: 0,
+        members: [],
+        internal_relations: [],
+        child_summaries: [],
+      }),
+    ).rejects.toThrow(/Empty summary/);
   });
 });
 

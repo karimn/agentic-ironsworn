@@ -373,25 +373,42 @@ function formatParentPrompt(input: SummarizerInput): string {
   return lines.join("\n");
 }
 
+// Minimal structural type for the Anthropic SDK so tests can inject a stub
+// without depending on the real client. Any object matching this shape works,
+// including the real `Anthropic` instance.
+export type AnthropicLike = {
+  messages: {
+    create: (args: {
+      model: string;
+      max_tokens: number;
+      system: string;
+      messages: { role: "user"; content: string }[];
+    }) => Promise<{ content: { type: string; text?: string }[] }>;
+  };
+};
+
+export function _makeDefaultSummarizer(client: AnthropicLike): Summarizer {
+  return async (input) => {
+    const prompt = input.level === 0 ? formatLeafPrompt(input) : formatParentPrompt(input);
+    const response = await client.messages.create({
+      model: DEFAULT_SUMMARY_MODEL,
+      max_tokens: 400,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content
+      .flatMap((b) => (b.type === "text" && typeof b.text === "string" ? [b.text] : []))
+      .join("\n")
+      .trim();
+    if (text.length === 0) {
+      throw new Error("Empty summary returned by Anthropic");
+    }
+    return text;
+  };
+}
+
 async function defaultSummarizer(input: SummarizerInput): Promise<string> {
-  const prompt = input.level === 0 ? formatLeafPrompt(input) : formatParentPrompt(input);
-  const client = getAnthropic();
-  const response = await client.messages.create({
-    model: DEFAULT_SUMMARY_MODEL,
-    max_tokens: 400,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: prompt }],
-  });
-  // Concatenate text blocks; the SDK may return multiple if the model emits
-  // structured content, though for plain summaries we expect a single block.
-  const text = response.content
-    .flatMap((b) => (b.type === "text" ? [b.text] : []))
-    .join("\n")
-    .trim();
-  if (text.length === 0) {
-    throw new Error("Empty summary returned by Anthropic");
-  }
-  return text;
+  return _makeDefaultSummarizer(getAnthropic())(input);
 }
 
 // ---------------------------------------------------------------------------
