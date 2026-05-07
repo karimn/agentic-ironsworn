@@ -52,6 +52,22 @@ jobs:
           path: ~/.ollama/models
           key: ollama-nomic-embed-text-v1
 
+      - name: Cache DuckDB extensions
+        id: duckdb-ext-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.duckdb/extensions
+          key: duckdb-extensions-v1.5.2-fts-vss
+
+      - name: Pre-install DuckDB extensions
+        if: steps.duckdb-ext-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          curl -fsSL https://github.com/duckdb/duckdb/releases/download/v1.5.2/duckdb_cli-linux-amd64.zip -o /tmp/duckdb_cli.zip
+          unzip -q /tmp/duckdb_cli.zip -d /tmp/duckdb_cli
+          chmod +x /tmp/duckdb_cli/duckdb
+          /tmp/duckdb_cli/duckdb -c "INSTALL fts; INSTALL vss;"
+
       - name: Start Ollama
         run: ollama serve > /tmp/ollama.log 2>&1 &
 
@@ -73,7 +89,7 @@ jobs:
 
       - name: Run tests
         working-directory: plugins/ironsworn/scribe
-        run: bun test
+        run: bun test --timeout 60000
         env:
           OLLAMA_BASE_URL: http://localhost:11434
 

@@ -11,10 +11,13 @@ const DB_EXISTS = existsSync(
 let _ftsAvailable: boolean | null = null;
 async function ftsAvailable(): Promise<boolean> {
   if (_ftsAvailable !== null) return _ftsAvailable;
+  // Use LOAD only (no INSTALL) so this check never triggers a network download
+  // and returns quickly regardless of CDN reachability. fts tests run only when
+  // the extension is already in the local DuckDB extension cache.
   try {
     const inst = await DuckDBInstance.create(":memory:");
     const conn = await inst.connect();
-    await conn.run("INSTALL fts; LOAD fts;");
+    await conn.run("LOAD fts;");
     conn.closeSync();
     _ftsAvailable = true;
   } catch {
