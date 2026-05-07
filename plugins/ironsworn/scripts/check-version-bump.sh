@@ -6,11 +6,16 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 
 cd "$PROJECT_DIR"
 
-current_branch=$(git branch --show-current 2>/dev/null || echo "")
+# In GitHub Actions PRs the HEAD is detached, so branch --show-current returns
+# empty and would falsely skip. The workflow only calls this script on
+# pull_request events, so we bypass the branch guard when running in CI.
+if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+  current_branch=$(git branch --show-current 2>/dev/null || echo "")
 
-# Skip check on main/master or detached HEAD
-if [[ -z "$current_branch" || "$current_branch" == "main" || "$current_branch" == "master" ]]; then
-  exit 0
+  # Skip check on main/master or detached HEAD
+  if [[ -z "$current_branch" || "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+    exit 0
+  fi
 fi
 
 # Use origin/main as the reference so worktrees and stale local main both work

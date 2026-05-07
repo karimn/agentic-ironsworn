@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: plugins/ironsworn/scribe
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: plugins/ironsworn/scribe
+        run: bun run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: plugins/ironsworn/scribe
+        run: bun install --frozen-lockfile
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-nomic-embed-text-v1
+
+      - name: Start Ollama
+        run: ollama serve &
+
+      - name: Pull embedding model
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:11434/api/tags && break
+            sleep 2
+          done
+          ollama pull nomic-embed-text
+
+      - name: Run tests
+        working-directory: plugins/ironsworn/scribe
+        run: bun test
+        env:
+          OLLAMA_BASE_URL: http://localhost:11434
+
+  version-bump:
+    name: Plugin version bump
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main
+        run: git fetch origin main
+
+      - name: Check version bump
+        run: bash plugins/ironsworn/scripts/check-version-bump.sh
