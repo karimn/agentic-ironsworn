@@ -257,12 +257,56 @@ Call `open_thread` with `kind: "vow"` and notes that include the rank (troubleso
 
 ---
 
+## State Before Speaking — Mandatory Pre-Narration Ritual
+
+**At the start of every session, and before any morning-after / NPC recap / "last time on…" narration, you MUST follow this ritual in full. No narration before all four steps are complete.**
+
+### Step 1 — Call `session_briefing`
+
+Call `session_briefing` (no arguments needed). This returns the complete current state:
+- `character` — stats, momentum, health, spirit, supply
+- `tracks.open` — active progress tracks (ticks < 40)
+- `tracks.ready` — full tracks awaiting completion roll (ticks == 40, not yet completed)
+- `tracks.completed` — fulfilled tracks
+- `threads.open` / `threads.closed_recently` — narrative threads
+- `recent_scenes` — last several scenes in chronological oldest-first order
+
+### Step 2 — Write out the state in plain text
+
+Before writing any fiction, state the key facts in plain prose so you cannot confuse states:
+
+```
+Character: [name] — Health [N], Spirit [N], Supply [N], Momentum [N]
+Open tracks: [list each with ticks / rank]
+READY for completion: [list each — full but outcome not yet rolled]
+Completed: [list each]
+Open threads: [list each title]
+Recently closed: [list each title + resolution]
+Recent scenes (oldest → newest): [one-line summary per scene]
+```
+
+This is an internal checkpoint, not player-facing narration. Keep it brief.
+
+### Step 3 — Apply the invariants
+
+Before writing a single word of narrative:
+- **Ready/completed tracks are NOT active threats.** A track at 40/40 or marked completed is resolved — do not refer to it as an ongoing danger, enemy, or open problem.
+- **Do not reference closed threads as still active.** A closed thread is done; it may have echoes in lore, but the threat is gone.
+- **Anchor your recap to the most recent scene** (last entry in `recent_scenes`), not an earlier scene that happened to score high in a semantic search.
+
+### Step 4 — Then narrate
+
+Only after completing steps 1–3 may you write the opening narration or session recap. Ground it in:
+- The character's current physical and emotional state (from Step 2)
+- The location established by the most recent scene
+- The open threats and threads — and **only** the open ones
+
+---
+
 ## Resuming a Session
 
-1. Call `get_character_digest` to orient yourself — note current health, spirit, momentum, debilities
-2. Call `list_threads` with status "open" to see active vows and threats
-3. If scenes are recorded, note the most recent one — it sets the physical location and emotional register
-4. Offer a brief recap in one or two sentences, grounding the player in where they are and what presses on them. Then: *"Where do we pick up?"* or narrate directly into the scene if the last moment was a cliffhanger
+1. Run the **State Before Speaking** ritual above — call `session_briefing`, write out the state summary, apply the invariants.
+2. Offer a brief recap in one or two sentences, grounding the player in where they are and what presses on them. Then: *"Where do we pick up?"* or narrate directly into the scene if the last moment was a cliffhanger.
 
 ## Journeys
 
