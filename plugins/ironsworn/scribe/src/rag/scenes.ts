@@ -691,6 +691,53 @@ export async function searchScenes(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Recent scenes — chronological (oldest-first) for session briefing
+// ---------------------------------------------------------------------------
+
+export interface RecentSceneSummary {
+  id: string;
+  text: string;
+  timestamp: string;
+  kind: string;
+}
+
+/**
+ * Return the N most recent scenes ordered oldest-first (chronological).
+ * Unlike searchScenes (semantic/similarity order), this is time-ordered
+ * so session briefings present events in the correct narrative sequence.
+ */
+export async function getRecentScenesChronological(
+  campaignPath: string,
+  k: number = 5,
+): Promise<RecentSceneSummary[]> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    // Fetch the k most recent by timestamp DESC, then reverse to oldest-first
+    const result = await conn.runAndReadAll(
+      `SELECT id, text, timestamp, kind
+       FROM (
+         SELECT id, text, timestamp, kind
+         FROM scenes
+         ORDER BY timestamp DESC
+         LIMIT ?
+       ) sub
+       ORDER BY timestamp ASC`,
+      [k],
+    );
+    const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+    return rows.map((row) => ({
+      id: String(row["id"] ?? ""),
+      text: String(row["text"] ?? ""),
+      timestamp: String(row["timestamp"] ?? ""),
+      kind: String(row["kind"] ?? "scene"),
+    }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export interface ComplicationScene {
   summary: string;
   complication_theme: string;

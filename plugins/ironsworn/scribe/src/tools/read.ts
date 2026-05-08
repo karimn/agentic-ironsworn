@@ -4,7 +4,7 @@ import { loadCharacter } from "../state/character.js";
 import { listThreads } from "../state/threads.js";
 import { getNpc } from "../state/npcs.js";
 import { searchRules, lookupMove } from "../rag/query.js";
-import { searchScenes, getRecentComplications, getScene, searchBeats } from "../rag/scenes.js";
+import { searchScenes, getRecentComplications, getRecentScenesChronological, getScene, searchBeats } from "../rag/scenes.js";
 import { lookupAsset } from "../rules/ironsworn/assets.js";
 
 function characterDigest(char: Awaited<ReturnType<typeof loadCharacter>>) {
@@ -279,6 +279,95 @@ export function register(server: McpServer, campaignPath: string): void {
         const results = await getRecentComplications(campaignPath, k ?? 5);
         return {
           content: [{ type: "text", text: JSON.stringify(results) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "session_briefing",
+    [
+      "Consolidated session-start view. Call this as the FIRST tool at the start of every session (or any morning-after / recap scene) before narrating anything.",
+      "Returns: character digest, progress tracks bucketed into open/ready/completed, narrative threads split into open/closed_recently, and the N most recent scenes in chronological oldest-first order.",
+      "Key invariant: tracks with ticks==40 are in 'ready' (completion pending), NOT 'open'. Never narrate ready/completed tracks as active threats.",
+    ].join(" "),
+    {
+      recent_scenes_k: z.coerce.number().int().positive().optional().describe(
+        "Number of recent scenes to return, oldest-first (default 5)",
+      ),
+      closed_threads_k: z.coerce.number().int().positive().optional().describe(
+        "Number of recently-closed threads to include (default 3)",
+      ),
+    },
+    async ({ recent_scenes_k, closed_threads_k }) => {
+      try {
+        const scenesK = recent_scenes_k ?? 5;
+        const closedK = closed_threads_k ?? 3;
+
+        // Load all data in parallel; degrade gracefully for each section.
+        const [character, allThreads, recentScenes] = await Promise.all([
+          loadCharacter(campaignPath),
+          listThreads(campaignPath).catch(() => []),
+          getRecentScenesChronological(campaignPath, scenesK).catch(() => []),
+        ]);
+
+        // --- Character digest ---
+        const activeDebilities = Object.fromEntries(
+          Object.entries(character.debilities).filter(([, v]) => v === true),
+        );
+        const digest = {
+          name: character.name,
+          momentum: character.momentum,
+          health: character.health,
+          spirit: character.spirit,
+          supply: character.supply,
+          debilities: activeDebilities,
+          bonds: character.bonds,
+        };
+
+        // --- Track bucketing ---
+        // open     = ticks < 40 AND completed == false
+        // ready    = ticks == 40 AND completed == false (full — completion roll pending)
+        // completed = completed == true
+        const tracks = {
+          open: character.progressTracks.filter(
+            (t) => !t.completed && t.ticks < 40,
+          ),
+          ready: character.progressTracks.filter(
+            (t) => !t.completed && t.ticks >= 40,
+          ),
+          completed: character.progressTracks.filter((t) => t.completed),
+        };
+
+        // --- Thread bucketing ---
+        const openThreads = allThreads.filter((t) => t.status === "open");
+        // closed_recently: last N closed threads, most-recently-closed first
+        const closedThreads = allThreads
+          .filter((t) => t.status === "closed")
+          .sort((a, b) => {
+            const ta = a.closedAt ?? "";
+            const tb = b.closedAt ?? "";
+            return tb.localeCompare(ta);
+          })
+          .slice(0, closedK);
+
+        const briefing = {
+          character: digest,
+          tracks,
+          threads: {
+            open: openThreads,
+            closed_recently: closedThreads,
+          },
+          recent_scenes: recentScenes,
+        };
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(briefing) }],
         };
       } catch (e) {
         return {
