@@ -69,4 +69,16 @@ describe("lookupMove", () => {
     const result = await lookupMove("zzz-nonexistent-move-zzz");
     expect(result).toBeNull();
   });
+
+  it("returns the Compel move — not a semantic near-match — when queried by exact name", async () => {
+    if (!DB_EXISTS) return; // skip gracefully
+    if (!(await ftsAvailable())) return; // skip when fts extension unavailable
+    const result = await lookupMove("Compel");
+    expect(result).not.toBeNull();
+    expect(result?.contentType).toBe("move");
+    // The returned move must be the Compel move (trigger about persuasion),
+    // not Face Desolation (trigger about desolation) which contains "compelling"
+    // in its body text and incorrectly wins in a BM25 search for "Compel".
+    expect(result?.moveTrigger).toMatch(/persuade/i);
+  });
 });

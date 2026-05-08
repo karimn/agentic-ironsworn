@@ -1,6 +1,7 @@
 import { DuckDBInstance } from "@duckdb/node-api";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getMoves } from "../rules/ironsworn/moves.js";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -263,11 +264,82 @@ export async function searchRules(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Name normalization helpers
+// ---------------------------------------------------------------------------
+
+function normalizeName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+}
+
+// ---------------------------------------------------------------------------
+// Exact-name move lookup via YAML metadata + DB trigger matching
+// ---------------------------------------------------------------------------
+
+async function lookupMoveByExactName(
+  conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
+  name: string,
+): Promise<ChunkResult | null> {
+  const normalized = normalizeName(name);
+  const moves = getMoves();
+
+  // Find all YAML moves whose normalized name matches exactly.
+  const exactMatches = moves.filter(
+    (m) => normalizeName(m.name) === normalized,
+  );
+  if (exactMatches.length === 0) return null;
+
+  // For each matching YAML move, look up its DB chunk by move_trigger.
+  // YAML triggers have the form "When you <verb>..." or "When <something>...".
+  // The DB stores them with inconsistent prefixes (sometimes "When you", sometimes
+  // just the verb phrase). We normalize by stripping the leading "When " (if any)
+  // and trailing "..." before doing a substring match.
+  for (const move of exactMatches) {
+    if (!move.trigger) continue;
+
+    // Normalize: strip leading "When " (case-insensitive) and trailing "..."
+    const triggerCore = move.trigger
+      .replace(/^when\s+/i, "")
+      .replace(/\.{3}$/, "")
+      .trim();
+    if (!triggerCore) continue;
+
+    const sql = `SELECT id, text, heading_path, content_type, move_trigger, page, 1.0 AS score
+                 FROM chunks
+                 WHERE content_type = 'move'
+                   AND (move_trigger = ? OR move_trigger ILIKE ?)
+                 LIMIT 1`;
+
+    const result = await conn.runAndReadAll(sql, [triggerCore, `%${triggerCore}%`]);
+    const rows = result.getRowObjectsJS() as RawRow[];
+    if (rows.length === 0) continue;
+
+    const row = rows[0]!;
+    return {
+      id: toStr(row["id"]),
+      text: toStr(row["text"]),
+      headingPath: toStringArray(row["heading_path"]),
+      contentType: toStr(row["content_type"]),
+      moveTrigger: toStr(row["move_trigger"]),
+      page: toStr(row["page"]),
+      score: toNum(row["score"]),
+    };
+  }
+
+  return null;
+}
+
 export async function lookupMove(name: string): Promise<ChunkResult | null> {
   const instance = await getInstance();
   const conn = await instance.connect();
 
   try {
+    // 1. Try exact name match first — prevents semantic near-matches from winning.
+    const exactResult = await lookupMoveByExactName(conn, name);
+    if (exactResult !== null) return exactResult;
+
+    // 2. Fall back to BM25 full-text search for queries that don't match a known
+    //    move name exactly (e.g. partial queries or alternate phrasings).
     const SCORE_THRESHOLD = 1.0;
     const sql = `SELECT * FROM (
                    SELECT id, text, heading_path, content_type, move_trigger, page,
