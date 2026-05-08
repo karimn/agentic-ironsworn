@@ -1,4 +1,4 @@
-import { DuckDBInstance, DuckDBValue } from "@duckdb/node-api";
+import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
 import { mkdir } from "node:fs/promises";
 
 // ---------------------------------------------------------------------------
@@ -18,7 +18,40 @@ export interface Scene {
   timestamp: string;
   kind: string;
   complication_theme?: string;
+  beats?: Beat[];
   score?: number;
+}
+
+export type BeatKind = "narration" | "dialogue" | "move" | "choice" | "oracle";
+
+export interface BeatInput {
+  kind: BeatKind;
+  speaker?: string;
+  text: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface Beat {
+  id: string;
+  scene_id: string;
+  beat_index: number;
+  kind: BeatKind;
+  speaker?: string;
+  text: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  score?: number;
+}
+
+export interface BeatExport {
+  id: string;
+  scene_id: string;
+  beat_index: number;
+  kind: string;
+  speaker?: string;
+  text: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,10 +96,36 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       ALTER TABLE scenes ADD COLUMN IF NOT EXISTS complication_theme TEXT
     `);
 
+    await conn.run(`
+      CREATE TABLE IF NOT EXISTS scene_beats (
+        id          TEXT PRIMARY KEY,
+        scene_id    TEXT NOT NULL,
+        beat_index  INTEGER NOT NULL,
+        kind        TEXT NOT NULL,
+        speaker     TEXT,
+        text        TEXT NOT NULL,
+        embedding   FLOAT[768] NOT NULL,
+        metadata    TEXT NOT NULL DEFAULT '{}',
+        created_at  TEXT NOT NULL,
+        UNIQUE (scene_id, beat_index)
+      )
+    `);
+
+    await conn.run(`
+      CREATE INDEX IF NOT EXISTS scene_beats_scene_idx
+      ON scene_beats (scene_id, beat_index)
+    `);
+
     if (vssLoaded) {
       await conn.run(`
         CREATE INDEX IF NOT EXISTS scenes_embedding_idx
         ON scenes USING HNSW (embedding)
+        WITH (metric = 'cosine')
+      `);
+
+      await conn.run(`
+        CREATE INDEX IF NOT EXISTS scene_beats_embedding_idx
+        ON scene_beats USING HNSW (embedding)
         WITH (metric = 'cosine')
       `);
     }
@@ -146,7 +205,33 @@ async function getEmbedding(text: string): Promise<number[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function rowToBeat(row: Record<string, unknown>): Beat {
+  let metadata: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(String(row["metadata"] ?? "{}")) as Record<string, unknown>;
+  } catch {
+    // ignore parse errors; leave metadata empty
+  }
+  return {
+    id: String(row["id"]),
+    scene_id: String(row["scene_id"]),
+    beat_index: Number(row["beat_index"]),
+    kind: String(row["kind"]) as BeatKind,
+    speaker: row["speaker"] != null ? String(row["speaker"]) : undefined,
+    text: String(row["text"]),
+    metadata,
+    created_at: String(row["created_at"]),
+    score: row["score"] != null
+      ? typeof row["score"] === "number" ? row["score"] : Number(row["score"])
+      : undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public API — scenes
 // ---------------------------------------------------------------------------
 
 export async function recordScene(
@@ -154,7 +239,8 @@ export async function recordScene(
   summary: string,
   kind?: string,
   complicationTheme?: string,
-): Promise<void> {
+  beats?: BeatInput[],
+): Promise<string> {
   const [embedding, instance] = await Promise.all([
     getEmbedding(summary),
     getDb(campaignPath),
@@ -176,14 +262,22 @@ export async function recordScene(
   } finally {
     conn.closeSync();
   }
+
+  if (beats && beats.length > 0) {
+    await recordBeats(campaignPath, id, beats);
+  }
+
+  return id;
 }
 
 export async function getScene(
   campaignPath: string,
   id: string,
+  opts?: { include_beats?: boolean },
 ): Promise<Scene | null> {
   const instance = await getDb(campaignPath);
   const conn = await instance.connect();
+  let scene: Scene | null = null;
   try {
     const rows = (
       await conn.runAndReadAll(
@@ -193,7 +287,7 @@ export async function getScene(
     ).getRowObjectsJS() as Record<string, unknown>[];
     if (rows.length === 0) return null;
     const row = rows[0]!;
-    return {
+    scene = {
       id: String(row["id"]),
       text: String(row["text"]),
       timestamp: String(row["timestamp"]),
@@ -203,6 +297,12 @@ export async function getScene(
   } finally {
     conn.closeSync();
   }
+
+  if (opts?.include_beats && scene) {
+    scene.beats = await getBeats(campaignPath, id);
+  }
+
+  return scene;
 }
 
 export async function updateScene(
@@ -255,11 +355,138 @@ export async function deleteScene(
   const instance = await getDb(campaignPath);
   const conn = await openWriteConn(instance);
   try {
+    await conn.run(`DELETE FROM scene_beats WHERE scene_id = ?`, [id]);
     await conn.run(`DELETE FROM scenes WHERE id = ?`, [id]);
   } finally {
     conn.closeSync();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Public API — beats
+// ---------------------------------------------------------------------------
+
+export async function recordBeats(
+  campaignPath: string,
+  sceneId: string,
+  beats: BeatInput[],
+): Promise<void> {
+  if (beats.length === 0) return;
+
+  const [embeddings, instance] = await Promise.all([
+    Promise.all(beats.map((b) => getEmbedding(b.text))),
+    getDb(campaignPath),
+  ]);
+
+  // Determine start index from current max beat_index for this scene
+  const checkConn = await instance.connect();
+  let startIndex = 0;
+  try {
+    const rows = (
+      await checkConn.runAndReadAll(
+        `SELECT COALESCE(MAX(beat_index) + 1, 0) AS next_index FROM scene_beats WHERE scene_id = ?`,
+        [sceneId],
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+    startIndex = Number(rows[0]?.["next_index"] ?? 0);
+  } finally {
+    checkConn.closeSync();
+  }
+
+  const conn = await openWriteConn(instance);
+  try {
+    for (let i = 0; i < beats.length; i++) {
+      const beat = beats[i]!;
+      const embedding = embeddings[i]!;
+      const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+      const beatId = crypto.randomUUID();
+      const created_at = new Date().toISOString();
+      const metadata = JSON.stringify(beat.metadata ?? {});
+
+      await conn.run(
+        `INSERT INTO scene_beats (id, scene_id, beat_index, kind, speaker, text, embedding, metadata, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ${embeddingLiteral}, ?, ?)`,
+        [beatId, sceneId, startIndex + i, beat.kind, beat.speaker ?? null, beat.text, metadata, created_at],
+      );
+    }
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function getBeats(
+  campaignPath: string,
+  sceneId: string,
+): Promise<Beat[]> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const rows = (
+      await conn.runAndReadAll(
+        `SELECT id, scene_id, beat_index, kind, speaker, text, metadata, created_at
+         FROM scene_beats
+         WHERE scene_id = ?
+         ORDER BY beat_index`,
+        [sceneId],
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+    return rows.map(rowToBeat);
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function searchBeats(
+  campaignPath: string,
+  query: string,
+  k?: number,
+  opts?: { kind?: string; scene_id?: string },
+): Promise<Beat[]> {
+  const limit = k ?? 5;
+
+  const [embedding, instance] = await Promise.all([
+    getEmbedding(query),
+    getDb(campaignPath),
+  ]);
+
+  const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+
+  const conditions: string[] = [];
+  const params: DuckDBValue[] = [];
+
+  if (opts?.kind) {
+    conditions.push(`kind = ?`);
+    params.push(opts.kind);
+  }
+  if (opts?.scene_id) {
+    conditions.push(`scene_id = ?`);
+    params.push(opts.scene_id);
+  }
+  params.push(limit);
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const conn = await instance.connect();
+  try {
+    const result = await conn.runAndReadAll(
+      `SELECT id, scene_id, beat_index, kind, speaker, text, metadata, created_at,
+              array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
+       FROM scene_beats
+       ${whereClause}
+       ORDER BY score DESC
+       LIMIT ?`,
+      params,
+    );
+    const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+    return rows.map(rowToBeat);
+  } finally {
+    conn.closeSync();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Export / Import
+// ---------------------------------------------------------------------------
 
 export interface SceneExport {
   id: string;
@@ -267,24 +494,63 @@ export interface SceneExport {
   timestamp: string;
   kind: string;
   complication_theme?: string;
+  beats?: BeatExport[];
 }
 
 export async function exportScenes(campaignPath: string): Promise<SceneExport[]> {
   const instance = await getDb(campaignPath);
   const conn = await instance.connect();
   try {
-    const rows = (
+    const sceneRows = (
       await conn.runAndReadAll(
         `SELECT id, text, timestamp, kind, complication_theme FROM scenes ORDER BY timestamp`,
       )
     ).getRowObjectsJS() as Record<string, unknown>[];
-    return rows.map((r) => ({
-      id: String(r["id"]),
-      text: String(r["text"]),
-      timestamp: String(r["timestamp"]),
-      kind: String(r["kind"]),
-      complication_theme: r["complication_theme"] != null ? String(r["complication_theme"]) : undefined,
-    }));
+
+    const beatRows = (
+      await conn.runAndReadAll(
+        `SELECT id, scene_id, beat_index, kind, speaker, text, metadata, created_at
+         FROM scene_beats
+         ORDER BY scene_id, beat_index`,
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+
+    // Group beats by scene_id
+    const beatsByScene = new Map<string, BeatExport[]>();
+    for (const row of beatRows) {
+      const sceneId = String(row["scene_id"]);
+      if (!beatsByScene.has(sceneId)) beatsByScene.set(sceneId, []);
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = JSON.parse(String(row["metadata"] ?? "{}")) as Record<string, unknown>;
+      } catch {
+        // ignore
+      }
+      beatsByScene.get(sceneId)!.push({
+        id: String(row["id"]),
+        scene_id: sceneId,
+        beat_index: Number(row["beat_index"]),
+        kind: String(row["kind"]),
+        speaker: row["speaker"] != null ? String(row["speaker"]) : undefined,
+        text: String(row["text"]),
+        metadata,
+        created_at: String(row["created_at"]),
+      });
+    }
+
+    return sceneRows.map((r) => {
+      const id = String(r["id"]);
+      const beats = beatsByScene.get(id);
+      const entry: SceneExport = {
+        id,
+        text: String(r["text"]),
+        timestamp: String(r["timestamp"]),
+        kind: String(r["kind"]),
+        complication_theme: r["complication_theme"] != null ? String(r["complication_theme"]) : undefined,
+      };
+      if (beats && beats.length > 0) entry.beats = beats;
+      return entry;
+    });
   } finally {
     conn.closeSync();
   }
@@ -297,6 +563,7 @@ export async function importScene(
   timestamp: string,
   kind: string,
   complicationTheme?: string,
+  beats?: BeatExport[],
 ): Promise<boolean> {
   const instance = await getDb(campaignPath);
 
@@ -312,8 +579,13 @@ export async function importScene(
   }
   if (exists) return false;
 
-  const [embedding] = await Promise.all([getEmbedding(text)]);
-  const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+  // Fetch scene + all beat embeddings in parallel
+  const allTexts = [text, ...(beats ?? []).map((b) => b.text)];
+  const allEmbeddings = await Promise.all(allTexts.map(getEmbedding));
+  const sceneEmbedding = allEmbeddings[0]!;
+  const beatEmbeddings = allEmbeddings.slice(1);
+
+  const embeddingLiteral = `[${sceneEmbedding.join(",")}]::FLOAT[768]`;
 
   const conn = await openWriteConn(instance);
   try {
@@ -321,6 +593,20 @@ export async function importScene(
       `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme) VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?)`,
       [id, text, timestamp, kind, complicationTheme ?? null],
     );
+
+    if (beats && beats.length > 0) {
+      for (let i = 0; i < beats.length; i++) {
+        const beat = beats[i]!;
+        const beatEmbedding = beatEmbeddings[i]!;
+        const beatEmbeddingLiteral = `[${beatEmbedding.join(",")}]::FLOAT[768]`;
+        await conn.run(
+          `INSERT INTO scene_beats (id, scene_id, beat_index, kind, speaker, text, embedding, metadata, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ${beatEmbeddingLiteral}, ?, ?)`,
+          [beat.id, beat.scene_id, beat.beat_index, beat.kind, beat.speaker ?? null, beat.text, JSON.stringify(beat.metadata ?? {}), beat.created_at],
+        );
+      }
+    }
+
     return true;
   } finally {
     conn.closeSync();
