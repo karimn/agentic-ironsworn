@@ -3,7 +3,7 @@ import { z } from "zod";
 import { recordScene, getScene, updateScene, deleteScene, type BeatInput } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
-import { getLore } from "../rag/lore.js";
+import { getLore, upsertLore } from "../rag/lore.js";
 import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
 import { recordMutation } from "../checkpoint.js";
 
@@ -22,25 +22,33 @@ const BeatInputSchema = z.object({
 // Warning helpers (exported for testing)
 // ---------------------------------------------------------------------------
 
+export interface SceneReferenceResult {
+  warnings: string[];
+  stubbed: { npcs: string[]; lore: string[] };
+}
+
 export async function buildSceneWarnings(
   campaignPath: string,
   npcs: string[] | undefined,
   loreIds: string[] | undefined,
-): Promise<string[]> {
+): Promise<SceneReferenceResult> {
   const warnings: string[] = [];
+  const stubbed: { npcs: string[]; lore: string[] } = { npcs: [], lore: [] };
 
   if (npcs === undefined && loreIds === undefined) {
     warnings.push(
       "Reminder: Have you recorded all NPCs and lore entities introduced in this scene? Call upsert_npc and upsert_lore if needed.",
     );
-    return warnings;
+    return { warnings, stubbed };
   }
 
   if (npcs !== undefined) {
     for (const name of npcs) {
       const found = await getNpc(campaignPath, name);
       if (found === null) {
-        warnings.push(`NPC not recorded: "${name}". Call upsert_npc to record this NPC.`);
+        // Auto-stub: create a minimal NPC record so the scene reference is linked
+        await upsertNpc(campaignPath, name);
+        stubbed.npcs.push(name);
       }
     }
   }
@@ -49,12 +57,24 @@ export async function buildSceneWarnings(
     for (const id of loreIds) {
       const found = await getLore(campaignPath, id);
       if (found === null) {
-        warnings.push(`Lore entity not recorded: "${id}". Call upsert_lore to record this entity.`);
+        // Auto-stub: attempt to create a minimal lore entry (requires Ollama for embedding)
+        try {
+          await upsertLore(campaignPath, {
+            id,
+            canonical: id,
+            type: "concept",
+            summary: id,
+          });
+          stubbed.lore.push(id);
+        } catch {
+          // Ollama unavailable or other embedding failure — fall back to warning
+          warnings.push(`Lore entity not recorded: "${id}". Call upsert_lore to record this entity.`);
+        }
       }
     }
   }
 
-  return warnings;
+  return { warnings, stubbed };
 }
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -77,9 +97,9 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined);
         recordMutation(campaignPath);
-        const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
+        const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
         };
       } catch (e) {
         return {
@@ -111,9 +131,9 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         await updateScene(campaignPath, id, { summary, kind });
         recordMutation(campaignPath);
-        const warnings = await buildSceneWarnings(campaignPath, npcs, lore_ids);
+        const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
         };
       } catch (e) {
         return {
