@@ -23,7 +23,7 @@ import {
   Character,
 } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
-import { tickProgress, vowXp } from "../rules/ironsworn/progress.js";
+import { tickProgress, vowXp, TICKS_PER_MARK } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { recordMutation } from "../checkpoint.js";
@@ -255,10 +255,28 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "tick_progress",
-    "Tick a named progress track by the given number of marks",
+    [
+      "Tick a named progress track by the given number of marks.",
+      "",
+      "IMPORTANT — unit clarification:",
+      "  `marks` is the number of *progress marks* (boxes), NOT raw ticks.",
+      "  Each mark equals a rank-dependent number of ticks:",
+      "    troublesome=12, dangerous=8, formidable=4, extreme=2, epic=1.",
+      "  Example: marks=2 on a dangerous track adds 2*8=16 ticks.",
+      "",
+      "The response always includes an `applied` object with:",
+      "  - prior_ticks: ticks before this call",
+      "  - requested_marks: the marks value that was passed (or 1 if default)",
+      "  - ticks_added: actual ticks added after clamping",
+      "  - clamped: true if the result was clamped at the 40-tick maximum",
+      "",
+      "When clamping occurs, a `warnings` array is also returned.",
+    ].join("\n"),
     {
       track_name: z.string().describe("Name of the progress track to tick (case-insensitive)"),
-      marks: z.coerce.number().int().positive().optional().describe("Number of marks to tick (default 1)"),
+      marks: z.coerce.number().int().positive().optional().describe(
+        "Number of progress marks (boxes) to tick, not raw ticks (default 1). Each mark adds rank-dependent ticks: troublesome=12, dangerous=8, formidable=4, extreme=2, epic=1.",
+      ),
     },
     async ({ track_name, marks }) => {
       try {
@@ -272,8 +290,14 @@ export function register(server: McpServer, campaignPath: string): void {
             isError: true,
           };
         }
+        const requestedMarks = marks ?? 1;
+        const track = character.progressTracks[idx]!;
+        const priorTicks = track.ticks;
+        const ticksRequested = requestedMarks * TICKS_PER_MARK[track.rank];
         const before = structuredClone(character);
-        const updatedTrack = tickProgress(character.progressTracks[idx]!, marks ?? 1);
+        const updatedTrack = tickProgress(track, requestedMarks);
+        const ticksAdded = updatedTrack.ticks - priorTicks;
+        const clamped = ticksAdded < ticksRequested;
         character.progressTracks[idx] = updatedTrack;
         await saveCharacter(campaignPath, character);
         await appendJournal(campaignPath, {
@@ -283,8 +307,19 @@ export function register(server: McpServer, campaignPath: string): void {
           after: character,
         });
         recordMutation(campaignPath);
+        const applied = {
+          requested_marks: requestedMarks,
+          ticks_added: ticksAdded,
+          prior_ticks: priorTicks,
+          clamped,
+        };
+        const warnings: string[] = clamped
+          ? [`Requested ${requestedMarks} marks (${ticksRequested} ticks) would exceed max; clamped at 40`]
+          : [];
+        const payload: Record<string, unknown> = { ok: true, track: updatedTrack, applied };
+        if (warnings.length > 0) payload.warnings = warnings;
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, track: updatedTrack }) }],
+          content: [{ type: "text", text: JSON.stringify(payload) }],
         };
       } catch (e) {
         return {
