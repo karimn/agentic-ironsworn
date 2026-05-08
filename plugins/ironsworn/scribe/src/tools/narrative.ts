@@ -13,7 +13,7 @@ const BeatInputSchema = z.object({
   ),
   speaker: z.string().optional().describe("Speaker name for dialogue beats"),
   text: z.string().describe("Full text of the beat"),
-  metadata: z.record(z.unknown()).optional().describe(
+  metadata: z.record(z.string(), z.unknown()).optional().describe(
     "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
   ),
 });

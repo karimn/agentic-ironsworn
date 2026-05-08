@@ -1,4 +1,4 @@
-import { DuckDBInstance, DuckDBValue } from "@duckdb/node-api";
+import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
 import { mkdir } from "node:fs/promises";
 
 // ---------------------------------------------------------------------------
@@ -452,7 +452,7 @@ export async function searchBeats(
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
 
   const conditions: string[] = [];
-  const params: unknown[] = [];
+  const params: DuckDBValue[] = [];
 
   if (opts?.kind) {
     conditions.push(`kind = ?`);
