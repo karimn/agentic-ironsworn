@@ -3,8 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildSceneWarnings } from "./narrative.js";
-import { upsertNpc } from "../state/npcs.js";
-import { upsertLore } from "../rag/lore.js";
+import { upsertNpc, getNpc } from "../state/npcs.js";
+import { upsertLore, getLore } from "../rag/lore.js";
 
 let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
@@ -35,38 +35,72 @@ afterEach(async () => {
 
 describe("buildSceneWarnings", () => {
   it("returns generic reminder when no params provided", async () => {
-    const warnings = await buildSceneWarnings(campaignDir, undefined, undefined);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("Reminder:");
-    expect(warnings[0]).toContain("upsert_npc");
-    expect(warnings[0]).toContain("upsert_lore");
+    const result = await buildSceneWarnings(campaignDir, undefined, undefined);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("Reminder:");
+    expect(result.warnings[0]).toContain("upsert_npc");
+    expect(result.warnings[0]).toContain("upsert_lore");
+    expect(result.stubbed.npcs).toHaveLength(0);
+    expect(result.stubbed.lore).toHaveLength(0);
   });
 
   it("returns no warnings when all NPCs are found", async () => {
     await upsertNpc(campaignDir, "Kira", "A fierce warrior.", "Trustworthy");
-    const warnings = await buildSceneWarnings(campaignDir, ["Kira"], undefined);
-    expect(warnings).toHaveLength(0);
+    const result = await buildSceneWarnings(campaignDir, ["Kira"], undefined);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.npcs).toHaveLength(0);
   });
 
-  it("returns warning for missing NPC", async () => {
-    const warnings = await buildSceneWarnings(campaignDir, ["Unknown NPC"], undefined);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("Unknown NPC");
-    expect(warnings[0]).toContain("upsert_npc");
+  it("auto-stubs missing NPC and returns stubbed list instead of warning", async () => {
+    const result = await buildSceneWarnings(campaignDir, ["Saelin"], undefined);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.npcs).toEqual(["Saelin"]);
+    // Verify the stub was actually created
+    const npc = await getNpc(campaignDir, "Saelin");
+    expect(npc).not.toBeNull();
   });
 
-  it("returns warnings only for missing NPCs when some are recorded", async () => {
+  it("stubs only missing NPCs; already-registered NPCs pass through silently", async () => {
     await upsertNpc(campaignDir, "Kira", "A fierce warrior.", "Trustworthy");
-    const warnings = await buildSceneWarnings(campaignDir, ["Kira", "Ghost"], undefined);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("Ghost");
+    const result = await buildSceneWarnings(campaignDir, ["Kira", "Ghost"], undefined);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.npcs).toEqual(["Ghost"]);
+    // Kira's record is untouched (still has description)
+    const kira = await getNpc(campaignDir, "Kira");
+    expect(kira).toContain("A fierce warrior.");
+    // Ghost stub was created
+    const ghost = await getNpc(campaignDir, "Ghost");
+    expect(ghost).not.toBeNull();
   });
 
-  it("returns warning for missing lore entity (no Ollama needed for empty DB)", async () => {
-    const warnings = await buildSceneWarnings(campaignDir, undefined, ["lost-vale"]);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("lost-vale");
-    expect(warnings[0]).toContain("upsert_lore");
+  it("stubs multiple missing NPCs in one call", async () => {
+    const result = await buildSceneWarnings(campaignDir, ["Saelin", "Mara", "Thord"], undefined);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.npcs).toEqual(["Saelin", "Mara", "Thord"]);
+    for (const name of ["Saelin", "Mara", "Thord"]) {
+      const npc = await getNpc(campaignDir, name);
+      expect(npc).not.toBeNull();
+    }
+  });
+
+  it("auto-stubs missing lore entity when Ollama is available", async () => {
+    if (!(await ollamaAvailable())) return;
+    const result = await buildSceneWarnings(campaignDir, undefined, ["lost-vale"]);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.lore).toEqual(["lost-vale"]);
+    // Verify stub exists in the lore db
+    const entity = await getLore(campaignDir, "lost-vale");
+    expect(entity).not.toBeNull();
+    expect(entity!.canonical).toBe("lost-vale");
+  });
+
+  it("falls back to warning for missing lore when Ollama is unavailable", async () => {
+    if (await ollamaAvailable()) return; // skip if Ollama is running
+    const result = await buildSceneWarnings(campaignDir, undefined, ["lost-vale"]);
+    expect(result.stubbed.lore).toHaveLength(0);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("lost-vale");
+    expect(result.warnings[0]).toContain("upsert_lore");
   });
 
   it("returns no warnings for present lore entity", async () => {
@@ -76,19 +110,32 @@ describe("buildSceneWarnings", () => {
       type: "place",
       summary: "A hidden valley shrouded in mist.",
     });
-    const warnings = await buildSceneWarnings(campaignDir, undefined, ["lost-vale"]);
-    expect(warnings).toHaveLength(0);
+    const result = await buildSceneWarnings(campaignDir, undefined, ["lost-vale"]);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.lore).toHaveLength(0);
   });
 
-  it("returns warnings for both missing NPC and missing lore", async () => {
-    const warnings = await buildSceneWarnings(campaignDir, ["Ghost"], ["unknown-place"]);
-    expect(warnings).toHaveLength(2);
-    expect(warnings.some((w) => w.includes("Ghost"))).toBe(true);
-    expect(warnings.some((w) => w.includes("unknown-place"))).toBe(true);
+  it("stubs both missing NPC and missing lore when Ollama is available", async () => {
+    if (!(await ollamaAvailable())) return;
+    const result = await buildSceneWarnings(campaignDir, ["Ghost"], ["unknown-place"]);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.npcs).toEqual(["Ghost"]);
+    expect(result.stubbed.lore).toEqual(["unknown-place"]);
   });
 
-  it("empty arrays produce no warnings (no generic reminder)", async () => {
-    const warnings = await buildSceneWarnings(campaignDir, [], []);
-    expect(warnings).toHaveLength(0);
+  it("falls back to warning for missing lore but stubs NPC when Ollama is unavailable", async () => {
+    if (await ollamaAvailable()) return; // skip if Ollama is running
+    const result = await buildSceneWarnings(campaignDir, ["Ghost"], ["unknown-place"]);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("unknown-place");
+    expect(result.stubbed.npcs).toEqual(["Ghost"]);
+    expect(result.stubbed.lore).toHaveLength(0);
+  });
+
+  it("empty arrays produce no warnings and no stubs", async () => {
+    const result = await buildSceneWarnings(campaignDir, [], []);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.stubbed.npcs).toHaveLength(0);
+    expect(result.stubbed.lore).toHaveLength(0);
   });
 });
