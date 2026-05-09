@@ -20,6 +20,7 @@ import {
   companionRestoreHealth,
   upsertCompanion,
   upgradeAsset,
+  closeTrack,
   Character,
 } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
@@ -406,6 +407,40 @@ export function register(server: McpServer, campaignPath: string): void {
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], xpGained, experience: character.experience }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "close_track",
+    [
+      "Dismiss/close a progress track without awarding XP.",
+      "Use this for non-vow tracks (combat, journey, bond, other) that have resolved fictionally",
+      "but were never formally completed via fulfill_progress — e.g. a battle that ended narratively,",
+      "a journey that was abandoned, or any track sitting at 40/40 after the fiction has moved on.",
+      "Also works for vow tracks when you want to abandon a vow without XP.",
+      "",
+      "The track is marked completed=true (same flag as fulfill_progress) but no XP is awarded.",
+      "After closing, the track will no longer appear in session_briefing's 'ready' or 'open' buckets.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the progress track to close/dismiss (case-insensitive)"),
+    },
+    async ({ track_name }) => {
+      try {
+        const result = await closeTrack(campaignPath, track_name);
+        recordMutation(campaignPath);
+        const track = result.after.progressTracks.find(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, track, xpAwarded: 0 }) }],
         };
       } catch (e) {
         return {

@@ -346,6 +346,21 @@ export async function spendExperience(
   });
 }
 
+export async function closeTrack(
+  campaignPath: string,
+  trackName: string,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "closeTrack", (char) => {
+    const track = char.progressTracks.find(
+      (t) => t.name.toLowerCase() === trackName.toLowerCase(),
+    );
+    if (!track) {
+      throw new Error(`Progress track not found: "${trackName}"`);
+    }
+    track.completed = true;
+  });
+}
+
 export async function upgradeAsset(
   campaignPath: string,
   assetName: string,
