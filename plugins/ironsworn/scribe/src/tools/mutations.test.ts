@@ -49,6 +49,141 @@ afterEach(async () => {
   await rm(campaignDir, { recursive: true, force: true });
 });
 
+describe("amount parameter naming", () => {
+  it("restore_spirit accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "restore_spirit",
+      arguments: { amount: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.spirit).toBe(5); // 3 + 2 = 5
+  });
+
+  it("restore_supply accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "restore_supply",
+      arguments: { amount: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.supply).toBe(5); // 3 + 2 = 5
+  });
+
+  it("restore_health accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "restore_health",
+      arguments: { amount: 1 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.health).toBe(5); // 4 + 1 = 5
+  });
+
+  it("suffer_harm accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "suffer_harm",
+      arguments: { amount: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.health).toBe(2); // 4 - 2 = 2
+  });
+
+  it("suffer_stress accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "suffer_stress",
+      arguments: { amount: 1 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.spirit).toBe(2); // 3 - 1 = 2
+  });
+
+  it("consume_supply accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "consume_supply",
+      arguments: { amount: 1 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.supply).toBe(2); // 3 - 1 = 2
+  });
+
+  it("take_momentum accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "take_momentum",
+      arguments: { amount: 3 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.state.momentum).toBe(5); // 2 + 3 = 5
+  });
+
+  it("gain_experience accepts 'amount' parameter", async () => {
+    const result = await client.callTool({
+      name: "gain_experience",
+      arguments: { amount: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.experience).toBe(2);
+  });
+
+  it("spend_experience accepts 'amount' parameter", async () => {
+    // first gain some XP
+    await client.callTool({ name: "gain_experience", arguments: { amount: 5 } });
+    const result = await client.callTool({
+      name: "spend_experience",
+      arguments: { amount: 3 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.experience).toBe(2);
+  });
+
+  it("companion_suffer_harm accepts 'amount' parameter", async () => {
+    // first add a companion
+    await client.callTool({
+      name: "upsert_companion",
+      arguments: { companion_name: "Wolf", health: 4 },
+    });
+    const result = await client.callTool({
+      name: "companion_suffer_harm",
+      arguments: { companion_name: "Wolf", amount: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.companion.health).toBe(2);
+  });
+
+  it("companion_restore_health accepts 'amount' parameter", async () => {
+    // first add a companion with low health
+    await client.callTool({
+      name: "upsert_companion",
+      arguments: { companion_name: "Wolf", health: 2 },
+    });
+    const result = await client.callTool({
+      name: "companion_restore_health",
+      arguments: { companion_name: "Wolf", amount: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.companion.health).toBe(4);
+  });
+});
+
 describe("tick_progress", () => {
   it("returns applied.prior_ticks matching the track ticks before the tick", async () => {
     const result = await client.callTool({
