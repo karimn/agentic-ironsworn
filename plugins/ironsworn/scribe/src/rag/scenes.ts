@@ -43,6 +43,15 @@ export interface Beat {
   score?: number;
 }
 
+export interface BeatSearchResult {
+  beats: Beat[];
+  /** Total number of beats in scope (applying any kind/scene_id filters but ignoring
+   *  the search query and k limit).  Callers can use this to distinguish "no results
+   *  because nothing matched the query" (total_beats > 0) from "no results because
+   *  this scene has no beats recorded at all" (total_beats === 0). */
+  total_beats: number;
+}
+
 export interface BeatExport {
   id: string;
   scene_id: string;
@@ -441,7 +450,7 @@ export async function searchBeats(
   query: string,
   k?: number,
   opts?: { kind?: string; scene_id?: string },
-): Promise<Beat[]> {
+): Promise<BeatSearchResult> {
   const limit = k ?? 5;
 
   const [embedding, instance] = await Promise.all([
@@ -452,22 +461,31 @@ export async function searchBeats(
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
 
   const conditions: string[] = [];
-  const params: DuckDBValue[] = [];
+  const filterParams: DuckDBValue[] = [];
 
   if (opts?.kind) {
     conditions.push(`kind = ?`);
-    params.push(opts.kind);
+    filterParams.push(opts.kind);
   }
   if (opts?.scene_id) {
     conditions.push(`scene_id = ?`);
-    params.push(opts.scene_id);
+    filterParams.push(opts.scene_id);
   }
-  params.push(limit);
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const conn = await instance.connect();
   try {
+    // Count total beats in scope (same filters, no query/limit applied)
+    const countResult = await conn.runAndReadAll(
+      `SELECT COUNT(*) AS cnt FROM scene_beats ${whereClause}`,
+      filterParams,
+    );
+    const countRows = countResult.getRowObjectsJS() as Record<string, unknown>[];
+    const total_beats = Number(countRows[0]?.["cnt"] ?? 0);
+
+    // Semantic search with limit
+    const searchParams: DuckDBValue[] = [...filterParams, limit];
     const result = await conn.runAndReadAll(
       `SELECT id, scene_id, beat_index, kind, speaker, text, metadata, created_at,
               array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
@@ -475,10 +493,10 @@ export async function searchBeats(
        ${whereClause}
        ORDER BY score DESC
        LIMIT ?`,
-      params,
+      searchParams,
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
-    return rows.map(rowToBeat);
+    return { beats: rows.map(rowToBeat), total_beats };
   } finally {
     conn.closeSync();
   }

@@ -250,9 +250,10 @@ describe("searchBeats", () => {
 
     expect(id).toBeTruthy();
 
-    const results = await searchBeats(campaignDir, "birds in the sky", 3);
-    expect(results.length).toBeGreaterThan(0);
-    expect(results[0]!.text).toContain("Ravens");
+    const result = await searchBeats(campaignDir, "birds in the sky", 3);
+    expect(result.beats.length).toBeGreaterThan(0);
+    expect(result.beats[0]!.text).toContain("Ravens");
+    expect(result.total_beats).toBe(3);
   });
 
   it("filters by kind", async () => {
@@ -262,8 +263,10 @@ describe("searchBeats", () => {
       { kind: "dialogue", speaker: "NPC", text: "Welcome to Thornhaven." },
     ]);
 
-    const dialogueOnly = await searchBeats(campaignDir, "greeting welcome", 5, { kind: "dialogue" });
-    expect(dialogueOnly.every((b) => b.kind === "dialogue")).toBe(true);
+    const result = await searchBeats(campaignDir, "greeting welcome", 5, { kind: "dialogue" });
+    expect(result.beats.every((b) => b.kind === "dialogue")).toBe(true);
+    // total_beats counts ALL beats matching the kind filter, regardless of search results
+    expect(result.total_beats).toBe(1);
   });
 
   it("filters by scene_id", async () => {
@@ -275,15 +278,29 @@ describe("searchBeats", () => {
       { kind: "narration", text: "A quiet morning." },
     ]);
 
-    const results = await searchBeats(campaignDir, "snow blood", 5, { scene_id: id1 });
-    expect(results.every((b) => b.scene_id === id1)).toBe(true);
+    const result = await searchBeats(campaignDir, "snow blood", 5, { scene_id: id1 });
+    expect(result.beats.every((b) => b.scene_id === id1)).toBe(true);
+    expect(result.total_beats).toBe(1);
   });
 
-  it("returns empty array when no beats recorded", async () => {
+  it("returns empty beats array and total_beats=0 when no beats recorded", async () => {
     if (!(await ollamaAvailable())) return;
     await recordScene(campaignDir, "A summary-only scene.");
-    const results = await searchBeats(campaignDir, "anything", 5);
-    expect(results).toEqual([]);
+    const result = await searchBeats(campaignDir, "anything", 5);
+    expect(result.beats).toEqual([]);
+    expect(result.total_beats).toBe(0);
+  });
+
+  it("distinguishes no-match from no-data: total_beats > 0 when beats exist but none match top-k", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A combat scene.", "combat", undefined, [
+      { kind: "move", text: "You strike with iron resolve." },
+      { kind: "narration", text: "The enemy falls." },
+    ]);
+    // Use scene_id filter to scope total_beats to this specific scene.
+    // Regardless of which beats are returned, total_beats must reflect the full count.
+    const result = await searchBeats(campaignDir, "completely unrelated romantic picnic", 1, { scene_id: sceneId });
+    expect(result.total_beats).toBe(2);
   });
 });
 
