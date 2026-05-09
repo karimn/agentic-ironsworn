@@ -337,13 +337,23 @@ export function register(server: McpServer, campaignPath: string): void {
         // --- Track bucketing ---
         // open     = ticks < 40 AND completed == false
         // ready    = ticks == 40 AND completed == false (full — completion roll pending)
+        //            BUT exclude tracks whose matching thread (by name) is closed —
+        //            those have resolved fictionally and should not surface as pending.
         // completed = completed == true
+        const closedThreadTitles = new Set(
+          allThreads
+            .filter((t) => t.status === "closed")
+            .map((t) => t.title.toLowerCase()),
+        );
         const tracks = {
           open: character.progressTracks.filter(
             (t) => !t.completed && t.ticks < 40,
           ),
           ready: character.progressTracks.filter(
-            (t) => !t.completed && t.ticks >= 40,
+            (t) =>
+              !t.completed &&
+              t.ticks >= 40 &&
+              !closedThreadTitles.has(t.name.toLowerCase()),
           ),
           completed: character.progressTracks.filter((t) => t.completed),
         };

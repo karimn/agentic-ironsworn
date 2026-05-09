@@ -247,6 +247,50 @@ describe("session_briefing — recent_scenes", () => {
   });
 });
 
+describe("session_briefing — ready bucket excludes tracks with closed threads", () => {
+  it("a ready track whose thread title matches and is closed is NOT in ready", async () => {
+    // "Combat Resolved" track (ticks=40, completed=false) — open matching thread
+    await openThread(campaignDir, "Combat Resolved", "other", "Ongoing combat");
+    await closeThread(campaignDir, "Combat Resolved", "Enemy defeated");
+
+    const result = await client.callTool({ name: "session_briefing", arguments: {} });
+    const briefing = parseToolText<{
+      tracks: { ready: Array<{ name: string }> };
+    }>(result);
+
+    // "Combat Resolved" track should NOT appear in ready since its thread is closed
+    const readyNames = briefing.tracks.ready.map((t) => t.name);
+    expect(readyNames).not.toContain("Combat Resolved");
+    // "Journey Done" should still be ready (no closed thread)
+    expect(readyNames).toContain("Journey Done");
+  });
+
+  it("a ready track whose thread is still open remains in ready", async () => {
+    // Open a thread matching a ready track — but don't close it
+    await openThread(campaignDir, "Combat Resolved", "other", "Ongoing combat");
+
+    const result = await client.callTool({ name: "session_briefing", arguments: {} });
+    const briefing = parseToolText<{
+      tracks: { ready: Array<{ name: string }> };
+    }>(result);
+
+    const readyNames = briefing.tracks.ready.map((t) => t.name);
+    expect(readyNames).toContain("Combat Resolved");
+    expect(readyNames).toContain("Journey Done");
+  });
+
+  it("a ready track with no matching thread stays in ready", async () => {
+    const result = await client.callTool({ name: "session_briefing", arguments: {} });
+    const briefing = parseToolText<{
+      tracks: { ready: Array<{ name: string }> };
+    }>(result);
+
+    const readyNames = briefing.tracks.ready.map((t) => t.name);
+    expect(readyNames).toContain("Combat Resolved");
+    expect(readyNames).toContain("Journey Done");
+  });
+});
+
 describe("session_briefing — overall shape", () => {
   it("returns all four top-level keys", async () => {
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
