@@ -49,10 +49,10 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "take_momentum",
     "Add or remove momentum from the character",
-    { n: z.coerce.number().int().describe("Amount to add (positive) or remove (negative)") },
-    async ({ n }) => {
+    { amount: z.coerce.number().int().describe("Amount to add (positive) or remove (negative)") },
+    async ({ amount }) => {
       try {
-        const result = await takeMomentum(campaignPath, n);
+        const result = await takeMomentum(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -96,11 +96,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "suffer_harm",
-    "Reduce character health by n points",
-    { n: z.coerce.number().int().positive().describe("Amount of harm to suffer") },
-    async ({ n }) => {
+    "Reduce character health by the given amount",
+    { amount: z.coerce.number().int().positive().describe("Amount of harm to suffer") },
+    async ({ amount }) => {
       try {
-        const result = await sufferHarm(campaignPath, n);
+        const result = await sufferHarm(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -116,11 +116,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "suffer_stress",
-    "Reduce character spirit by n points",
-    { n: z.coerce.number().int().positive().describe("Amount of stress to suffer") },
-    async ({ n }) => {
+    "Reduce character spirit by the given amount",
+    { amount: z.coerce.number().int().positive().describe("Amount of stress to suffer") },
+    async ({ amount }) => {
       try {
-        const result = await sufferStress(campaignPath, n);
+        const result = await sufferStress(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -136,11 +136,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "consume_supply",
-    "Reduce character supply by n points",
-    { n: z.coerce.number().int().positive().describe("Amount of supply to consume") },
-    async ({ n }) => {
+    "Reduce character supply by the given amount",
+    { amount: z.coerce.number().int().positive().describe("Amount of supply to consume") },
+    async ({ amount }) => {
       try {
-        const result = await consumeSupply(campaignPath, n);
+        const result = await consumeSupply(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -156,11 +156,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "restore_health",
-    "Restore character health by n points (clamped to max 5)",
-    { n: z.coerce.number().int().positive().describe("Amount of health to restore") },
-    async ({ n }) => {
+    "Restore character health by the given amount (clamped to max 5)",
+    { amount: z.coerce.number().int().positive().describe("Amount of health to restore") },
+    async ({ amount }) => {
       try {
-        const result = await restoreHealth(campaignPath, n);
+        const result = await restoreHealth(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -176,11 +176,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "restore_spirit",
-    "Restore character spirit by n points (clamped to max 5)",
-    { n: z.coerce.number().int().positive().describe("Amount of spirit to restore") },
-    async ({ n }) => {
+    "Restore character spirit by the given amount (clamped to max 5)",
+    { amount: z.coerce.number().int().positive().describe("Amount of spirit to restore") },
+    async ({ amount }) => {
       try {
-        const result = await restoreSpirit(campaignPath, n);
+        const result = await restoreSpirit(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -196,11 +196,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "restore_supply",
-    "Restore character supply by n points (clamped to max 5)",
-    { n: z.coerce.number().int().positive().describe("Amount of supply to restore") },
-    async ({ n }) => {
+    "Restore character supply by the given amount (clamped to max 5)",
+    { amount: z.coerce.number().int().positive().describe("Amount of supply to restore") },
+    async ({ amount }) => {
       try {
-        const result = await restoreSupply(campaignPath, n);
+        const result = await restoreSupply(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, state: characterDigest(result.after) }) }],
@@ -517,14 +517,14 @@ export function register(server: McpServer, campaignPath: string): void {
   );
   server.tool(
     "companion_suffer_harm",
-    "Reduce a companion's health by n points",
+    "Reduce a companion's health by the given amount",
     {
       companion_name: z.string().describe("Name of the companion (case-insensitive)"),
-      n: z.coerce.number().int().positive().describe("Amount of harm to suffer"),
+      amount: z.coerce.number().int().positive().describe("Amount of harm to suffer"),
     },
-    async ({ companion_name, n }) => {
+    async ({ companion_name, amount }) => {
       try {
-        const result = await companionSufferHarm(campaignPath, companion_name, n);
+        const result = await companionSufferHarm(campaignPath, companion_name, amount);
         recordMutation(campaignPath);
         const companion = result.after.companions.find(
           (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
@@ -543,14 +543,14 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "companion_restore_health",
-    "Restore a companion's health by n points",
+    "Restore a companion's health by the given amount",
     {
       companion_name: z.string().describe("Name of the companion (case-insensitive)"),
-      n: z.coerce.number().int().positive().describe("Amount of health to restore"),
+      amount: z.coerce.number().int().positive().describe("Amount of health to restore"),
     },
-    async ({ companion_name, n }) => {
+    async ({ companion_name, amount }) => {
       try {
-        const result = await companionRestoreHealth(campaignPath, companion_name, n);
+        const result = await companionRestoreHealth(campaignPath, companion_name, amount);
         recordMutation(campaignPath);
         const companion = result.after.companions.find(
           (c) => c.name.toLowerCase() === companion_name.toLowerCase(),
@@ -596,10 +596,10 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "gain_experience",
     "Add experience points to the character",
-    { n: z.coerce.number().int().positive().describe("Amount of experience to gain") },
-    async ({ n }) => {
+    { amount: z.coerce.number().int().positive().describe("Amount of experience to gain") },
+    async ({ amount }) => {
       try {
-        const result = await gainExperience(campaignPath, n);
+        const result = await gainExperience(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
@@ -616,10 +616,10 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "spend_experience",
     "Spend experience points from the character",
-    { n: z.coerce.number().int().positive().describe("Amount of experience to spend") },
-    async ({ n }) => {
+    { amount: z.coerce.number().int().positive().describe("Amount of experience to spend") },
+    async ({ amount }) => {
       try {
-        const result = await spendExperience(campaignPath, n);
+        const result = await spendExperience(campaignPath, amount);
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
