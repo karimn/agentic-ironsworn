@@ -246,7 +246,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "search_beats",
-    "Search scene beats using semantic similarity. Finds specific moments of dialogue, narration, or move resolution across all scenes.",
+    [
+      "Search scene beats using semantic similarity. Finds specific moments of dialogue, narration, or move resolution across all scenes.",
+      "The response includes `beats` (matched results) and `total_beats` (count of all beats in scope before the query/limit is applied).",
+      "Use `total_beats` to distinguish 'no match' (total_beats > 0, beats empty) from 'no data' (total_beats === 0, scene has no beats recorded).",
+    ].join(" "),
     {
       query: z.string().describe("Search query"),
       k: z.number().int().positive().optional().describe("Number of results to return (default 5)"),
@@ -255,9 +259,9 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ query, k, kind, scene_id }) => {
       try {
-        const results = await searchBeats(campaignPath, query, k, { kind, scene_id });
+        const result = await searchBeats(campaignPath, query, k, { kind, scene_id });
         return {
-          content: [{ type: "text", text: JSON.stringify(results) }],
+          content: [{ type: "text", text: JSON.stringify(result) }],
         };
       } catch (e) {
         return {
