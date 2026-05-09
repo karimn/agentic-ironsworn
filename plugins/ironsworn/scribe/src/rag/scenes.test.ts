@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { recordScene, searchScenes, getRecentComplications, getScene, updateScene, deleteScene, recordBeats, getBeats, searchBeats, exportScenes, importScene } from "./scenes.js";
+import { recordScene, searchScenes, getRecentComplications, getScene, updateScene, deleteScene, recordBeats, recordBeat, getBeats, searchBeats, exportScenes, importScene } from "./scenes.js";
 
 let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
@@ -236,6 +236,74 @@ describe("scene beats — round-trip", () => {
 
     const beats = await getBeats(campaignDir, id);
     expect(beats).toHaveLength(0);
+  });
+});
+
+describe("recordBeat", () => {
+  it("appends a single beat and returns its 0-based index", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A tense standoff.", "combat");
+
+    const idx = await recordBeat(campaignDir, sceneId, { kind: "narration", text: "Silence falls over the clearing." });
+    expect(idx).toBe(0);
+
+    const beats = await getBeats(campaignDir, sceneId);
+    expect(beats).toHaveLength(1);
+    expect(beats[0]!.text).toContain("Silence falls");
+    expect(beats[0]!.beat_index).toBe(0);
+  });
+
+  it("returns sequential indices when multiple beats are appended one by one", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A dialogue scene.", "social");
+
+    const idx0 = await recordBeat(campaignDir, sceneId, { kind: "narration", text: "The fire crackles." });
+    const idx1 = await recordBeat(campaignDir, sceneId, { kind: "dialogue", speaker: "Kira", text: "You came back." });
+    const idx2 = await recordBeat(campaignDir, sceneId, { kind: "move", text: "Compel the guard.", metadata: { move: "Compel", stat: "heart", outcome: "strong_hit" } });
+
+    expect(idx0).toBe(0);
+    expect(idx1).toBe(1);
+    expect(idx2).toBe(2);
+
+    const beats = await getBeats(campaignDir, sceneId);
+    expect(beats).toHaveLength(3);
+  });
+
+  it("beat is persisted — subsequent getScene includes it when include_beats is true", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A brief scene.", "exploration");
+
+    await recordBeat(campaignDir, sceneId, { kind: "oracle", text: "The oracle speaks: iron and ash." });
+
+    const scene = await getScene(campaignDir, sceneId, { include_beats: true });
+    expect(scene).not.toBeNull();
+    expect(scene!.beats).toHaveLength(1);
+    expect(scene!.beats![0]!.text).toContain("iron and ash");
+    expect(scene!.beats![0]!.kind).toBe("oracle");
+  });
+
+  it("appending to a scene that already has beats continues the index sequence", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A multi-part scene.", "social", undefined, [
+      { kind: "narration", text: "The hall falls silent." },
+      { kind: "dialogue", speaker: "Elder", text: "Speak your vow." },
+    ]);
+
+    const idx = await recordBeat(campaignDir, sceneId, { kind: "choice", text: "You swear on iron." });
+    expect(idx).toBe(2);
+
+    const beats = await getBeats(campaignDir, sceneId);
+    expect(beats).toHaveLength(3);
+    expect(beats[2]!.kind).toBe("choice");
+  });
+
+  it("throws when scene_id does not exist", async () => {
+    if (!(await ollamaAvailable())) return;
+    // Initialize the DB by recording a scene
+    await recordScene(campaignDir, "Placeholder to init DB.");
+    await expect(
+      recordBeat(campaignDir, "non-existent-scene-id", { kind: "narration", text: "This should fail." }),
+    ).rejects.toThrow("Scene not found");
   });
 });
 

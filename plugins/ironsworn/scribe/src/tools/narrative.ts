@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { recordScene, getScene, updateScene, deleteScene, type BeatInput } from "../rag/scenes.js";
+import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore, upsertLore } from "../rag/lore.js";
@@ -112,15 +112,18 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "update_scene",
-    "Update an existing scene record. Only provided fields are changed.",
+    "Update an existing scene record. Only provided fields are changed. Use append_beats to add new beats without replacing existing ones.",
     {
       id: z.string().describe("ID of the scene to update"),
       summary: z.string().optional().describe("New summary text (replaces existing)"),
       kind: z.string().optional().describe("New kind of scene"),
       npcs: z.array(z.string()).optional().describe("NPC names to verify are recorded"),
       lore_ids: z.array(z.string()).optional().describe("Lore entity IDs to verify are recorded"),
+      append_beats: z.array(BeatInputSchema).optional().describe(
+        "New beats to append to the scene's existing beats array (does not replace existing beats)"
+      ),
     },
-    async ({ id, summary, kind, npcs, lore_ids }) => {
+    async ({ id, summary, kind, npcs, lore_ids, append_beats }) => {
       try {
         const existing = await getScene(campaignPath, id);
         if (existing === null) {
@@ -130,10 +133,43 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
         await updateScene(campaignPath, id, { summary, kind });
+        if (append_beats && append_beats.length > 0) {
+          await recordBeats(campaignPath, id, append_beats as BeatInput[]);
+        }
         recordMutation(campaignPath);
         const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "record_beat",
+    "Append a single beat to an existing scene in real time, as events happen during play. Returns the 0-based index of the appended beat.",
+    {
+      scene_id: z.string().describe("ID of the scene to append the beat to"),
+      kind: z.enum(["dialogue", "narration", "move", "choice", "oracle"]).describe(
+        "Type of beat: dialogue (NPC/player speech), narration (descriptive prose), move (mechanical resolution), choice (player decision point), oracle (oracle roll + interpretation)"
+      ),
+      text: z.string().describe("Full text of the beat"),
+      speaker: z.string().optional().describe("Speaker name for dialogue beats"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe(
+        "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
+      ),
+    },
+    async ({ scene_id, kind, text, speaker, metadata }) => {
+      try {
+        const beatIndex = await recordBeat(campaignPath, scene_id, { kind, text, speaker, metadata });
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ beat_index: beatIndex }) }],
         };
       } catch (e) {
         return {

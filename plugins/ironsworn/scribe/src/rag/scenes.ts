@@ -423,6 +423,62 @@ export async function recordBeats(
   }
 }
 
+/**
+ * Append a single beat to an existing scene and return its 0-based index.
+ * Throws if the scene does not exist.
+ */
+export async function recordBeat(
+  campaignPath: string,
+  sceneId: string,
+  beat: BeatInput,
+): Promise<number> {
+  const instance = await getDb(campaignPath);
+
+  // Verify the scene exists
+  const checkConn = await instance.connect();
+  let beatIndex: number;
+  try {
+    const sceneRows = (
+      await checkConn.runAndReadAll(
+        `SELECT id FROM scenes WHERE id = ?`,
+        [sceneId],
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+    if (sceneRows.length === 0) {
+      throw new Error(`Scene not found: ${sceneId}`);
+    }
+
+    const rows = (
+      await checkConn.runAndReadAll(
+        `SELECT COALESCE(MAX(beat_index) + 1, 0) AS next_index FROM scene_beats WHERE scene_id = ?`,
+        [sceneId],
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+    beatIndex = Number(rows[0]?.["next_index"] ?? 0);
+  } finally {
+    checkConn.closeSync();
+  }
+
+  const embedding = await getEmbedding(beat.text);
+  const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+  const beatId = crypto.randomUUID();
+  const created_at = new Date().toISOString();
+  const metadata = JSON.stringify(beat.metadata ?? {});
+
+  const conn = await openWriteConn(instance);
+  try {
+    await conn.run(
+      `INSERT INTO scene_beats (id, scene_id, beat_index, kind, speaker, text, embedding, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ${embeddingLiteral}, ?, ?)`,
+      [beatId, sceneId, beatIndex, beat.kind, beat.speaker ?? null, beat.text, metadata, created_at],
+    );
+  } finally {
+    conn.closeSync();
+  }
+
+  return beatIndex;
+}
+
 export async function getBeats(
   campaignPath: string,
   sceneId: string,
