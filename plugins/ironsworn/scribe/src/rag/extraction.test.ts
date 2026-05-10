@@ -51,3 +51,82 @@ describe("_makeDefaultExtractor", () => {
     expect(typeof _makeDefaultExtractor).toBe("function");
   });
 });
+
+describe("extractLoreFromScene — basic extraction", () => {
+  it("creates entities and relations from a synthetic scene", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    // We need a real scene in scenes.duckdb — import the scenes module directly
+    // to record a scene without going through the MCP tool layer.
+    const { recordScene } = await import("./scenes.js");
+    const sceneId = await recordScene(
+      campaignDir,
+      "Lona the healer tends to wounds in the village of Caldren. She serves the Thornwood faction.",
+    );
+
+    const stubResult: ExtractionResult = {
+      entities: [
+        {
+          canonical: "Lona",
+          type: "creature",
+          summary: "A healer who tends wounds in Caldren.",
+          aliases: ["the healer Lona"],
+          excerpt: "Lona the healer tends to wounds",
+          confidence: 0.9,
+        },
+        {
+          canonical: "Caldren",
+          type: "place",
+          summary: "A village where Lona practices healing.",
+          aliases: [],
+          excerpt: "the village of Caldren",
+          confidence: 0.95,
+        },
+        {
+          canonical: "Thornwood",
+          type: "faction",
+          summary: "A faction that Lona serves.",
+          aliases: [],
+          excerpt: "She serves the Thornwood faction.",
+          confidence: 0.85,
+        },
+      ],
+      relations: [
+        {
+          from: "Lona",
+          to: "Caldren",
+          relation: "located_in",
+          notes: "practices healing here",
+          excerpt: "Lona the healer tends to wounds in the village of Caldren",
+          confidence: 0.9,
+        },
+        {
+          from: "Lona",
+          to: "Thornwood",
+          relation: "member_of",
+          excerpt: "She serves the Thornwood faction.",
+          confidence: 0.85,
+        },
+      ],
+    };
+
+    const report = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+
+    expect(report.scene_id).toBe(sceneId);
+    expect(report.entities_created).toBe(3);
+    expect(report.entities_updated).toBe(0);
+    expect(report.relations_created).toBe(2);
+    expect(report.skipped).toBe(0);
+
+    // Verify entities are in the graph
+    const lona = await getLore(campaignDir, "Lona");
+    expect(lona).not.toBeNull();
+    expect(lona!.type).toBe("creature");
+
+    const caldren = await getLore(campaignDir, "Caldren");
+    expect(caldren).not.toBeNull();
+    expect(caldren!.type).toBe("place");
+  });
+});
