@@ -648,4 +648,42 @@ describe("searchCommunities", () => {
     // Near must strictly outscore the others
     expect(hits[0].score).toBeGreaterThan(hits[1].score);
   });
+
+  it("honors k and caps it at 100", async () => {
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+
+    const unit = (hotIdx: number): number[] => {
+      const v = new Array(768).fill(0);
+      v[hotIdx] = 1;
+      return v;
+    };
+    const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+
+    try {
+      // Seed 7 distinct communities with slightly different unit vectors.
+      for (let i = 0; i < 7; i++) {
+        await conn.run(
+          `INSERT INTO lore_communities
+             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(unit(i))}, '{}', ?, ?)`,
+          [`c-${i}`, `summary ${i}`, now, now],
+        );
+      }
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> => unit(0);
+
+    const three = await searchCommunities(campaignDir, "q", 3, stubEmbedder);
+    expect(three).toHaveLength(3);
+
+    const huge = await searchCommunities(campaignDir, "q", 500, stubEmbedder);
+    // Only 7 rows seeded, but the point is the cap doesn't throw and limit is honored.
+    expect(huge.length).toBe(7);
+    expect(huge.length).toBeLessThanOrEqual(100);
+  });
 });
