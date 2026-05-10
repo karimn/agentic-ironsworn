@@ -686,4 +686,44 @@ describe("searchCommunities", () => {
     expect(huge.length).toBe(7);
     expect(huge.length).toBeLessThanOrEqual(100);
   });
+
+  it("ranks flat across hierarchy levels (leaf and parent can both appear)", async () => {
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+
+    const unit = (hotIdx: number): number[] => {
+      const v = new Array(768).fill(0);
+      v[hotIdx] = 1;
+      return v;
+    };
+    const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+
+    // Seed a leaf and a parent rollup whose embeddings are both close to the query.
+    try {
+      await conn.run(
+        `INSERT INTO lore_communities
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+         VALUES ('leaf', 0, 'root', ['a','b']::TEXT[], 2, 'leaf summary', ${lit(unit(3))}, '{}', ?, ?)`,
+        [now, now],
+      );
+      await conn.run(
+        `INSERT INTO lore_communities
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+         VALUES ('root', 1, NULL, ['leaf']::TEXT[], 2, 'root summary', ${lit(unit(3))}, '{}', ?, ?)`,
+        [now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> => unit(3);
+    const hits = await searchCommunities(campaignDir, "q", 5, stubEmbedder);
+
+    // Both levels must be present — no filtering, no level preference.
+    const levels = new Set(hits.map((h) => h.level));
+    expect(levels.has(0)).toBe(true);
+    expect(levels.has(1)).toBe(true);
+  });
 });
