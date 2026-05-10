@@ -118,6 +118,17 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       CREATE INDEX IF NOT EXISTS lore_communities_level_idx
       ON lore_communities (level)
     `);
+
+    await conn.run(`
+      CREATE TABLE IF NOT EXISTS lore_extraction_log (
+        scene_id          TEXT PRIMARY KEY,
+        extracted_at      TEXT NOT NULL,
+        entities_created  INTEGER NOT NULL DEFAULT 0,
+        entities_updated  INTEGER NOT NULL DEFAULT 0,
+        relations_created INTEGER NOT NULL DEFAULT 0,
+        skipped           INTEGER NOT NULL DEFAULT 0
+      )
+    `);
   } finally {
     conn.closeSync();
   }

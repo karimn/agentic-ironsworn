@@ -14,6 +14,10 @@ import {
   listCommunities,
   getCommunity,
 } from "../rag/communities.js";
+import {
+  extractLoreFromScene,
+  extractUnprocessedScenes,
+} from "../rag/extraction.js";
 import { recordMutation } from "../checkpoint.js";
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -209,6 +213,64 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const community = await getCommunity(campaignPath, id);
         return { content: [{ type: "text", text: JSON.stringify(community) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "extract_lore_from_scene",
+    "Extract lore entities and relations from a recorded scene using Claude. " +
+      "Deduplicates against the existing graph. Upserts with provenance source_kind='extraction'. " +
+      "Requires ANTHROPIC_API_KEY.",
+    {
+      scene_id: z.string().describe("UUID of the scene to extract from"),
+      confidence_threshold: z
+        .coerce.number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Minimum confidence to accept an entity or relation (default 0.6)"),
+    },
+    async ({ scene_id, confidence_threshold }) => {
+      try {
+        const report = await extractLoreFromScene(campaignPath, scene_id, {
+          confidenceThreshold: confidence_threshold,
+        });
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(report) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "extract_session_lore",
+    "Batch-extract lore from all scenes not yet processed. Skips scenes already in the extraction log. " +
+      "Processes scenes in recording order. Requires ANTHROPIC_API_KEY.",
+    {
+      confidence_threshold: z
+        .coerce.number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Minimum confidence to accept an entity or relation (default 0.6)"),
+    },
+    async ({ confidence_threshold }) => {
+      try {
+        const report = await extractUnprocessedScenes(campaignPath, {
+          confidenceThreshold: confidence_threshold,
+        });
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(report) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
