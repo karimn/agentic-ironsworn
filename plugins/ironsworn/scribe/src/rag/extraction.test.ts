@@ -323,3 +323,78 @@ describe("extractLoreFromScene — confidence threshold", () => {
     expect(report.skipped).toBe(1);
   });
 });
+
+describe("extractLoreFromScene — unresolvable relation endpoint", () => {
+  it("skips a relation when either endpoint entity does not exist in the graph", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene, exportScenes } = await import("./scenes.js");
+    await recordScene(campaignDir, "The oracle serves the hidden god.");
+    const scenes = await exportScenes(campaignDir);
+    const sceneId = scenes[scenes.length - 1]!.id;
+
+    const stubResult: ExtractionResult = {
+      entities: [
+        {
+          canonical: "Oracle",
+          type: "creature",
+          summary: "A seer.",
+          aliases: [],
+          excerpt: "The oracle",
+          confidence: 0.9,
+        },
+        // "Hidden God" entity is NOT in the entities list so won't be in the graph
+      ],
+      relations: [
+        {
+          from: "Oracle",
+          to: "Hidden God", // not created → unresolvable
+          relation: "sworn_on",
+          excerpt: "The oracle serves the hidden god.",
+          confidence: 0.8,
+        },
+      ],
+    };
+
+    const report = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+
+    expect(report.relations_created).toBe(0);
+    expect(report.skipped).toBe(1);
+    expect(report.entities_created).toBe(1);
+  });
+});
+
+describe("extractUnprocessedScenes — batch skipping", () => {
+  it("skips already-logged scenes and processes only new ones", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene } = await import("./scenes.js");
+
+    // Record two scenes
+    await recordScene(campaignDir, "Scene one: the wolf howls.");
+    await recordScene(campaignDir, "Scene two: the fire burns low.");
+
+    const { exportScenes } = await import("./scenes.js");
+    const scenes = await exportScenes(campaignDir);
+    expect(scenes.length).toBe(2);
+    const [scene1, scene2] = scenes as [typeof scenes[0], typeof scenes[0]];
+    // silence unused-variable warning from tsc; scene2 is implicitly the unprocessed one
+    void scene2;
+
+    const emptyResult: ExtractionResult = { entities: [], relations: [] };
+    const stubExtractor = makeStubExtractor(emptyResult);
+
+    // Extract scene1 first
+    await extractLoreFromScene(campaignDir, scene1.id, { extractor: stubExtractor });
+
+    // Now run batch — should skip scene1, process scene2 only
+    const batchReport = await extractUnprocessedScenes(campaignDir, {
+      extractor: stubExtractor,
+    });
+
+    expect(batchReport.scenes_processed).toBe(1);
+    expect(batchReport.scenes_skipped).toBe(1);
+  });
+});
