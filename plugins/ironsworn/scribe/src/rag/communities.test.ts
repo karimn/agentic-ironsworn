@@ -579,4 +579,28 @@ describe("searchCommunities", () => {
     const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
     expect(hits).toEqual([]);
   });
+
+  it("excludes rows with NULL embeddings", async () => {
+    // Seed one community with NULL embedding directly via SQL. searchCommunities
+    // should filter it out regardless of what the query embedding looks like.
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+    try {
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO lore_communities
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+         VALUES ('c-null', 0, NULL, []::TEXT[], 0, 'null embed', NULL, '{}', ?, ?)`,
+        [now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> =>
+      new Array(768).fill(0.1);
+    const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
+    expect(hits.find((h) => h.id === "c-null")).toBeUndefined();
+  });
 });
