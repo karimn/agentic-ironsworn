@@ -240,3 +240,86 @@ describe("extractLoreFromScene — idempotency", () => {
     expect(entities.filter((e) => e.canonical === "Stonehaven").length).toBe(1);
   });
 });
+
+describe("extractLoreFromScene — confidence threshold", () => {
+  it("low-confidence entity is upserted with needs_review=true", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene, exportScenes } = await import("./scenes.js");
+    await recordScene(campaignDir, "A shadowy figure was seen near the ruins.");
+    const scenes = await exportScenes(campaignDir);
+    const sceneId = scenes[scenes.length - 1]!.id;
+
+    const stubResult: ExtractionResult = {
+      entities: [
+        {
+          canonical: "Shadowy Figure",
+          type: "creature",
+          summary: "An unidentified figure seen near ruins.",
+          aliases: [],
+          excerpt: "A shadowy figure was seen near the ruins.",
+          confidence: 0.4, // below default threshold of 0.6
+        },
+      ],
+      relations: [],
+    };
+
+    const report = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+
+    // Entity is still created, just flagged
+    expect(report.entities_created).toBe(1);
+    expect(report.skipped).toBe(0);
+
+    const entity = await getLore(campaignDir, "Shadowy Figure");
+    expect(entity).not.toBeNull();
+    expect(entity!.metadata["needs_review"]).toBe(true);
+  });
+
+  it("low-confidence relation is skipped entirely", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene, exportScenes } = await import("./scenes.js");
+    await recordScene(campaignDir, "Perhaps the merchant knows the thane.");
+    const scenes = await exportScenes(campaignDir);
+    const sceneId = scenes[scenes.length - 1]!.id;
+
+    const stubResult: ExtractionResult = {
+      entities: [
+        {
+          canonical: "The Merchant",
+          type: "creature",
+          summary: "A traveling merchant.",
+          aliases: [],
+          excerpt: "the merchant",
+          confidence: 0.85,
+        },
+        {
+          canonical: "The Thane",
+          type: "creature",
+          summary: "A local leader.",
+          aliases: [],
+          excerpt: "the thane",
+          confidence: 0.85,
+        },
+      ],
+      relations: [
+        {
+          from: "The Merchant",
+          to: "The Thane",
+          relation: "allied_with",
+          excerpt: "Perhaps the merchant knows the thane.",
+          confidence: 0.3, // below threshold
+        },
+      ],
+    };
+
+    const report = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+
+    expect(report.relations_created).toBe(0);
+    expect(report.skipped).toBe(1);
+  });
+});
