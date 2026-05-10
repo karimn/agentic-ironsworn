@@ -292,4 +292,29 @@ describe("search_lore_global tool", () => {
     const hits = parseToolText<Array<{ id: string; level: number; summary: string; score: number }>>(result);
     expect(hits).toEqual([]);
   });
+
+  it("returns isError when the embedder fails (Ollama unreachable)", async () => {
+    if (!dbReady) return;
+
+    // Stub global fetch so getLoreEmbedding — and thus searchCommunities —
+    // cannot reach Ollama. The MCP tool handler must surface the thrown
+    // error via { isError: true } with the embedder's message.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("stubbed fetch failure");
+    }) as unknown as typeof fetch;
+    try {
+      const result = await client.callTool({
+        name: "search_lore_global",
+        arguments: { query: "anything" },
+      });
+      expect(result.isError).toBe(true);
+      const text = (result as { content: Array<{ type: string; text: string }> })
+        .content[0].text;
+      expect(text).toContain("Error:");
+      expect(text).toContain("Ollama unavailable");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -858,6 +858,12 @@ export async function getCommunity(
  * at recompute_communities time) — they'll be backfilled on the next
  * successful recompute.
  *
+ * The `WHERE embedding IS NOT NULL` form would force a linear scan, defeating
+ * the HNSW index on lore_communities.embedding. Instead we use `NULLS LAST`
+ * so HNSW can service the lookup; NULL-embedding rows fall past the LIMIT and
+ * any that still surface (when non-NULL rows are fewer than k) are filtered
+ * out in JS via Number.isFinite on the score.
+ *
  * @param campaignPath  Per-campaign DB directory.
  * @param query         Query text to embed and compare against community summaries.
  * @param k             Max results, default 5, capped at 100.
@@ -880,24 +886,25 @@ export async function searchCommunities(
       SELECT id, level, parent_id, member_count, summary,
              array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
       FROM lore_communities
-      WHERE embedding IS NOT NULL
-      ORDER BY score DESC
+      ORDER BY score DESC NULLS LAST
       LIMIT ?
     `;
     const result = await conn.runAndReadAll(sql, [limit]);
-    return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => ({
-      id: String(row["id"] ?? ""),
-      level: Number(row["level"]),
-      parent_id: row["parent_id"] != null ? String(row["parent_id"]) : null,
-      member_count: Number(row["member_count"]),
-      summary: String(row["summary"] ?? ""),
-      score:
-        typeof row["score"] === "number"
-          ? row["score"]
-          : typeof row["score"] === "bigint"
-            ? Number(row["score"])
-            : Number.NaN,
-    }));
+    return (result.getRowObjectsJS() as Record<string, unknown>[])
+      .map((row) => ({
+        id: String(row["id"] ?? ""),
+        level: Number(row["level"]),
+        parent_id: row["parent_id"] != null ? String(row["parent_id"]) : null,
+        member_count: Number(row["member_count"]),
+        summary: String(row["summary"] ?? ""),
+        score:
+          typeof row["score"] === "number"
+            ? row["score"]
+            : typeof row["score"] === "bigint"
+              ? Number(row["score"])
+              : Number.NaN,
+      }))
+      .filter((hit) => Number.isFinite(hit.score));
   } finally {
     conn.closeSync();
   }
