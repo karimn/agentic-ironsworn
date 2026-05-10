@@ -726,4 +726,37 @@ describe("searchCommunities", () => {
     expect(levels.has(0)).toBe(true);
     expect(levels.has(1)).toBe(true);
   });
+
+  it("end-to-end: recompute_communities then searchCommunities returns summaries (Ollama-gated)", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    // Two clearly-separated thematic triangles so Louvain produces ≥2 leaves.
+    for (const name of ["Iron", "Forge", "Smith", "Elf", "Grove", "Rune"]) {
+      await upsertLore(campaignDir, {
+        canonical: name,
+        type: "concept",
+        summary: `${name}: a thing in the story.`,
+      });
+    }
+    const ironEdges: [string, string][] = [["Iron", "Forge"], ["Forge", "Smith"], ["Iron", "Smith"]];
+    const elfEdges: [string, string][] = [["Elf", "Grove"], ["Grove", "Rune"], ["Elf", "Rune"]];
+    for (const [from, to] of [...ironEdges, ...elfEdges]) {
+      await linkLore(campaignDir, { from, to, relation: "rel" });
+    }
+
+    await recomputeCommunities(campaignDir, {
+      seed: 1,
+      summarizer: fakeSummarizer,
+      // Do not skipEmbeddings — we need embeddings populated so searchCommunities can rank.
+    });
+
+    const hits = await searchCommunities(campaignDir, "anything", 5);
+    expect(hits.length).toBeGreaterThan(0);
+    // Every hit must have a numeric score and a non-empty summary.
+    for (const h of hits) {
+      expect(typeof h.score).toBe("number");
+      expect(Number.isFinite(h.score)).toBe(true);
+      expect(h.summary.length).toBeGreaterThan(0);
+    }
+  });
 });
