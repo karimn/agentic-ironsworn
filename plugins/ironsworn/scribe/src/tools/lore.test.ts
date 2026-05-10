@@ -199,3 +199,97 @@ describe("recompute_communities tool", () => {
     expect(report.embed_calls).toBe(0);
   });
 });
+
+// Helper to seed a community with a populated embedding directly via SQL.
+// Used by search_lore_global tests so we don't need Ollama at test time.
+async function seedCommunityWithEmbedding(args: {
+  id: string;
+  level: number;
+  parent_id: string | null;
+  summary: string;
+  embedding: number[];
+}): Promise<void> {
+  const inst = await getLoreDb(campaignDir);
+  const conn = await openLoreWriteConn(inst);
+  try {
+    const now = new Date().toISOString();
+    const embedLit = `[${args.embedding.join(",")}]::FLOAT[768]`;
+    await conn.run(
+      `INSERT INTO lore_communities
+         (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+       VALUES (?, ?, ?, []::TEXT[], 0, ?, ${embedLit}, '{}', ?, ?)`,
+      [args.id, args.level, args.parent_id, args.summary, now, now],
+    );
+  } finally {
+    conn.closeSync();
+  }
+}
+
+describe("search_lore_global tool", () => {
+  it("surfaces a ranked JSON array on the happy path", async () => {
+    if (!dbReady) return;
+
+    // One community with a populated embedding. That's enough to exercise the
+    // tool surface — ranking correctness is covered in communities.test.ts.
+    // Use a unit vector so the query embedding (also a unit vector) produces
+    // a valid cosine similarity.
+    const embedding = new Array(768).fill(0);
+    embedding[7] = 1;
+    await seedCommunityWithEmbedding({
+      id: "c1",
+      level: 0,
+      parent_id: null,
+      summary: "a themed cluster",
+      embedding,
+    });
+
+    // The tool uses the real getLoreEmbedding → Ollama. If Ollama is down
+    // we'd hit the error path instead; gate on that rather than running
+    // with a bad fixture.
+    const ollamaRes = await fetch(
+      `${process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434"}/api/embed`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "nomic-embed-text", input: "t" }),
+      },
+    ).catch(() => null);
+    if (!ollamaRes || !ollamaRes.ok) return;
+
+    const result = await client.callTool({
+      name: "search_lore_global",
+      arguments: { query: "themed" },
+    });
+    expect(result.isError).not.toBe(true);
+    const hits = parseToolText<
+      Array<{ id: string; level: number; summary: string; score: number }>
+    >(result);
+    expect(Array.isArray(hits)).toBe(true);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].id).toBe("c1");
+    expect(typeof hits[0].score).toBe("number");
+  });
+
+  it("returns an empty JSON array when no communities exist", async () => {
+    if (!dbReady) return;
+
+    // Empty DB. The tool will still call the embedder; gate on Ollama.
+    const ollamaRes = await fetch(
+      `${process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434"}/api/embed`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "nomic-embed-text", input: "t" }),
+      },
+    ).catch(() => null);
+    if (!ollamaRes || !ollamaRes.ok) return;
+
+    const result = await client.callTool({
+      name: "search_lore_global",
+      arguments: { query: "anything" },
+    });
+    expect(result.isError).not.toBe(true);
+    const hits = parseToolText<Array<{ id: string; level: number; summary: string; score: number }>>(result);
+    expect(hits).toEqual([]);
+  });
+});
