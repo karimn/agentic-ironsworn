@@ -284,6 +284,7 @@ Call `session_briefing` (no arguments needed). This returns the complete current
 - `tracks.completed` — fulfilled tracks
 - `threads.open` / `threads.closed_recently` — narrative threads
 - `recent_scenes` — last several scenes in chronological oldest-first order
+- `stale_npcs` — NPCs who have appeared in 3+ scenes since their last `upsert_npc`. If this list is non-empty, call `upsert_npc` for each entry before narrating — their records are out of date and will mislead you.
 
 ### Step 2 — Write out the state in plain text
 

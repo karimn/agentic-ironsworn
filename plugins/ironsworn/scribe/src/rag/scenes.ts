@@ -819,6 +819,32 @@ export interface ComplicationScene {
   timestamp: string;
 }
 
+/**
+ * Count how many scenes since `sinceTimestamp` contain a case-insensitive mention of `npcName`.
+ * Returns 0 gracefully if the DB doesn't exist yet.
+ */
+export async function countScenesMentioningNpc(
+  campaignPath: string,
+  npcName: string,
+  sinceTimestamp: string,
+): Promise<number> {
+  const instance = await getDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const result = await conn.runAndReadAll(
+      `SELECT COUNT(*) AS cnt
+       FROM scenes
+       WHERE timestamp > ?
+         AND lower(text) LIKE ?`,
+      [sinceTimestamp, `%${npcName.toLowerCase()}%`],
+    );
+    const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+    return Number(rows[0]?.["cnt"] ?? 0);
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function getRecentComplications(
   campaignPath: string,
   k: number = 5,
