@@ -119,6 +119,14 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       ON lore_communities (level)
     `);
 
+    if (vssLoaded) {
+      await conn.run(`
+        CREATE INDEX IF NOT EXISTS lore_communities_embedding_idx
+        ON lore_communities USING HNSW (embedding)
+        WITH (metric = 'cosine')
+      `);
+    }
+
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_extraction_log (
         scene_id          TEXT PRIMARY KEY,
