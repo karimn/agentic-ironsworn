@@ -398,3 +398,27 @@ describe("extractUnprocessedScenes — batch skipping", () => {
     expect(batchReport.scenes_skipped).toBe(1);
   });
 });
+
+describe("extractLoreFromScene — beats fallback", () => {
+  it("uses scene summary text when no beats are present", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene, exportScenes } = await import("./scenes.js");
+    // recordScene without beats — summary only
+    await recordScene(campaignDir, "The ironmaster forges a blade in silence.");
+    const scenes = await exportScenes(campaignDir);
+    const sceneId = scenes[scenes.length - 1]!.id;
+
+    let capturedSceneText = "";
+    const capturingExtractor: Extractor = async (sceneText, _existing) => {
+      capturedSceneText = sceneText;
+      return { entities: [], relations: [] };
+    };
+
+    await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: capturingExtractor,
+    });
+
+    expect(capturedSceneText).toBe("The ironmaster forges a blade in silence.");
+  });
+});
