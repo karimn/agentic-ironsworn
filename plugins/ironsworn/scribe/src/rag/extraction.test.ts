@@ -178,3 +178,65 @@ describe("extractLoreFromScene — dedup", () => {
     expect(lonaEntities.length).toBe(1);
   });
 });
+
+describe("extractLoreFromScene — idempotency", () => {
+  it("re-running extraction on the same scene produces no extra entities or relations", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene, exportScenes } = await import("./scenes.js");
+    await recordScene(campaignDir, "Vera guards the gate of Stonehaven.");
+    const scenes = await exportScenes(campaignDir);
+    const sceneId = scenes[scenes.length - 1]!.id;
+
+    const stubResult: ExtractionResult = {
+      entities: [
+        {
+          canonical: "Vera",
+          type: "creature",
+          summary: "A guard at the gate of Stonehaven.",
+          aliases: [],
+          excerpt: "Vera guards the gate",
+          confidence: 0.9,
+        },
+        {
+          canonical: "Stonehaven",
+          type: "place",
+          summary: "A fortified settlement with a guarded gate.",
+          aliases: [],
+          excerpt: "gate of Stonehaven",
+          confidence: 0.95,
+        },
+      ],
+      relations: [
+        {
+          from: "Vera",
+          to: "Stonehaven",
+          relation: "guards",
+          excerpt: "Vera guards the gate of Stonehaven.",
+          confidence: 0.9,
+        },
+      ],
+    };
+
+    const report1 = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+    const report2 = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+
+    // First run: verify entities were created as expected
+    expect(report1.entities_created).toBe(2);
+
+    // Second run: Vera and Stonehaven are now existing entities → updated not created
+    expect(report2.entities_created).toBe(0);
+    expect(report2.entities_updated).toBe(2);
+    // relation is idempotent (linkLore uses ON CONFLICT)
+    expect(report2.relations_created).toBe(1);
+
+    const { exportLore } = await import("./lore.js");
+    const { entities } = await exportLore(campaignDir);
+    expect(entities.filter((e) => e.canonical === "Vera").length).toBe(1);
+    expect(entities.filter((e) => e.canonical === "Stonehaven").length).toBe(1);
+  });
+});
