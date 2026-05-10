@@ -8,6 +8,7 @@ import {
   recomputeCommunities,
   listCommunities,
   getCommunity,
+  searchCommunities,
   _makeDefaultSummarizer,
   type AnthropicLike,
   type SummarizerInput,
@@ -563,5 +564,19 @@ describe("get_lore_graph: community_id on nodes", () => {
     const after = await getLore(campaignDir, "a");
     expect(after?.community_id).not.toBeNull();
     expect(typeof after?.community_id).toBe("string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchCommunities
+// ---------------------------------------------------------------------------
+
+describe("searchCommunities", () => {
+  it("returns [] on an empty table", async () => {
+    // No communities exist. Stub embedder so no Ollama call is needed.
+    const stubEmbedder = async (_text: string): Promise<number[]> =>
+      new Array(768).fill(0);
+    const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
+    expect(hits).toEqual([]);
   });
 });

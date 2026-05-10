@@ -91,6 +91,15 @@ export interface CommunityDetail extends CommunityListItem {
   updated_at: string;
 }
 
+export interface CommunitySearchHit {
+  id: string;
+  level: number;
+  parent_id: string | null;
+  member_count: number;
+  summary: string;
+  score: number;
+}
+
 // ---------------------------------------------------------------------------
 // Stable IDs
 // ---------------------------------------------------------------------------
@@ -832,6 +841,63 @@ export async function getCommunity(
       created_at: String(row["created_at"]),
       updated_at: String(row["updated_at"]),
     };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public: search (GraphRAG Phase C)
+// ---------------------------------------------------------------------------
+
+/**
+ * Semantic search over lore community summaries.
+ *
+ * Ranks hits flat across all hierarchy levels (leaves + rollups) by cosine
+ * similarity. Silently excludes rows with NULL embeddings (Ollama was down
+ * at recompute_communities time) — they'll be backfilled on the next
+ * successful recompute.
+ *
+ * @param campaignPath  Per-campaign DB directory.
+ * @param query         Query text to embed and compare against community summaries.
+ * @param k             Max results, default 5, capped at 100.
+ * @param embedder      Optional embedder override; defaults to Ollama nomic-embed-text.
+ */
+export async function searchCommunities(
+  campaignPath: string,
+  query: string,
+  k = 5,
+  embedder: Embedder = getLoreEmbedding,
+): Promise<CommunitySearchHit[]> {
+  const limit = Math.min(Math.max(k, 1), 100);
+  const embedding = await embedder(query);
+  const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
+
+  const instance = await getLoreDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const sql = `
+      SELECT id, level, parent_id, member_count, summary,
+             array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
+      FROM lore_communities
+      WHERE embedding IS NOT NULL
+      ORDER BY score DESC
+      LIMIT ?
+    `;
+    const result = await conn.runAndReadAll(sql, [limit]);
+    return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => ({
+      id: String(row["id"] ?? ""),
+      level: Number(row["level"]),
+      parent_id: row["parent_id"] != null ? String(row["parent_id"]) : null,
+      member_count: Number(row["member_count"]),
+      summary: String(row["summary"] ?? ""),
+      score:
+        typeof row["score"] === "number"
+          ? row["score"]
+          : typeof row["score"] === "bigint"
+            ? Number(row["score"])
+            : Number.NaN,
+    }));
   } finally {
     conn.closeSync();
   }
