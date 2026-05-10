@@ -603,4 +603,49 @@ describe("searchCommunities", () => {
     const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
     expect(hits.find((h) => h.id === "c-null")).toBeUndefined();
   });
+
+  it("ranks hits by cosine similarity (closest first)", async () => {
+    // Seed three communities with orthogonal unit vectors. The query vector
+    // will be aligned with one of them, so that one must come first.
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+
+    // Build a 768-dim unit vector with a 1.0 at `hotIdx`, zeros elsewhere.
+    const unit = (hotIdx: number): number[] => {
+      const v = new Array(768).fill(0);
+      v[hotIdx] = 1;
+      return v;
+    };
+    const near = unit(5);      // closest to query below
+    const middle = unit(400);  // orthogonal
+    const far = unit(760);     // orthogonal
+
+    const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+    try {
+      for (const [id, vec] of [
+        ["c-near", near],
+        ["c-middle", middle],
+        ["c-far", far],
+      ] as const) {
+        await conn.run(
+          `INSERT INTO lore_communities
+             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(vec)}, '{}', ?, ?)`,
+          [id, `summary for ${id}`, now, now],
+        );
+      }
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> => unit(5);
+    const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
+
+    expect(hits.length).toBe(3);
+    expect(hits[0].id).toBe("c-near");
+    // Near must strictly outscore the others
+    expect(hits[0].score).toBeGreaterThan(hits[1].score);
+  });
 });
