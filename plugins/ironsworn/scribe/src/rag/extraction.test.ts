@@ -130,3 +130,51 @@ describe("extractLoreFromScene — basic extraction", () => {
     expect(caldren!.type).toBe("place");
   });
 });
+
+describe("extractLoreFromScene — dedup", () => {
+  it("updates an existing entity when cosine similarity >= 0.92 instead of creating a duplicate", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    // Pre-seed an entity for "Lona"
+    await upsertLore(campaignDir, {
+      canonical: "Lona",
+      type: "creature",
+      summary: "A healer in Caldren.",
+    });
+
+    const { recordScene } = await import("./scenes.js");
+    await recordScene(campaignDir, "Lona tends the sick.");
+    const { exportScenes } = await import("./scenes.js");
+    const scenes = await exportScenes(campaignDir);
+    const sceneId = scenes[scenes.length - 1]!.id;
+
+    const stubResult: ExtractionResult = {
+      entities: [
+        {
+          canonical: "Lona",
+          type: "creature",
+          summary: "Lona, the healer of Caldren, known for her skill.",
+          aliases: ["the healer Lona"],
+          excerpt: "Lona tends the sick.",
+          confidence: 0.9,
+        },
+      ],
+      relations: [],
+    };
+
+    const report = await extractLoreFromScene(campaignDir, sceneId, {
+      extractor: makeStubExtractor(stubResult),
+    });
+
+    expect(report.entities_created).toBe(0);
+    expect(report.entities_updated).toBe(1);
+
+    // Only one "lona" entity should exist
+    const { exportLore } = await import("./lore.js");
+    const { entities } = await exportLore(campaignDir);
+    const lonaEntities = entities.filter(
+      (e) => e.canonical.toLowerCase() === "lona",
+    );
+    expect(lonaEntities.length).toBe(1);
+  });
+});
