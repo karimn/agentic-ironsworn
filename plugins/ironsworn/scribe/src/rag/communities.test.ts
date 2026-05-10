@@ -8,6 +8,7 @@ import {
   recomputeCommunities,
   listCommunities,
   getCommunity,
+  searchCommunities,
   _makeDefaultSummarizer,
   type AnthropicLike,
   type SummarizerInput,
@@ -563,5 +564,199 @@ describe("get_lore_graph: community_id on nodes", () => {
     const after = await getLore(campaignDir, "a");
     expect(after?.community_id).not.toBeNull();
     expect(typeof after?.community_id).toBe("string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchCommunities
+// ---------------------------------------------------------------------------
+
+describe("searchCommunities", () => {
+  it("returns [] on an empty table", async () => {
+    // No communities exist. Stub embedder so no Ollama call is needed.
+    const stubEmbedder = async (_text: string): Promise<number[]> =>
+      new Array(768).fill(0);
+    const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
+    expect(hits).toEqual([]);
+  });
+
+  it("excludes rows with NULL embeddings", async () => {
+    // Seed one community with NULL embedding directly via SQL. searchCommunities
+    // should filter it out regardless of what the query embedding looks like.
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+    try {
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO lore_communities
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+         VALUES ('c-null', 0, NULL, []::TEXT[], 0, 'null embed', NULL, '{}', ?, ?)`,
+        [now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> =>
+      new Array(768).fill(0.1);
+    const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
+    expect(hits.find((h) => h.id === "c-null")).toBeUndefined();
+  });
+
+  it("ranks hits by cosine similarity (closest first)", async () => {
+    // Seed three communities with orthogonal unit vectors. The query vector
+    // will be aligned with one of them, so that one must come first.
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+
+    // Build a 768-dim unit vector with a 1.0 at `hotIdx`, zeros elsewhere.
+    const unit = (hotIdx: number): number[] => {
+      const v = new Array(768).fill(0);
+      v[hotIdx] = 1;
+      return v;
+    };
+    const near = unit(5);      // closest to query below
+    const middle = unit(400);  // orthogonal
+    const far = unit(760);     // orthogonal
+
+    const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+    try {
+      for (const [id, vec] of [
+        ["c-near", near],
+        ["c-middle", middle],
+        ["c-far", far],
+      ] as const) {
+        await conn.run(
+          `INSERT INTO lore_communities
+             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(vec)}, '{}', ?, ?)`,
+          [id, `summary for ${id}`, now, now],
+        );
+      }
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> => unit(5);
+    const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
+
+    expect(hits.length).toBe(3);
+    expect(hits[0].id).toBe("c-near");
+    // Near must strictly outscore the others
+    expect(hits[0].score).toBeGreaterThan(hits[1].score);
+  });
+
+  it("honors k and caps it at 100", async () => {
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+
+    const unit = (hotIdx: number): number[] => {
+      const v = new Array(768).fill(0);
+      v[hotIdx] = 1;
+      return v;
+    };
+    const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+
+    try {
+      // Seed 7 distinct communities with slightly different unit vectors.
+      for (let i = 0; i < 7; i++) {
+        await conn.run(
+          `INSERT INTO lore_communities
+             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(unit(i))}, '{}', ?, ?)`,
+          [`c-${i}`, `summary ${i}`, now, now],
+        );
+      }
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> => unit(0);
+
+    const three = await searchCommunities(campaignDir, "q", 3, stubEmbedder);
+    expect(three).toHaveLength(3);
+
+    const huge = await searchCommunities(campaignDir, "q", 500, stubEmbedder);
+    // Only 7 rows seeded, but the point is the cap doesn't throw and limit is honored.
+    expect(huge.length).toBe(7);
+    expect(huge.length).toBeLessThanOrEqual(100);
+  });
+
+  it("ranks flat across hierarchy levels (leaf and parent can both appear)", async () => {
+    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
+    const inst = await getDb(campaignDir);
+    const conn = await openLoreWriteConn(inst);
+
+    const unit = (hotIdx: number): number[] => {
+      const v = new Array(768).fill(0);
+      v[hotIdx] = 1;
+      return v;
+    };
+    const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+
+    // Seed a leaf and a parent rollup whose embeddings are both close to the query.
+    try {
+      await conn.run(
+        `INSERT INTO lore_communities
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+         VALUES ('leaf', 0, 'root', ['a','b']::TEXT[], 2, 'leaf summary', ${lit(unit(3))}, '{}', ?, ?)`,
+        [now, now],
+      );
+      await conn.run(
+        `INSERT INTO lore_communities
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
+         VALUES ('root', 1, NULL, ['leaf']::TEXT[], 2, 'root summary', ${lit(unit(3))}, '{}', ?, ?)`,
+        [now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const stubEmbedder = async (_text: string): Promise<number[]> => unit(3);
+    const hits = await searchCommunities(campaignDir, "q", 5, stubEmbedder);
+
+    // Both levels must be present — no filtering, no level preference.
+    const levels = new Set(hits.map((h) => h.level));
+    expect(levels.has(0)).toBe(true);
+    expect(levels.has(1)).toBe(true);
+  });
+
+  it("end-to-end: recompute_communities then searchCommunities returns summaries (Ollama-gated)", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    // Two clearly-separated thematic triangles so Louvain produces ≥2 leaves.
+    for (const name of ["Iron", "Forge", "Smith", "Elf", "Grove", "Rune"]) {
+      await upsertLore(campaignDir, {
+        canonical: name,
+        type: "concept",
+        summary: `${name}: a thing in the story.`,
+      });
+    }
+    const ironEdges: [string, string][] = [["Iron", "Forge"], ["Forge", "Smith"], ["Iron", "Smith"]];
+    const elfEdges: [string, string][] = [["Elf", "Grove"], ["Grove", "Rune"], ["Elf", "Rune"]];
+    for (const [from, to] of [...ironEdges, ...elfEdges]) {
+      await linkLore(campaignDir, { from, to, relation: "rel" });
+    }
+
+    await recomputeCommunities(campaignDir, {
+      seed: 1,
+      summarizer: fakeSummarizer,
+      // Do not skipEmbeddings — we need embeddings populated so searchCommunities can rank.
+    });
+
+    const hits = await searchCommunities(campaignDir, "anything", 5);
+    expect(hits.length).toBeGreaterThan(0);
+    // Every hit must have a numeric score and a non-empty summary.
+    for (const h of hits) {
+      expect(typeof h.score).toBe("number");
+      expect(Number.isFinite(h.score)).toBe(true);
+      expect(h.summary.length).toBeGreaterThan(0);
+    }
   });
 });

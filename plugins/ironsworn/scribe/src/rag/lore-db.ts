@@ -92,8 +92,8 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
     // entity ids at level 0; child community ids at level > 0. embedding is
     // nullable because summaries are generated only for created/changed
     // communities — unchanged communities keep their existing summary+embedding
-    // across reruns. No HNSW index is built here; search_lore_global (Phase C)
-    // will add it when global search ships.
+    // across reruns. The HNSW index on `embedding` is created below and
+    // services search_lore_global (Phase C / issue #57).
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_communities (
         id           TEXT PRIMARY KEY,
@@ -118,6 +118,14 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       CREATE INDEX IF NOT EXISTS lore_communities_level_idx
       ON lore_communities (level)
     `);
+
+    if (vssLoaded) {
+      await conn.run(`
+        CREATE INDEX IF NOT EXISTS lore_communities_embedding_idx
+        ON lore_communities USING HNSW (embedding)
+        WITH (metric = 'cosine')
+      `);
+    }
 
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_extraction_log (

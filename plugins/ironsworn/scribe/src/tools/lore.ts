@@ -13,6 +13,7 @@ import {
   recomputeCommunities,
   listCommunities,
   getCommunity,
+  searchCommunities,
 } from "../rag/communities.js";
 import {
   extractLoreFromScene,
@@ -94,6 +95,31 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ query, type, k }) => {
       try {
         const results = await searchLore(campaignPath, query, k ?? 5, type as LoreType | undefined);
+        return { content: [{ type: "text", text: JSON.stringify(results) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "search_lore_global",
+    "GraphRAG Phase C: semantic search over lore community summaries (thematic " +
+      "clusters produced by recompute_communities). Ranks hits flat across all " +
+      "hierarchy levels (leaves + rollups) by cosine similarity. Pair with " +
+      "search_lore when grounding scenes — search_lore for entity-level facts, " +
+      "search_lore_global for thematic framing. Returns ranked hits with id, " +
+      "level, parent_id, member_count, summary, score.",
+    {
+      query: z.string().describe("Search query"),
+      k: z.coerce.number().int().positive().optional().describe("Number of results (default 5, capped at 100)"),
+    },
+    async ({ query, k }) => {
+      try {
+        const results = await searchCommunities(campaignPath, query, k);
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
       } catch (e) {
         return {
