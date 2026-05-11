@@ -384,8 +384,8 @@ export function register(server: McpServer, campaignPath: string): void {
       "",
       "Canonical vow fulfillment flow:",
       "1. roll_progress — roll against the vow's progress score to see the outcome",
-      "2. fulfill_progress — (this tool) marks the track complete and awards XP (vows only)",
-      "3. close_thread — narrative resolution; also marks the matching progress track completed",
+      "2. fulfill_progress — (this tool) marks the track complete, awards XP, and auto-closes the matching thread.",
+      "   Pass 'resolution' to record how the vow ended. Do NOT call close_thread separately — it is redundant.",
     ].join("\n"),
     {
       track_name: z.string().describe("Name of the progress track to fulfill (case-insensitive)"),

@@ -821,7 +821,7 @@ export interface ComplicationScene {
 
 /**
  * Count how many scenes since `sinceTimestamp` contain a case-insensitive mention of `npcName`.
- * Returns 0 gracefully if the DB doesn't exist yet.
+ * Throws if the DB is unavailable — callers should .catch(() => 0) for graceful degradation.
  */
 export async function countScenesMentioningNpc(
   campaignPath: string,

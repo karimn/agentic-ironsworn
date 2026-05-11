@@ -347,7 +347,6 @@ describe("close_track", () => {
 // ---------------------------------------------------------------------------
 
 import { loadThreads } from "../state/threads.js";
-import { mkdir, writeFile as fsWriteFile } from "node:fs/promises";
 
 describe("create_progress_track — vow auto-creates thread", () => {
   it("creates a matching open thread when kind=vow", async () => {
@@ -436,5 +435,27 @@ describe("fulfill_progress — vow auto-closes matching thread", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
+  });
+
+  it("does NOT close a thread when fulfilling a non-vow track", async () => {
+    // Seed a thread with the same name as the journey track — should remain open
+    const { openThread } = await import("../state/threads.js");
+    await openThread(campaignDir, "Explore the Caverns", "other");
+
+    const result = await client.callTool({
+      name: "fulfill_progress",
+      arguments: {
+        track_name: "Explore the Caverns",
+        outcome: "strong_hit",
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.threadClosed).toBe(false);
+
+    // Thread must still be open
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "explore the caverns");
+    expect(thread?.status).toBe("open");
   });
 });

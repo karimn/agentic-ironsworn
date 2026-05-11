@@ -60,12 +60,12 @@ SETTINGS_TEMPLATE='{
 }'
 SETTINGS_PATH="$CWD/.claude/settings.json"
 if [ -e "$SETTINGS_PATH" ]; then
-  # File already exists — only touch statusLine if it matches the old default exactly.
+  # File already exists — only touch statusLine if it matches the old default or is absent.
   # User-customized statusLines are left intact.
   mkdir -p "$(dirname "$SETTINGS_PATH")"
   existing_status=$(jq -c '.statusLine' "$SETTINGS_PATH")
   old_default=$(echo "$OLD_STATUS_LINE_JSON" | jq -c '.')
-  if [ "$existing_status" = "$old_default" ]; then
+  if [ "$existing_status" = "$old_default" ] || [ "$existing_status" = "null" ]; then
     jq --argjson newval "$STATUS_LINE_JSON" '.statusLine = $newval' "$SETTINGS_PATH" > "$SETTINGS_PATH.tmp" && mv "$SETTINGS_PATH.tmp" "$SETTINGS_PATH"
     created+=("$SETTINGS_PATH (statusLine updated to include stats)")
   else
