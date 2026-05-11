@@ -2,9 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadCharacter } from "../state/character.js";
 import { listThreads } from "../state/threads.js";
-import { getNpc } from "../state/npcs.js";
+import { getNpc, listNpcs, getNpcLastUpdated, findStaleNpcs } from "../state/npcs.js";
 import { searchRules, lookupMove } from "../rag/query.js";
-import { searchScenes, getRecentComplications, getRecentScenesChronological, getScene, searchBeats } from "../rag/scenes.js";
+import { searchScenes, getRecentComplications, getRecentScenesChronological, getScene, searchBeats, countScenesMentioningNpc } from "../rag/scenes.js";
 import { lookupAsset } from "../rules/ironsworn/assets.js";
 
 function characterDigest(char: Awaited<ReturnType<typeof loadCharacter>>) {
@@ -314,10 +314,11 @@ export function register(server: McpServer, campaignPath: string): void {
         const closedK = closed_threads_k ?? 3;
 
         // Load all data in parallel; degrade gracefully for each section.
-        const [character, allThreads, recentScenes] = await Promise.all([
+        const [character, allThreads, recentScenes, npcFiles] = await Promise.all([
           loadCharacter(campaignPath),
           listThreads(campaignPath).catch(() => []),
           getRecentScenesChronological(campaignPath, scenesK).catch(() => []),
+          listNpcs(campaignPath).catch(() => ({} as Record<string, string>)),
         ]);
 
         // --- Character digest ---
@@ -370,6 +371,28 @@ export function register(server: McpServer, campaignPath: string): void {
           })
           .slice(0, closedK);
 
+        // --- Stale NPC detection ---
+        // For each NPC, count scene mentions since last upsert. Degrades gracefully (no Ollama needed).
+        const npcNames = Object.keys(npcFiles).map((filename) =>
+          // Derive the display name from the `# Name` heading rather than the sanitized filename.
+          (npcFiles[filename]!.match(/^# (.+)$/m) ?? [])[1] ?? filename.replace(".md", ""),
+        );
+        const stalenessInputs = (
+          await Promise.all(
+            npcNames.map(async (name) => {
+              const lastUpdated = await getNpcLastUpdated(campaignPath, name).catch(() => null);
+              if (!lastUpdated) return null;
+              const scenesSinceUpdate = await countScenesMentioningNpc(
+                campaignPath,
+                name,
+                lastUpdated,
+              ).catch(() => 0);
+              return { name, lastUpdated, scenesSinceUpdate };
+            }),
+          )
+        ).filter((x): x is NonNullable<typeof x> => x !== null);
+        const staleNpcs = findStaleNpcs(stalenessInputs);
+
         const briefing = {
           character: digest,
           tracks,
@@ -378,6 +401,7 @@ export function register(server: McpServer, campaignPath: string): void {
             closed_recently: closedThreads,
           },
           recent_scenes: recentScenes,
+          stale_npcs: staleNpcs,
         };
 
         return {

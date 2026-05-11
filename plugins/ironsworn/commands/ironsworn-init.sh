@@ -41,6 +41,11 @@ echo "────────────────────────�
 # The statusLine command uses \\033 (double-escaped) so ANSI codes survive JSON embedding.
 STATUS_LINE_JSON='{
     "type": "command",
+    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '"'"'.workspace.project_dir'"'"'); char=\"$cwd/campaigns/default/character.json\"; if [ ! -f \"$char\" ]; then exit 0; fi; name=$(jq -r '"'"'.name // \"Hero\"'"'"' \"$char\"); fe=$(jq -r '"'"'.stats.iron // \"?\"'"'"' \"$char\"); ed=$(jq -r '"'"'.stats.edge // \"?\"'"'"' \"$char\"); sh=$(jq -r '"'"'.stats.shadow // \"?\"'"'"' \"$char\"); ht=$(jq -r '"'"'.stats.heart // \"?\"'"'"' \"$char\"); wt=$(jq -r '"'"'.stats.wits // \"?\"'"'"' \"$char\"); hp=$(jq -r '"'"'.health'"'"' \"$char\"); sp=$(jq -r '"'"'.spirit'"'"' \"$char\"); su=$(jq -r '"'"'.supply'"'"' \"$char\"); mo=$(jq -r '"'"'.momentum'"'"' \"$char\"); colorval(){ v=$1; if [ \"$v\" -le 1 ] 2>/dev/null; then printf '"'"'\\033[31m%s\\033[0m'"'"' \"$v\"; elif [ \"$v\" -le 3 ] 2>/dev/null; then printf '"'"'\\033[38;5;208m%s\\033[0m'"'"' \"$v\"; else printf '"'"'\\033[32m%s\\033[0m'"'"' \"$v\"; fi; }; echo \"$name | Fe:$fe Ed:$ed Sh:$sh Ht:$ht Wt:$wt | HP:$(colorval $hp) Sp:$(colorval $sp) Su:$(colorval $su) Mo:$mo\""
+  }'
+# The old default (HP-only) — used to detect an un-customized statusLine on upsert.
+OLD_STATUS_LINE_JSON='{
+    "type": "command",
     "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '"'"'.workspace.project_dir'"'"'); char=\"$cwd/campaigns/default/character.json\"; if [ ! -f \"$char\" ]; then exit 0; fi; name=$(jq -r '"'"'.name // \"Hero\"'"'"' \"$char\"); hp=$(jq -r '"'"'.health'"'"' \"$char\"); sp=$(jq -r '"'"'.spirit'"'"' \"$char\"); su=$(jq -r '"'"'.supply'"'"' \"$char\"); mo=$(jq -r '"'"'.momentum'"'"' \"$char\"); colorval(){ v=$1; if [ \"$v\" -le 1 ] 2>/dev/null; then printf '"'"'\\033[31m%s\\033[0m'"'"' \"$v\"; elif [ \"$v\" -le 3 ] 2>/dev/null; then printf '"'"'\\033[38;5;208m%s\\033[0m'"'"' \"$v\"; else printf '"'"'\\033[32m%s\\033[0m'"'"' \"$v\"; fi; }; echo \"$name | HP:$(colorval $hp) Sp:$(colorval $sp) Su:$(colorval $su) Mo:$mo\""
   }'
 SETTINGS_TEMPLATE='{
@@ -55,10 +60,17 @@ SETTINGS_TEMPLATE='{
 }'
 SETTINGS_PATH="$CWD/.claude/settings.json"
 if [ -e "$SETTINGS_PATH" ]; then
-  # File already exists — upsert only the statusLine key, preserving all other keys.
+  # File already exists — only touch statusLine if it matches the old default or is absent.
+  # User-customized statusLines are left intact.
   mkdir -p "$(dirname "$SETTINGS_PATH")"
-  jq --argjson newval "$STATUS_LINE_JSON" '.statusLine = $newval' "$SETTINGS_PATH" > "$SETTINGS_PATH.tmp" && mv "$SETTINGS_PATH.tmp" "$SETTINGS_PATH"
-  created+=("$SETTINGS_PATH (statusLine upserted)")
+  existing_status=$(jq -c '.statusLine' "$SETTINGS_PATH")
+  old_default=$(echo "$OLD_STATUS_LINE_JSON" | jq -c '.')
+  if [ "$existing_status" = "$old_default" ] || [ "$existing_status" = "null" ]; then
+    jq --argjson newval "$STATUS_LINE_JSON" '.statusLine = $newval' "$SETTINGS_PATH" > "$SETTINGS_PATH.tmp" && mv "$SETTINGS_PATH.tmp" "$SETTINGS_PATH"
+    created+=("$SETTINGS_PATH (statusLine updated to include stats)")
+  else
+    skipped+=("$SETTINGS_PATH (statusLine customized — not overwritten)")
+  fi
 else
   mkdir -p "$(dirname "$SETTINGS_PATH")"
   printf '%s' "$SETTINGS_TEMPLATE" > "$SETTINGS_PATH"

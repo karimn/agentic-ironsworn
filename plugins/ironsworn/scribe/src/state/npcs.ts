@@ -61,6 +61,59 @@ export async function upsertNpc(
 }
 
 // ---------------------------------------------------------------------------
+// Stale NPC detection (issue #92)
+// ---------------------------------------------------------------------------
+
+const STALE_NPC_SCENE_THRESHOLD = 3;
+
+export interface NpcStalenessInput {
+  name: string;
+  lastUpdated: string; // ISO timestamp
+  scenesSinceUpdate: number;
+}
+
+export interface StaleNpc {
+  name: string;
+  scenes_since_update: number;
+  last_updated: string;
+}
+
+/**
+ * Pure function: given staleness data per NPC, return those over the threshold,
+ * sorted by scenes_since_update descending.
+ */
+export function findStaleNpcs(
+  inputs: NpcStalenessInput[],
+  threshold: number = STALE_NPC_SCENE_THRESHOLD,
+): StaleNpc[] {
+  return inputs
+    .filter((n) => n.scenesSinceUpdate >= threshold)
+    .map((n) => ({
+      name: n.name,
+      scenes_since_update: n.scenesSinceUpdate,
+      last_updated: n.lastUpdated,
+    }))
+    .sort((a, b) => b.scenes_since_update - a.scenes_since_update);
+}
+
+/**
+ * Parse the most recent ISO timestamp from an NPC markdown file (the last `## <ISO>` heading).
+ * Returns null if the NPC file doesn't exist.
+ */
+export async function getNpcLastUpdated(
+  campaignPath: string,
+  name: string,
+): Promise<string | null> {
+  const content = await getNpc(campaignPath, name);
+  if (content === null) return null;
+  // Section headings: `## 2026-05-10T12:00:00.000Z`
+  const matches = [...content.matchAll(/^## (\d{4}-\d{2}-\d{2}T[\d:.Z+-]+)$/gm)];
+  if (matches.length === 0) return null;
+  // Last match is the most recent upsert
+  return matches[matches.length - 1]![1]!;
+}
+
+// ---------------------------------------------------------------------------
 // Export (filename → raw markdown content)
 // ---------------------------------------------------------------------------
 

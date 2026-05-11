@@ -341,3 +341,121 @@ describe("close_track", () => {
     expect(parsed.track.completed).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// issue #91: vow track ↔ thread auto-coupling
+// ---------------------------------------------------------------------------
+
+import { loadThreads } from "../state/threads.js";
+
+describe("create_progress_track — vow auto-creates thread", () => {
+  it("creates a matching open thread when kind=vow", async () => {
+    const result = await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Find the Oracle", rank: "dangerous", kind: "vow" },
+    });
+    expect(result.isError).not.toBe(true);
+
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "find the oracle");
+    expect(thread).toBeDefined();
+    expect(thread!.status).toBe("open");
+    expect(thread!.kind).toBe("vow");
+  });
+
+  it("does NOT create a thread for non-vow kinds", async () => {
+    const kinds = ["combat", "journey", "bond", "other"] as const;
+    for (const kind of kinds) {
+      await client.callTool({
+        name: "create_progress_track",
+        arguments: { name: `Track ${kind}`, rank: "troublesome", kind },
+      });
+    }
+    const threads = await loadThreads(campaignDir);
+    // None of the auto-created threads should be for the non-vow tracks
+    const autoTitles = threads.map((t) => t.title.toLowerCase());
+    expect(autoTitles).not.toContain("track combat");
+    expect(autoTitles).not.toContain("track journey");
+    expect(autoTitles).not.toContain("track bond");
+    expect(autoTitles).not.toContain("track other");
+  });
+
+  it("is a no-op on the thread side when a matching thread already exists", async () => {
+    // First creation
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Find the Oracle", rank: "dangerous", kind: "vow" },
+    });
+    const beforeCount = (await loadThreads(campaignDir)).length;
+
+    // Second creation with same name — should not duplicate thread
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Find the Oracle", rank: "formidable", kind: "vow" },
+    });
+    const afterCount = (await loadThreads(campaignDir)).length;
+    expect(afterCount).toBe(beforeCount);
+  });
+});
+
+describe("fulfill_progress — vow auto-closes matching thread", () => {
+  it("closes the matching thread on strong_hit with resolution", async () => {
+    // Seed a thread
+    const threadsDir = campaignDir;
+    const { openThread } = await import("../state/threads.js");
+    await openThread(threadsDir, "Remove Caldren from Holtfen", "vow");
+
+    const result = await client.callTool({
+      name: "fulfill_progress",
+      arguments: {
+        track_name: "Remove Caldren from Holtfen",
+        outcome: "strong_hit",
+        resolution: "Caldren was driven out.",
+      },
+    });
+    expect(result.isError).not.toBe(true);
+
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find(
+      (t) => t.title.toLowerCase() === "remove caldren from holtfen",
+    );
+    expect(thread).toBeDefined();
+    expect(thread!.status).toBe("closed");
+    expect(thread!.resolution).toBe("Caldren was driven out.");
+  });
+
+  it("succeeds even when no matching thread exists", async () => {
+    const result = await client.callTool({
+      name: "fulfill_progress",
+      arguments: {
+        track_name: "Remove Caldren from Holtfen",
+        outcome: "weak_hit",
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("does NOT close a thread when fulfilling a non-vow track", async () => {
+    // Seed a thread with the same name as the journey track — should remain open
+    const { openThread } = await import("../state/threads.js");
+    await openThread(campaignDir, "Explore the Caverns", "other");
+
+    const result = await client.callTool({
+      name: "fulfill_progress",
+      arguments: {
+        track_name: "Explore the Caverns",
+        outcome: "strong_hit",
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.threadClosed).toBe(false);
+
+    // Thread must still be open
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "explore the caverns");
+    expect(thread?.status).toBe("open");
+  });
+});

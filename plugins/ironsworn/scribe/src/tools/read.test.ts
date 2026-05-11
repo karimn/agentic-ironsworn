@@ -292,7 +292,7 @@ describe("session_briefing — ready bucket excludes tracks with closed threads"
 });
 
 describe("session_briefing — overall shape", () => {
-  it("returns all four top-level keys", async () => {
+  it("returns all five top-level keys including stale_npcs", async () => {
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
     expect(result.isError).not.toBe(true);
     const briefing = parseToolText<Record<string, unknown>>(result);
@@ -301,5 +301,7 @@ describe("session_briefing — overall shape", () => {
     expect("tracks" in briefing).toBe(true);
     expect("threads" in briefing).toBe(true);
     expect("recent_scenes" in briefing).toBe(true);
+    expect("stale_npcs" in briefing).toBe(true);
+    expect(Array.isArray(briefing["stale_npcs"])).toBe(true);
   });
 });

@@ -28,6 +28,7 @@ import { tickProgress, vowXp, TICKS_PER_MARK } from "../rules/ironsworn/progress
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { recordMutation } from "../checkpoint.js";
+import { openThread, closeThread, loadThreads } from "../state/threads.js";
 
 function characterDigest(char: Character) {
   const activeDebilities = Object.fromEntries(
@@ -349,9 +350,21 @@ export function register(server: McpServer, campaignPath: string): void {
         const newTrack = { name, rank, kind, ticks: 0, completed: false };
         character.progressTracks.push(newTrack);
         await saveCharacter(campaignPath, character);
+
+        // Auto-open a matching thread for vow tracks (idempotent — skip if exists).
+        let threadCreated = false;
+        if (kind === "vow") {
+          const threads = await loadThreads(campaignPath);
+          const exists = threads.some((t) => t.title.toLowerCase() === name.toLowerCase());
+          if (!exists) {
+            await openThread(campaignPath, name, "vow");
+            threadCreated = true;
+          }
+        }
+
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, track: newTrack }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, track: newTrack, threadCreated }) }],
         };
       } catch (e) {
         return {
@@ -371,16 +384,17 @@ export function register(server: McpServer, campaignPath: string): void {
       "",
       "Canonical vow fulfillment flow:",
       "1. roll_progress — roll against the vow's progress score to see the outcome",
-      "2. fulfill_progress — (this tool) marks the track complete and awards XP (vows only)",
-      "3. close_thread — narrative resolution; also marks the matching progress track completed",
+      "2. fulfill_progress — (this tool) marks the track complete, awards XP, and auto-closes the matching thread.",
+      "   Pass 'resolution' to record how the vow ended. Do NOT call close_thread separately — it is redundant.",
     ].join("\n"),
     {
       track_name: z.string().describe("Name of the progress track to fulfill (case-insensitive)"),
       outcome: z
         .enum(["strong_hit", "weak_hit", "miss"])
         .describe("The outcome of the roll_progress roll for this track"),
+      resolution: z.string().optional().describe("How the vow was resolved — passed to the matching thread on close"),
     },
-    async ({ track_name, outcome }) => {
+    async ({ track_name, outcome, resolution }) => {
       try {
         const character = await loadCharacter(campaignPath);
         const idx = character.progressTracks.findIndex(
@@ -404,9 +418,23 @@ export function register(server: McpServer, campaignPath: string): void {
           before,
           after: character,
         });
+
+        // Auto-close the matching thread for vow tracks (best-effort — non-fatal if missing).
+        let threadClosed = false;
+        if (track.kind === "vow") {
+          const threads = await loadThreads(campaignPath);
+          const openMatch = threads.find(
+            (t) => t.title.toLowerCase() === track_name.toLowerCase() && t.status === "open",
+          );
+          if (openMatch) {
+            await closeThread(campaignPath, openMatch.title, resolution ?? "Fulfilled.");
+            threadClosed = true;
+          }
+        }
+
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], xpGained, experience: character.experience }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, track: character.progressTracks[idx], xpGained, experience: character.experience, threadClosed }) }],
         };
       } catch (e) {
         return {
