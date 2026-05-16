@@ -23,6 +23,8 @@ A miss should hurt. Most misses end here. No new plot, no escalation — just a 
 
 Flat costs are **invisible** to the meta-narrative. They accumulate weight without crowding the world with new threads.
 
+**Applying the cost.** Pay the Price picks *what* — `ironsworn-suffer` picks *how*. When the chosen cost is harm, stress, a supply drain, or a debility, defer to `ironsworn-suffer` for the matching tool call (`suffer_harm`, `suffer_stress`, `consume_supply`, `inflict_debility`). Don't apply those mutations from this skill. Note that Face Death / Face Desolation are triggered from the **Endure Harm** / **Endure Stress** oracle tables (the 1–10 result), not directly from Pay the Price — both are owned by `ironsworn-suffer`.
+
 ### 2. Escalate an existing thread
 
 Before inventing anything new, scan open threads. The world has unfinished business.
