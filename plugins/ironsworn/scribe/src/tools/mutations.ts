@@ -551,7 +551,8 @@ export function register(server: McpServer, campaignPath: string): void {
         const before = structuredClone(character);
         const priorTicks = track.ticks;
         const priorRank = track.rank;
-        track.ticks = priorTicks >= 4 ? 4 : 0;
+        const TICKS_PER_BOX = 4;
+        track.ticks = priorTicks >= TICKS_PER_BOX ? TICKS_PER_BOX : 0;
         const rankIdx = RANK_LADDER.indexOf(priorRank);
         track.rank = RANK_LADDER[Math.min(rankIdx + 1, RANK_LADDER.length - 1)]!;
         await saveCharacter(campaignPath, character);
