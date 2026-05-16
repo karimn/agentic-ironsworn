@@ -91,6 +91,7 @@ The vow's shape changes. Even if the player survives, the relic is gone; the pat
 - **Skipping the small.** If every miss is medium-or-larger, the world feels relentless and the player learns to brace against everything, not feel anything.
 - **Ignoring the rank of the move.** A Strike miss is not an End the Fight miss. The rulebook's per-move guidance (e.g., the **Fight** move at p.94) explicitly says *"Make it hurt"* on Fight misses but not on Strike misses. Honor the difference.
 - **Climaxing too early.** The first miss of a session shouldn't break the campaign. Save the matched 10s, the Face Death triggers, the thread-breaking revelations for when the fiction has earned them.
+- **Double-zooming on Sojourn.** A miss-driven Sojourn complication *is* the Sojourn's zoomed beat (rulebook p.83 — Sojourn pattern is montage with one selective zoom-in; `ironsworn-pacing/references/montage-vs-scene.md`). Don't spawn a separate "and now a scene about the bad thing" — the miss already focused the camera. Texture lands inside the Sojourn frame.
 
 ---
 
