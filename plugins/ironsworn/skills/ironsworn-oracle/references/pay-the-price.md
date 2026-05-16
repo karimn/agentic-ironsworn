@@ -49,6 +49,8 @@ Before inventing, ask:
 
 If the answer to any is "no" or "yes (flat cost is better)," fall back. New hooks are commitments — they obligate future play.
 
+**Making the new hook durable.** When invention *is* warranted — typically when the oracle (or the fiction) surfaces an implicit promise the player owes someone ("they ask something of you in return," a debt, a half-spoken oath) — make the obligation persistent so it doesn't evaporate in memory. Open a thread: `open_thread` with kind `debt` (favor owed) or `vow` (rises to an Iron Vow). The canonical pattern, including how the social moves (Compel weak, Forge a Bond weak, Test Your Bond weak) instantiate it, lives in `ironsworn-social/references/moves.md` — defer there rather than restating it here.
+
 ---
 
 ## When to Choose vs. When to Roll
