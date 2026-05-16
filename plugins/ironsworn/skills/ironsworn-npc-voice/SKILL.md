@@ -75,20 +75,19 @@ Three answers held in the moment:
 These flow from recorded **drives** (rulebook p. 146). Drives are an outline; this scene's want/fear is the shape drives take *now*. If unclear, `roll_oracle("what do they want from this exchange?")` and `upsert_npc`.
 
 ### 3. Reaction — how they respond under pressure
-Rulebook discipline (p. 80, 146, 148):
+Rulebook discipline (p. 80, 146, 148): strong hit → they comply, but *how* reflects drives; weak hit → the ask back echoes want/fear, never a generic favor; miss → refusal or costly demand voiced from what they will not budge on. Under bond strain (Test Your Bond, Compel against a bonded NPC) the recorded bond shapes how loud and how wounded the reaction sounds. NPCs do not roll dice — when next action is unclear, **Ask the Oracle** (rulebook p. 89, 215).
 
-- Strong hit on a player's social move → they comply, but *how* still reflects drives
-- Weak hit → the ask back must echo their want/fear, never a generic favor
-- Miss → refusal or costly demand voiced from what they will not budge on
-- Under bond strain (Test Your Bond, Compel against a bonded NPC) the recorded bond shapes how loud and how wounded the reaction sounds
+---
 
-NPCs do not roll dice. When tone or next action is unclear, **Ask the Oracle** (rulebook p. 89, 215).
+## Where Voice Lands in a Scene
+
+Delivered inside `ironsworn-scene-craft`'s structure: the NPC's **scene-want** is usually the **visible-stake** line of framing; a delivered line lands best as the scene's **closing image** or **question** (see `ironsworn-scene-craft/references/closing-beats.md`); reactions under bond strain belong in a *zoomed-in* beat — if the beat can't be named in one sentence, defer to `ironsworn-pacing`.
 
 ---
 
 ## Capturing Development
 
-When a beat reveals or shifts something durable — a secret named, a disposition changed by betrayal or kindness, a new drive surfaced — call `upsert_npc` with the updated impression and tags. Without this step, the next session's voice drifts. Bond increments themselves are governed by `ironsworn-social`; this skill captures the *character note* that should follow.
+When a beat reveals something durable — a secret named, a disposition shifted, a new drive surfaced — call `upsert_npc` with the updated impression and tags. Without this, next session's voice drifts. Bond increments themselves are governed by `ironsworn-social`.
 
 ---
 
