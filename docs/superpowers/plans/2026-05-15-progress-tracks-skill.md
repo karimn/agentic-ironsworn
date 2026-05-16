@@ -17,7 +17,9 @@
 **New files:**
 - `plugins/ironsworn/scribe/scripts/migrate-track-status.ts` — one-time data migration
 - `plugins/ironsworn/scribe/scripts/migrate-track-status.test.ts` — migration tests
-- `plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md` — unified skill
+- `plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md` — unified skill (~900 words; main body)
+- `plugins/ironsworn/skills/ironsworn-progress-tracks/references/journeys.md` — full journey workflow (lazy-loaded)
+- `plugins/ironsworn/skills/ironsworn-progress-tracks/references/display.md` — glyph rendering rules (lazy-loaded)
 
 **Modified files:**
 - `plugins/ironsworn/scribe/src/state/character.ts` — `ProgressTrack` interface, `closeTrack` helper
@@ -1242,10 +1244,14 @@ git commit -m "feat(scribe): add recommit_vow MCP tool (#60)"
 ## Task 13: Write the unified skill
 
 **Files:**
-- Create: `plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md`
+- Create: `plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md` (main body, ~900 words)
+- Create: `plugins/ironsworn/skills/ironsworn-progress-tracks/references/journeys.md` (full journey workflow)
+- Create: `plugins/ironsworn/skills/ironsworn-progress-tracks/references/display.md` (glyph rendering)
 - Delete: `plugins/ironsworn/skills/ironsworn-journey/SKILL.md` (and the dir)
 
-The skill is large; structure it strictly per the spec's section outline. Pull verbatim text from the existing `ironsworn-journey` SKILL where appropriate, and from `plugins/ironsworn/agents/ironsworn-gm.md` lines 336–365 for the display section.
+The skill follows the progressive-disclosure pattern used by `ironsworn-character-builder/references/assets.md`: the main SKILL.md stays compact for under-pressure use; journey workflow and display formula go into `references/` and are lazy-loaded when needed.
+
+**Bonds note:** verified before writing. `character.bonds` is a plain `number` (`state/character.ts:45`); there is no dedicated bond-increment mutation tool. The skill ships concrete guidance: increment via `override(path="bonds", value=<current+1>)` after a Forge a Bond strong hit.
 
 - [ ] **Step 1: Read source content**
 
@@ -1254,7 +1260,7 @@ cat plugins/ironsworn/skills/ironsworn-journey/SKILL.md
 sed -n '336,365p' plugins/ironsworn/agents/ironsworn-gm.md
 ```
 
-- [ ] **Step 2: Create the skill file**
+- [ ] **Step 2: Create the main skill file**
 
 Create `plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md`:
 
@@ -1262,13 +1268,15 @@ Create `plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md`:
 ---
 name: ironsworn-progress-tracks
 description: >
-  Governs all Ironsworn progress-track play: vows (Swear, Reach a Milestone,
-  Fulfill, Forsake, Recommit), journeys (Undertake, Make Camp, Resupply, Reach
-  Your Destination), combat tracks, bonds, and scene challenges. ALWAYS invoke
-  this skill whenever the player swears, advances, fulfills, or abandons a vow;
-  travels across the Ironlands or makes any journey move; ticks any progress
-  track; or displays a track's progress glyphs. Never handle progress mechanics
-  from memory alone.
+  Governs all Ironsworn progress-track play: vows (Swear an Iron Vow, Reach a
+  Milestone, Fulfill Your Vow, Forsake Your Vow, recommit on Fulfill miss),
+  journeys (Undertake a Journey, Make Camp, Resupply, Reach Your Destination),
+  combat tracks, bonds, and scene challenges. ALWAYS invoke this skill whenever
+  the GM is about to advance any progress track, or the player says things like
+  "swear a vow", "I undertake the journey", "make camp", "resupply", "fulfill
+  my vow", "forsake my vow", "I think we've arrived", or any move that ticks,
+  fulfills, or abandons a track. Also invoke whenever progress glyphs need to
+  be displayed. Never handle progress mechanics from memory alone.
 ---
 
 # Ironsworn Progress Tracks
@@ -1277,23 +1285,39 @@ Progress tracks are the spine of Ironsworn. Vows, journeys, combats, bonds, and 
 
 ---
 
+## Tools This Skill Governs
+
+| Tool | When |
+|---|---|
+| `create_progress_track` | Start a vow, journey, combat, or scene challenge |
+| `reach_milestone` | Vow milestone (RAW Reach a Milestone) — VOW ONLY |
+| `tick_progress` | Journey waypoints, combat harm, scene-challenge progress |
+| `roll_progress` | Progress moves: Fulfill Your Vow, Reach Your Destination, End the Fight |
+| `fulfill_progress` | After `roll_progress` hits — closes track, awards XP for vows |
+| `forsake_vow` | Player abandons a vow (status → forsaken, applies stress) |
+| `recommit_vow` | Fulfill miss → recommit branch (clear most progress, raise rank) |
+| `close_track` | Wrap up a non-vow track without XP (battle ended fictionally) |
+| `override` (path=`bonds`) | Increment `bonds` after Forge a Bond strong hit (no dedicated tool) |
+
+---
+
 ## When to Invoke This Skill
 
-Invoke this skill whenever you would otherwise reach for a progress-track rule, including:
+Invoke whenever you would otherwise reach for a progress-track rule, including:
 
 - Player swears, advances, fulfills, or abandons a vow
-- Player begins, continues, or ends a journey (any of: Undertake a Journey, Make Camp, Resupply, Reach Your Destination)
-- Combat resolves: Enter the Fray, Strike, Clash, End the Fight, harm
-- Bonds: any move that says "mark progress on your bonds"
-- Scene challenges (extended dramatic challenges with progress + countdown)
-- Anything that would call `tick_progress`, `reach_milestone`, `fulfill_progress`, `forsake_vow`, `recommit_vow`, `roll_progress`, `create_progress_track`, or `close_track`
-- Displaying any track's progress to the player
+- Player begins, continues, or ends a journey (Undertake, Make Camp, Resupply, Reach Your Destination)
+- Combat: Enter the Fray, harm, End the Fight
+- Bond moves that say "mark progress on your bonds"
+- Scene challenges (progress + countdown)
+- Any call to the tools listed above
+- Displaying any track's progress glyphs (see `references/display.md`)
 
 ---
 
 ## Progress Track Fundamentals
 
-A progress track has 10 boxes. Each box holds 4 ticks. Maximum is 40 ticks (= 10 fully filled boxes).
+A progress track has 10 boxes. Each box holds 4 ticks. Maximum is 40 ticks.
 
 **Ticks-per-mark by rank:**
 
@@ -1305,7 +1329,7 @@ A progress track has 10 boxes. Each box holds 4 ticks. Maximum is 40 ticks (= 10
 | Extreme | 2 | ½ |
 | Epic | 1 | ¼ |
 
-**Progress score** (used by `roll_progress`) = number of *fully filled* boxes (those with all 4 ticks). Partial boxes do not count.
+**Progress score** (used by `roll_progress`) = number of *fully filled* boxes only. Partial boxes do not count.
 
 ---
 
@@ -1327,7 +1351,7 @@ When the player commits to a quest:
 | Weak hit | +1 momentum; begin with questions |
 | Miss | A significant obstacle. Choose: press on (-2 momentum) or `forsake_vow`. |
 
-The **background vow** (created at character creation) does not require a Swear roll — just `create_progress_track`.
+The **background vow** (created at character creation) does not require a Swear roll — just `create_progress_track`. The full background-vow flow lives in `ironsworn-character-builder` (Step 5 — Background Vow); when that skill is in play during character creation, defer to it.
 
 ### 2. Reach a Milestone
 
@@ -1393,9 +1417,92 @@ If forsaking a vow central to the character's identity, consider Write Your Epil
 
 ## Journeys
 
-Journeys are a progress mechanic. The destination is reached by accumulating marks on a journey progress track and then making a progress roll. Supply drain is the primary cost.
+Journeys are a progress mechanic. The destination is reached by accumulating marks on a journey progress track, then making a progress roll. Supply drain is the primary cost.
 
-### 1. Start the Journey
+**Quick reference:**
+
+| Step | Tool calls |
+|---|---|
+| Start | `create_progress_track` (kind="journey") |
+| Each waypoint | `resolve_move` "Undertake a Journey" (Wits), then `tick_progress` (marks=1) on hits |
+| Mid-journey recovery | `resolve_move` "Make Camp" / "Resupply" |
+| Arrival | `roll_progress` then `fulfill_progress` (0 XP) |
+
+**Critical rules:**
+- **Reach Your Destination is a progress roll, not an action roll** — use `roll_progress`, not `resolve_move`.
+- **Always `tick_progress` after each Undertake hit** — 1 mark per hit, rank-dependent ticks.
+- **Journey arrival → vow milestone is SEPARATE** — `fulfill_progress` on the journey, then `reach_milestone` on the related vow.
+
+For the full journey workflow (pacing, montage vs scene, all outcome tables, AskUserQuestion option sets, supply pressure rules, common mistakes), see `references/journeys.md`.
+
+---
+
+## Combat Tracks
+
+When combat starts and a progress track is appropriate, `create_progress_track` with `kind: "combat"` and rank matching the foe.
+
+**Ticking combat:** use `tick_progress`, NOT `reach_milestone`. Each point of harm = 1 mark; rank determines ticks per mark.
+
+**End the Fight** is a progress roll: `roll_progress` then `fulfill_progress` (0 XP).
+
+---
+
+## Bonds
+
+`character.bonds` is a plain integer counter, not a progress track. Do NOT call `tick_progress` for bonds.
+
+When a bond move (e.g., Forge a Bond strong hit) says to mark a bond:
+
+1. Read current value via `get_character_digest` (returns `bonds`).
+2. Call `override` with `path: "bonds"`, `value: <current + 1>`.
+
+There is no dedicated bond-increment tool; `override` is the supported path.
+
+---
+
+## Scene Challenges
+
+Two tracks together:
+- 10-box progress track — rank applies; `tick_progress` adds rank-dependent ticks per mark.
+- 4-box countdown track — always one full box at a time.
+
+Resolve via `roll_progress` on the progress track.
+
+---
+
+## Display Format
+
+For glyph rendering of any progress track, see `references/display.md`. It contains the glyph table (`○ ◔ ◑ ◕ ●`), the box-mapping formula, and worked examples.
+
+---
+
+## Common Mistakes
+
+- **Never use `tick_progress` for a vow milestone — use `reach_milestone`.**
+- **Fulfill Your Vow is a progress roll, not an action roll** — use `roll_progress`, not `resolve_move`.
+- **Miss on Fulfill: ASK the player recommit vs forsake; do not auto-decide.**
+- **Forsake applies stress** equal to rank — use the `forsake_vow` tool, never improvise.
+- **Never skip `create_progress_track`** at journey or vow start.
+- **Never narrate "they arrived" without rolling Reach Your Destination.**
+- **Always tick progress after each Undertake hit** — progress only accumulates through explicit `tick_progress` calls.
+- **The Prepare option in Make Camp** gives +1 to the *next* Undertake only — apply once.
+- **Don't roll Undertake for mundane travel** — narrate short safe trips.
+- **Bond bonus on Undertake applies once** — only the first roll of a journey from a bonded community.
+- **Journey arrival → vow milestone is a SEPARATE call** — `fulfill_progress` on the journey, then `reach_milestone` on the vow. Don't double-tick.
+```
+
+- [ ] **Step 3: Create `references/journeys.md`**
+
+This file holds the full journey workflow that previously lived inline in `ironsworn-journey/SKILL.md`. Create `plugins/ironsworn/skills/ironsworn-progress-tracks/references/journeys.md`:
+
+```markdown
+# Journey Workflow Reference
+
+Full procedures for journey play. The main `ironsworn-progress-tracks` SKILL.md links here.
+
+---
+
+## 1. Start the Journey
 
 **First: is this journey even necessary?** Short, safe trips through familiar territory don't get rolled — narrate and move on. Reserve Undertake a Journey for genuinely hazardous or unfamiliar travel.
 
@@ -1410,7 +1517,9 @@ Journeys are a progress mechanic. The destination is reached by accumulating mar
 
 3. Narrate the departure — weather, what they carry, who watches them leave.
 
-### 2. Pacing the Journey
+---
+
+## 2. Pacing the Journey
 
 Before each roll, choose:
 
@@ -1423,7 +1532,9 @@ Mix deliberately. Don't zoom in on every leg; don't montage past everything.
 
 **Transport is fiction, not bonus.** A horse/boat/mule changes logistics, not dice — unless an asset says so.
 
-### 3. Undertake a Journey (Wits)
+---
+
+## 3. Undertake a Journey (Wits)
 
 Each waypoint is one roll.
 
@@ -1451,9 +1562,11 @@ options:
 
 **Complication Diversity:** Before narrating the complication, follow the Complication Diversity Protocol in the GM agent — call `get_recent_complications` and pick a fresh theme.
 
-### 4. Mid-Journey Recovery
+---
 
-#### Make Camp (Wits)
+## 4. Mid-Journey Recovery
+
+### Make Camp (Wits)
 
 Optional. Only roll when the player wants mechanical benefit or you want to play out the rest as a scene.
 
@@ -1475,7 +1588,7 @@ options:
 
 Apply effects with `restore_health` / `restore_spirit` / `take_momentum` / `consume_supply`. If "Prepare" is chosen, remember to add +1 to the *next* Undertake roll (and only the next).
 
-#### Resupply (Wits)
+### Resupply (Wits)
 
 **Roll:** `resolve_move` with move "Resupply", stat "wits".
 
@@ -1493,7 +1606,9 @@ options:
   - value: "0"  label: "Nothing"    description: "Keep your momentum."
 ```
 
-### 5. Reach Your Destination
+---
+
+## 5. Reach Your Destination
 
 When the journey track has enough progress and arrival is in sight:
 
@@ -1515,15 +1630,19 @@ options:
   - value: "momentum"  label: "Take momentum"    description: "Take +1 momentum."
 ```
 
-**After resolution (on a hit):** the journey is over. Call `fulfill_progress` (or `close_track` if no XP appropriate — journeys grant 0 XP regardless). Narrate arrival; use `search_lore` if known. Call `record_scene` for the arrival beat.
+**After resolution (on a hit):** the journey is over. Call `fulfill_progress` (journeys grant 0 XP regardless). Narrate arrival; use `search_lore` if known. Call `record_scene` for the arrival beat.
 
-### Journeys and Vows — Cross-Link
+---
+
+## 6. Journeys and Vows — Cross-Link
 
 Arrival can be a milestone for a related vow. If the journey directly served a quest, after closing the journey track, **call `reach_milestone` separately on the vow.** Do not double-tick the journey track itself.
 
 Example: Saskia journeys to Cinderhome to save the overseer. On arrival (Reach Your Destination strong hit) → `fulfill_progress` on "Journey to Cinderhome" → `reach_milestone` on "Save the Overseer".
 
-### Supply Pressure
+---
+
+## 7. Supply Pressure
 
 Track supply faithfully:
 - Weak hit on Undertake → −1 supply
@@ -1535,37 +1654,33 @@ When supply hits 0: `inflict_debility` with "unprepared". The character cannot m
 
 ---
 
-## Combat Tracks
+## 8. Common Mistakes
 
-When combat begins (Enter the Fray) and would benefit from a progress track, `create_progress_track` with `kind: "combat"` and a rank matching the foe.
+- **Never skip `create_progress_track`** at journey start.
+- **Never use `resolve_move` for Reach Your Destination** — it's a progress roll.
+- **Never narrate "they arrived" without rolling Reach Your Destination.**
+- **Always `tick_progress` after each Undertake hit** — progress only accumulates through explicit calls.
+- **The Prepare option in Make Camp** gives +1 to the *next* Undertake only — apply once.
+- **Don't roll Undertake for mundane travel** — narrate short, safe trips.
+- **Don't force Make Camp** — optional; only roll for mechanical benefit or scene.
+- **Bond bonus applies once** — only the first Undertake roll of a journey from a bonded community.
+- **Journey arrival → vow milestone is a SEPARATE call** — `fulfill_progress` on the journey, then `reach_milestone` on the vow. Don't double-tick.
+```
 
-**Ticking combat tracks:** combat ticks via `tick_progress`, NOT `reach_milestone`. Each point of harm inflicted is rank-dependent ticks (per RAW: 1 harm = 1 mark — i.e., rank-dependent ticks by the same table). Use `tick_progress(marks=N)` where N is harm points.
+- [ ] **Step 4: Create `references/display.md`**
 
-**End the Fight** is a progress roll: `roll_progress` then `fulfill_progress` (combat tracks always award 0 XP).
+Create `plugins/ironsworn/skills/ironsworn-progress-tracks/references/display.md`:
 
----
+```markdown
+# Progress Track Display Reference
 
-## Bonds
-
-The bond track is rank-less. Always tick 1 raw tick when a bond move (e.g., Forge a Bond strong hit) says to mark progress.
-
-Use `tick_progress(track_name="bonds", marks=1)` — but note: bonds aren't tracked as a progress track in the standard sense in this system. Increment `character.bonds` directly via the bond mutation if available, or refer to the project's bond handling. (If bonds are stored as a number, not a track, the relevant mutation is increment-bonds, not `tick_progress`. Confirm before calling.)
-
----
-
-## Scene Challenges
-
-A scene challenge uses two tracks:
-- A standard 10-box progress track (rank applies normally — `tick_progress` adds rank-dependent ticks per mark).
-- A 4-box countdown track (always one full box at a time).
-
-Resolve via `roll_progress` against the progress track.
+Glyph rendering for any progress track. The main `ironsworn-progress-tracks` SKILL.md links here.
 
 ---
 
-## Display Format
+## Glyphs
 
-Use these glyphs for any progress-track display: `○ ◔ ◑ ◕ ●`.
+Use these for any progress-track display: `○ ◔ ◑ ◕ ●`.
 
 The `ticks` field returned by tools is total ticks (0–40), not boxes.
 
@@ -1577,55 +1692,66 @@ The `ticks` field returned by tools is total ticks (0–40), not boxes.
 | 3 | ◕ |
 | 4 | ● |
 
-**Display formula:** for each of the 10 boxes, integer-divide total ticks by 4 to get full boxes (●), then the partial-box glyph for `ticks % 4`, then ○ for the remainder up to 10.
+---
 
-**Examples:**
-- 0 ticks → `○○○○○○○○○○`
-- 8 ticks (dangerous, 1 mark) → `●●○○○○○○○○`
-- 16 ticks (dangerous, 2 marks) → `●●●●○○○○○○`
-- 30 ticks → `●●●●●●●◑○○`
-- 40 ticks → `●●●●●●●●●●`
+## Display Formula
+
+For a track with `total_ticks` (0–40):
+
+1. `full_boxes = floor(total_ticks / 4)` — render that many `●`.
+2. `partial_ticks = total_ticks % 4` — if > 0, render the partial-box glyph for that count.
+3. `empty_boxes = 10 - full_boxes - (1 if partial_ticks > 0 else 0)` — render that many `○`.
+
+Concatenate the three segments.
 
 ---
 
-## Common Mistakes
+## Examples
 
-- **Never use `tick_progress` for a vow milestone — use `reach_milestone`.**
-- **Fulfill Your Vow is a progress roll, not an action roll** — use `roll_progress`, not `resolve_move`.
-- **Miss on Fulfill: ASK the player recommit vs forsake; do not auto-decide.**
-- **Forsake applies stress** equal to rank — use the `forsake_vow` tool, never improvise.
-- **Never skip `create_progress_track`** at journey or vow start.
-- **Never narrate "they arrived" without rolling Reach Your Destination.**
-- **Always tick progress after each Undertake hit** — progress only accumulates through explicit `tick_progress` calls.
-- **The Prepare option in Make Camp** gives +1 to the *next* Undertake only — apply once.
-- **Don't roll Undertake for mundane travel** — narrate short safe trips.
-- **Bond bonus on Undertake applies once** — only the first roll of a journey from a bonded community.
-- **Journey arrival → vow milestone is a SEPARATE call** — `fulfill_progress` on the journey, then `reach_milestone` on the vow. Don't double-tick.
+| Total ticks | Notes | Display |
+|---|---|---|
+| 0 | empty | `○○○○○○○○○○` |
+| 1 | partial first box | `◔○○○○○○○○○` |
+| 8 | dangerous, 1 mark | `●●○○○○○○○○` |
+| 16 | dangerous, 2 marks | `●●●●○○○○○○` |
+| 30 | 7 full + 1 partial | `●●●●●●●◑○○` |
+| 40 | full | `●●●●●●●●●●` |
 ```
 
-- [ ] **Step 3: Delete the old skill**
+- [ ] **Step 5: Delete the old skill**
 
 ```bash
 rm -rf plugins/ironsworn/skills/ironsworn-journey
 ```
 
-- [ ] **Step 4: Verify only the new skill exists**
+- [ ] **Step 6: Verify only the new skill exists**
 
 ```bash
 ls plugins/ironsworn/skills/
+ls plugins/ironsworn/skills/ironsworn-progress-tracks/
+ls plugins/ironsworn/skills/ironsworn-progress-tracks/references/
 ```
 
-Expected output:
+Expected:
 ```
+# top-level skills
 ironsworn-character-builder
 ironsworn-progress-tracks
 ironsworn-world-truths
+
+# new skill dir
+SKILL.md
+references
+
+# references dir
+display.md
+journeys.md
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add plugins/ironsworn/skills/ironsworn-progress-tracks/SKILL.md
+git add plugins/ironsworn/skills/ironsworn-progress-tracks/
 git rm -r plugins/ironsworn/skills/ironsworn-journey
 git commit -m "feat(skill): add ironsworn-progress-tracks (replaces ironsworn-journey) (#60)"
 ```
@@ -1796,4 +1922,9 @@ All sections covered.
 
 **Type consistency:** `ProgressTrack["rank"]` and `ProgressTrack["kind"]` referenced consistently. `TICKS_PER_MARK` imported from `rules/ironsworn/progress.js` (already present). New constants `STRESS_BY_RANK` and `RANK_LADDER` defined where used. Tool response shapes match the spec.
 
-**One potential gap:** the spec mentions the `bonds` field in `Character` is a number, not a progress track — but the skill's section 6 says "use `tick_progress(track_name='bonds', marks=1)`." The skill text already flags this as needing confirmation in the implementation phase. The implementer should verify and adjust the skill text in Task 13 if `character.bonds` is incremented through a different mutation. This is called out inline in the skill content and is not a placeholder — it's an honest "verify before publishing this guidance."
+**Skill review feedback applied:**
+- Display Format and full Journeys workflow moved to `references/display.md` and `references/journeys.md` (progressive disclosure; main SKILL.md stays compact).
+- Bonds section ships concrete guidance (`character.bonds` is `number` per `state/character.ts:45`; increment via `override(path="bonds", value=N+1)` — verified against `tools/mutations.ts`, no dedicated bond-increment tool exists).
+- "Tools This Skill Governs" callout added near the top of SKILL.md.
+- Cross-link to `ironsworn-character-builder` Step 5 added in the background-vow paragraph.
+- Description front-matter expanded with literal player phrases ("swear a vow", "make camp", "fulfill my vow", etc.) for stronger triggering.
