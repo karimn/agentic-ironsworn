@@ -425,6 +425,99 @@ export function register(server: McpServer, campaignPath: string): void {
     },
   );
 
+  const STRESS_BY_RANK: Record<ProgressTrack["rank"], number> = {
+    troublesome: 1,
+    dangerous: 2,
+    formidable: 3,
+    extreme: 4,
+    epic: 5,
+  };
+
+  server.tool(
+    "forsake_vow",
+    [
+      "Forsake an active vow per the RAW Forsake Your Vow move.",
+      "",
+      "Atomically: sets status='forsaken', applies Endure Stress equal to rank",
+      "(troublesome=1, dangerous=2, formidable=3, extreme=4, epic=5),",
+      "and auto-closes the matching thread with resolution 'Forsaken[: <reason>]'.",
+      "Awards 0 XP — this is failure, not fulfillment.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the vow track to forsake (case-insensitive)"),
+      reason: z.string().optional().describe("Optional narrative reason recorded in the thread closure note"),
+    },
+    async ({ track_name, reason }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: forsake_vow applies to vow tracks only. Track "${track.name}" is kind="${track.kind}".` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+        const before = structuredClone(character);
+        track.status = "forsaken";
+        await saveCharacter(campaignPath, character);
+
+        const stressAmount = STRESS_BY_RANK[track.rank];
+        await sufferStress(campaignPath, stressAmount);
+
+        let threadClosed = false;
+        const threads = await loadThreads(campaignPath);
+        const openMatch = threads.find(
+          (t) => t.title.toLowerCase() === track_name.toLowerCase() && t.status === "open",
+        );
+        const resolutionNote = reason ? `Forsaken: ${reason}` : "Forsaken";
+        if (openMatch) {
+          await closeThread(campaignPath, openMatch.title, resolutionNote);
+          threadClosed = true;
+        }
+
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "forsakeVow",
+          before,
+          after: await loadCharacter(campaignPath),
+        });
+        recordMutation(campaignPath);
+
+        const finalChar = await loadCharacter(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            ok: true,
+            track: finalChar.progressTracks[idx],
+            stressApplied: stressAmount,
+            spirit: finalChar.spirit,
+            threadClosed,
+            xpGained: 0,
+          }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   server.tool(
     "create_progress_track",
     "Create a new progress track on the character",

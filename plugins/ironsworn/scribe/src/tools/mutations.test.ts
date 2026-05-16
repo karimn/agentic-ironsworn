@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -566,6 +566,157 @@ describe("reach_milestone", () => {
   it("rejects unknown track", async () => {
     const result = await client.callTool({
       name: "reach_milestone",
+      arguments: { track_name: "Nope" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not found/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #60: forsake_vow (vow-only, applies stress, closes thread)
+// ---------------------------------------------------------------------------
+
+describe("forsake_vow", () => {
+  it("sets status to forsaken", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Doomed", rank: "dangerous", kind: "vow" },
+    });
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Doomed", reason: "Too costly" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.status).toBe("forsaken");
+  });
+
+  it("applies stress equal to rank — troublesome=1, dangerous=2, formidable=3, extreme=4, epic=5", async () => {
+    // The fixture spirit is 3, so a stress of 5 would push below 0. Recreate with spirit=5
+    // by writing a fresh character file. We rebuild the harness inline for each rank to
+    // ensure isolation.
+    for (const [rank, stress] of [
+      ["troublesome", 1],
+      ["dangerous", 2],
+      ["formidable", 3],
+      ["extreme", 4],
+      ["epic", 5],
+    ] as const) {
+      // Reset the character file with spirit=5 and a single vow at this rank.
+      await writeFile(
+        join(campaignDir, "character.json"),
+        JSON.stringify({
+          ...CHARACTER_WITH_TRACKS,
+          spirit: 5,
+          progressTracks: [
+            { name: `${rank}-V`, rank, kind: "vow", ticks: 0, status: "active" },
+          ],
+        }),
+      );
+      const result = await client.callTool({
+        name: "forsake_vow",
+        arguments: { track_name: `${rank}-V` },
+      });
+      expect(result.isError).not.toBe(true);
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.stressApplied).toBe(stress);
+      expect(parsed.spirit).toBe(5 - stress);
+    }
+  });
+
+  it("closes matching thread with Forsaken: <reason> resolution", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Vengeance", rank: "dangerous", kind: "vow" },
+    });
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Vengeance", reason: "I cannot" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.threadClosed).toBe(true);
+
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "vengeance");
+    expect(thread).toBeDefined();
+    expect(thread!.status).toBe("closed");
+    expect(thread!.resolution).toBe("Forsaken: I cannot");
+  });
+
+  it("uses 'Forsaken' resolution if no reason given", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Quiet", rank: "troublesome", kind: "vow" },
+    });
+    await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Quiet" },
+    });
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "quiet");
+    expect(thread).toBeDefined();
+    expect(thread!.resolution).toBe("Forsaken");
+  });
+
+  it("awards 0 XP", async () => {
+    // Seed character with experience=5 and an epic vow.
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        spirit: 5,
+        experience: 5,
+        progressTracks: [
+          { name: "Noble", rank: "epic", kind: "vow", ticks: 30, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Noble" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.xpGained).toBe(0);
+    // Verify the character file's experience didn't change.
+    const charFile = await readFile(join(campaignDir, "character.json"), "utf8");
+    const char = JSON.parse(charFile);
+    expect(char.experience).toBe(5);
+  });
+
+  it("rejects non-vow tracks", async () => {
+    // "Explore the Caverns" is a journey track in the fixture
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Explore the Caverns" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/vow tracks only/);
+  });
+
+  it("rejects non-active vows", async () => {
+    // Fulfill the dangerous vow first, then try to forsake it.
+    await client.callTool({
+      name: "fulfill_progress",
+      arguments: { track_name: "Remove Caldren from Holtfen", outcome: "strong_hit" },
+    });
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not active/);
+  });
+
+  it("rejects unknown track", async () => {
+    const result = await client.callTool({
+      name: "forsake_vow",
       arguments: { track_name: "Nope" },
     });
     expect(result.isError).toBe(true);
