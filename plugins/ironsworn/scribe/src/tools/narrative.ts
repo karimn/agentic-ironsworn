@@ -229,7 +229,7 @@ export function register(server: McpServer, campaignPath: string): void {
         let track: ProgressTrack | undefined;
         if (kind === "vow" && rank !== undefined) {
           const character = await loadCharacter(campaignPath);
-          track = { name: title, rank: rank as ProgressTrack["rank"], kind: "vow", ticks: 0, completed: false };
+          track = { name: title, rank: rank as ProgressTrack["rank"], kind: "vow", ticks: 0, status: "active" };
           character.progressTracks.push(track);
           await saveCharacter(campaignPath, character);
         }
@@ -249,7 +249,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "close_thread",
-    "Close an existing narrative thread with a resolution. If the thread is a vow, also marks the matching progress track as completed (case-insensitive name match).",
+    "Close an existing narrative thread with a resolution. If the thread is a vow, also marks the matching progress track as fulfilled (case-insensitive name match).",
     {
       title: z.string().describe("Title of the thread to close (case-insensitive)"),
       resolution: z.string().describe("How the thread was resolved"),
@@ -258,7 +258,7 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const thread = await closeThread(campaignPath, title, resolution);
 
-        // Issue #3: mark matching progress track completed when closing a vow
+        // Issue #3: mark matching progress track fulfilled when closing a vow
         let trackUpdated = false;
         if (thread.kind === "vow") {
           const character = await loadCharacter(campaignPath);
@@ -266,7 +266,7 @@ export function register(server: McpServer, campaignPath: string): void {
             (t) => t.name.toLowerCase() === title.toLowerCase(),
           );
           if (idx !== -1) {
-            character.progressTracks[idx]!.completed = true;
+            character.progressTracks[idx]!.status = "fulfilled";
             await saveCharacter(campaignPath, character);
             trackUpdated = true;
           }

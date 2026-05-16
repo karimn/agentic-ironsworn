@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -22,10 +22,10 @@ const CHARACTER_WITH_TRACKS = {
   debilities: {},
   assets: [],
   progressTracks: [
-    { name: "Remove Caldren from Holtfen", rank: "dangerous", kind: "vow", ticks: 0, completed: false },
-    { name: "Explore the Caverns", rank: "troublesome", kind: "journey", ticks: 20, completed: false },
-    { name: "Almost Full", rank: "formidable", kind: "vow", ticks: 36, completed: false },
-    { name: "Combat Ended", rank: "formidable", kind: "combat", ticks: 40, completed: false },
+    { name: "Remove Caldren from Holtfen", rank: "dangerous", kind: "vow", ticks: 0, status: "active" },
+    { name: "Explore the Caverns", rank: "troublesome", kind: "journey", ticks: 20, status: "active" },
+    { name: "Almost Full", rank: "formidable", kind: "vow", ticks: 36, status: "active" },
+    { name: "Combat Ended", rank: "formidable", kind: "combat", ticks: 40, status: "active" },
   ],
   companions: [],
   bonds: 0,
@@ -280,7 +280,7 @@ describe("tick_progress", () => {
 });
 
 describe("close_track", () => {
-  it("marks a non-vow track as completed without awarding XP", async () => {
+  it("marks a non-vow track as fulfilled without awarding XP", async () => {
     const result = await client.callTool({
       name: "close_track",
       arguments: { track_name: "Combat Ended" },
@@ -288,7 +288,7 @@ describe("close_track", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
     expect(parsed.xpAwarded).toBe(0);
   });
 
@@ -303,7 +303,7 @@ describe("close_track", () => {
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
     expect(parsed.xpAwarded).toBe(0);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
     expect(parsed.track.name).toBe("Explore the Caverns");
   });
 
@@ -315,7 +315,7 @@ describe("close_track", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
     expect(parsed.xpAwarded).toBe(0);
   });
 
@@ -327,7 +327,7 @@ describe("close_track", () => {
     expect(result.isError).toBe(true);
   });
 
-  it("is idempotent — closing an already-completed track succeeds", async () => {
+  it("is idempotent — closing an already-fulfilled track succeeds", async () => {
     // First close
     await client.callTool({ name: "close_track", arguments: { track_name: "Combat Ended" } });
     // Second close — should still succeed
@@ -338,7 +338,7 @@ describe("close_track", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
   });
 });
 
@@ -457,5 +457,392 @@ describe("fulfill_progress — vow auto-closes matching thread", () => {
     const threads = await loadThreads(campaignDir);
     const thread = threads.find((t) => t.title.toLowerCase() === "explore the caverns");
     expect(thread?.status).toBe("open");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #60: reach_milestone (vow-only)
+// ---------------------------------------------------------------------------
+
+describe("reach_milestone", () => {
+  it("applies rank-correct ticks for count=1 — troublesome (12 ticks)", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "T-Vow", rank: "troublesome", kind: "vow" },
+    });
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "T-Vow" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.ticks).toBe(12);
+    expect(parsed.applied.milestones_applied).toBe(1);
+    expect(parsed.applied.ticks_added).toBe(12);
+    expect(parsed.applied.prior_ticks).toBe(0);
+    expect(parsed.applied.clamped).toBe(false);
+  });
+
+  it("applies rank-correct ticks — dangerous (8), formidable (4), extreme (2), epic (1)", async () => {
+    for (const [rank, ticks] of [
+      ["dangerous", 8],
+      ["formidable", 4],
+      ["extreme", 2],
+      ["epic", 1],
+    ] as const) {
+      const trackName = `${rank}-Vow`;
+      await client.callTool({
+        name: "create_progress_track",
+        arguments: { name: trackName, rank, kind: "vow" },
+      });
+      const result = await client.callTool({
+        name: "reach_milestone",
+        arguments: { track_name: trackName },
+      });
+      expect(result.isError).not.toBe(true);
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.track.ticks).toBe(ticks);
+    }
+  });
+
+  it("applies count=2 correctly (dangerous = 16 ticks)", async () => {
+    // "Remove Caldren from Holtfen" is a dangerous vow at ticks=0 in the fixture
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Remove Caldren from Holtfen", count: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.ticks).toBe(16);
+    expect(parsed.applied.milestones_applied).toBe(2);
+    expect(parsed.applied.ticks_added).toBe(16);
+  });
+
+  it("rejects non-vow tracks", async () => {
+    // "Explore the Caverns" is a journey track in the fixture
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Explore the Caverns" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/vow tracks only/);
+    expect(text).toMatch(/tick_progress/);
+  });
+
+  it("rejects non-active tracks", async () => {
+    // Fulfill "Remove Caldren from Holtfen" first, then try reach_milestone on it
+    await client.callTool({
+      name: "fulfill_progress",
+      arguments: { track_name: "Remove Caldren from Holtfen", outcome: "strong_hit" },
+    });
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not active/);
+  });
+
+  it("clamps at 40 with warning", async () => {
+    // "Almost Full" is a formidable vow at ticks=36 (4 from max). One milestone = 4 ticks → exactly fills.
+    // Apply count=2 → requested 8 ticks, only 4 fit, clamp.
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Almost Full", count: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.ticks).toBe(40);
+    expect(parsed.applied.prior_ticks).toBe(36);
+    expect(parsed.applied.ticks_added).toBe(4);
+    expect(parsed.applied.clamped).toBe(true);
+    expect(parsed.warnings).toBeDefined();
+    expect(parsed.warnings).toHaveLength(1);
+  });
+
+  it("rejects unknown track", async () => {
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Nope" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not found/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #60: forsake_vow (vow-only, applies stress, closes thread)
+// ---------------------------------------------------------------------------
+
+describe("forsake_vow", () => {
+  it("sets status to forsaken", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Doomed", rank: "dangerous", kind: "vow" },
+    });
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Doomed", reason: "Too costly" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.status).toBe("forsaken");
+  });
+
+  it("applies stress equal to rank — troublesome=1, dangerous=2, formidable=3, extreme=4, epic=5", async () => {
+    // The fixture spirit is 3, so a stress of 5 would push below 0. Recreate with spirit=5
+    // by writing a fresh character file. We rebuild the harness inline for each rank to
+    // ensure isolation.
+    for (const [rank, stress] of [
+      ["troublesome", 1],
+      ["dangerous", 2],
+      ["formidable", 3],
+      ["extreme", 4],
+      ["epic", 5],
+    ] as const) {
+      // Reset the character file with spirit=5 and a single vow at this rank.
+      await writeFile(
+        join(campaignDir, "character.json"),
+        JSON.stringify({
+          ...CHARACTER_WITH_TRACKS,
+          spirit: 5,
+          progressTracks: [
+            { name: `${rank}-V`, rank, kind: "vow", ticks: 0, status: "active" },
+          ],
+        }),
+      );
+      const result = await client.callTool({
+        name: "forsake_vow",
+        arguments: { track_name: `${rank}-V` },
+      });
+      expect(result.isError).not.toBe(true);
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.stressApplied).toBe(stress);
+      expect(parsed.spirit).toBe(5 - stress);
+    }
+  });
+
+  it("closes matching thread with Forsaken: <reason> resolution", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Vengeance", rank: "dangerous", kind: "vow" },
+    });
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Vengeance", reason: "I cannot" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.threadClosed).toBe(true);
+
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "vengeance");
+    expect(thread).toBeDefined();
+    expect(thread!.status).toBe("closed");
+    expect(thread!.resolution).toBe("Forsaken: I cannot");
+  });
+
+  it("uses 'Forsaken' resolution if no reason given", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Quiet", rank: "troublesome", kind: "vow" },
+    });
+    await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Quiet" },
+    });
+    const threads = await loadThreads(campaignDir);
+    const thread = threads.find((t) => t.title.toLowerCase() === "quiet");
+    expect(thread).toBeDefined();
+    expect(thread!.resolution).toBe("Forsaken");
+  });
+
+  it("awards 0 XP", async () => {
+    // Seed character with experience=5 and an epic vow.
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        spirit: 5,
+        experience: 5,
+        progressTracks: [
+          { name: "Noble", rank: "epic", kind: "vow", ticks: 30, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Noble" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.xpGained).toBe(0);
+    // Verify the character file's experience didn't change.
+    const charFile = await readFile(join(campaignDir, "character.json"), "utf8");
+    const char = JSON.parse(charFile);
+    expect(char.experience).toBe(5);
+  });
+
+  it("rejects non-vow tracks", async () => {
+    // "Explore the Caverns" is a journey track in the fixture
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Explore the Caverns" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/vow tracks only/);
+  });
+
+  it("rejects non-active vows", async () => {
+    // Fulfill the dangerous vow first, then try to forsake it.
+    await client.callTool({
+      name: "fulfill_progress",
+      arguments: { track_name: "Remove Caldren from Holtfen", outcome: "strong_hit" },
+    });
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not active/);
+  });
+
+  it("rejects unknown track", async () => {
+    const result = await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Nope" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not found/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #60: recommit_vow (Fulfill-miss recommit branch — clears progress, bumps rank)
+// ---------------------------------------------------------------------------
+
+describe("recommit_vow", () => {
+  it("clears to 4 ticks if any boxes were filled (16 -> 4)", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        progressTracks: [
+          { name: "R", rank: "dangerous", kind: "vow", ticks: 16, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "R" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.ticks).toBe(4);
+    expect(parsed.track.rank).toBe("formidable");
+    expect(parsed.track.status).toBe("active");
+    expect(parsed.priorTicks).toBe(16);
+    expect(parsed.priorRank).toBe("dangerous");
+  });
+
+  it("clears to 0 if no boxes were filled (3 -> 0)", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        progressTracks: [
+          { name: "R", rank: "dangerous", kind: "vow", ticks: 3, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "R" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.ticks).toBe(0);
+    expect(parsed.track.rank).toBe("formidable");
+  });
+
+  it("raises rank one tier — troublesome->dangerous->formidable->extreme->epic", async () => {
+    for (const [from, to] of [
+      ["troublesome", "dangerous"],
+      ["dangerous", "formidable"],
+      ["formidable", "extreme"],
+      ["extreme", "epic"],
+    ] as const) {
+      await writeFile(
+        join(campaignDir, "character.json"),
+        JSON.stringify({
+          ...CHARACTER_WITH_TRACKS,
+          progressTracks: [
+            { name: from, rank: from, kind: "vow", ticks: 0, status: "active" },
+          ],
+        }),
+      );
+      const result = await client.callTool({
+        name: "recommit_vow",
+        arguments: { track_name: from },
+      });
+      expect(result.isError).not.toBe(true);
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.track.rank).toBe(to);
+    }
+  });
+
+  it("epic stays epic (no-op rank bump)", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        progressTracks: [
+          { name: "E", rank: "epic", kind: "vow", ticks: 16, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "E" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.rank).toBe("epic");
+    expect(parsed.track.ticks).toBe(4);
+  });
+
+  it("rejects non-vow tracks", async () => {
+    // "Explore the Caverns" is a journey track in the fixture
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "Explore the Caverns" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/vow tracks only/);
+  });
+
+  it("rejects non-active vows", async () => {
+    // Fulfill the dangerous vow first, then try to recommit it.
+    await client.callTool({
+      name: "fulfill_progress",
+      arguments: { track_name: "Remove Caldren from Holtfen", outcome: "strong_hit" },
+    });
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not active/);
   });
 });

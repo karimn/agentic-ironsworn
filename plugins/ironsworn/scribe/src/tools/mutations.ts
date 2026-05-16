@@ -23,8 +23,9 @@ import {
   closeTrack,
   Character,
 } from "../state/character.js";
+import type { ProgressTrack } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
-import { tickProgress, vowXp, TICKS_PER_MARK } from "../rules/ironsworn/progress.js";
+import { tickProgress, vowXp, TICKS_PER_MARK, STRESS_BY_RANK, RANK_LADDER } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { recordMutation } from "../checkpoint.js";
@@ -260,6 +261,11 @@ export function register(server: McpServer, campaignPath: string): void {
     [
       "Tick a named progress track by the given number of marks.",
       "",
+      "Use `reach_milestone` for vow advancement (RAW Reach a Milestone).",
+      "Use `tick_progress` for: journey waypoints (1 mark per Undertake hit),",
+      "combat harm (rank-dependent ticks per harm point), bond progress (1 raw tick),",
+      "and scene-challenge progress.",
+      "",
       "IMPORTANT — unit clarification:",
       "  `marks` is the number of *progress marks* (boxes), NOT raw ticks.",
       "  Each mark equals a rank-dependent number of ticks:",
@@ -294,6 +300,12 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         const requestedMarks = marks ?? 1;
         const track = character.progressTracks[idx]!;
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
         const priorTicks = track.ticks;
         const ticksRequested = requestedMarks * TICKS_PER_MARK[track.rank];
         const before = structuredClone(character);
@@ -333,6 +345,242 @@ export function register(server: McpServer, campaignPath: string): void {
   );
 
   server.tool(
+    "reach_milestone",
+    [
+      "Apply RAW Reach a Milestone events to a vow track. Vow-only.",
+      "",
+      "RAW: when the player overcomes a critical obstacle directly tied to a vow,",
+      "call this with the vow's track_name. The tool reads the track's rank and",
+      "applies the canonical milestone amount (troublesome=3 boxes, dangerous=2,",
+      "formidable=1, extreme=2 ticks, epic=1 tick). One call = one milestone event.",
+      "",
+      "For non-vow tracks (journey waypoints, combat harm, bonds, scene challenges)",
+      "use tick_progress instead — those have their own tick semantics.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the vow track (case-insensitive)"),
+      count: z.coerce.number().int().positive().optional().describe(
+        "Number of milestone events to apply (default 1).",
+      ),
+    },
+    async ({ track_name, count }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: reach_milestone applies to vow tracks only. Track "${track.name}" is kind="${track.kind}". For journey waypoints, combat harm, or bonds, use tick_progress.` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+        const milestonesApplied = count ?? 1;
+        const priorTicks = track.ticks;
+        const ticksRequested = milestonesApplied * TICKS_PER_MARK[track.rank];
+        const before = structuredClone(character);
+        const updatedTrack = tickProgress(track, milestonesApplied);
+        const ticksAdded = updatedTrack.ticks - priorTicks;
+        const clamped = ticksAdded < ticksRequested;
+        character.progressTracks[idx] = updatedTrack;
+        await saveCharacter(campaignPath, character);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "reachMilestone",
+          before,
+          after: character,
+        });
+        recordMutation(campaignPath);
+        const applied = {
+          milestones_applied: milestonesApplied,
+          ticks_added: ticksAdded,
+          prior_ticks: priorTicks,
+          clamped,
+        };
+        const warnings: string[] = clamped
+          ? [`Requested ${milestonesApplied} milestone(s) (${ticksRequested} ticks) would exceed max; clamped at 40`]
+          : [];
+        const payload: Record<string, unknown> = { ok: true, track: updatedTrack, applied };
+        if (warnings.length > 0) payload.warnings = warnings;
+        return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "forsake_vow",
+    [
+      "Forsake an active vow per the RAW Forsake Your Vow move.",
+      "",
+      "Atomically: sets status='forsaken', applies Endure Stress equal to rank",
+      "(troublesome=1, dangerous=2, formidable=3, extreme=4, epic=5),",
+      "and auto-closes the matching thread with resolution 'Forsaken[: <reason>]'.",
+      "Awards 0 XP — this is failure, not fulfillment.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the vow track to forsake (case-insensitive)"),
+      reason: z.string().optional().describe("Optional narrative reason recorded in the thread closure note"),
+    },
+    async ({ track_name, reason }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: forsake_vow applies to vow tracks only. Track "${track.name}" is kind="${track.kind}".` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+        const before = structuredClone(character);
+        track.status = "forsaken";
+        await saveCharacter(campaignPath, character);
+
+        const stressAmount = STRESS_BY_RANK[track.rank];
+        await sufferStress(campaignPath, stressAmount);
+
+        let threadClosed = false;
+        const threads = await loadThreads(campaignPath);
+        const openMatch = threads.find(
+          (t) => t.title.toLowerCase() === track_name.toLowerCase() && t.status === "open",
+        );
+        const resolutionNote = reason ? `Forsaken: ${reason}` : "Forsaken";
+        if (openMatch) {
+          await closeThread(campaignPath, openMatch.title, resolutionNote);
+          threadClosed = true;
+        }
+
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "forsakeVow",
+          before,
+          after: await loadCharacter(campaignPath),
+        });
+        recordMutation(campaignPath);
+
+        const finalChar = await loadCharacter(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            ok: true,
+            track: finalChar.progressTracks[idx],
+            stressApplied: stressAmount,
+            spirit: finalChar.spirit,
+            threadClosed,
+            xpGained: 0,
+          }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "recommit_vow",
+    [
+      "Recommit to a vow after a Fulfill Your Vow miss (RAW: 'You recommit').",
+      "",
+      "Clears all but one filled progress box and raises rank by one tier",
+      "(epic stays epic). The track remains active — the vow continues.",
+      "Use this when the player chooses 'recommit' on a Fulfill miss.",
+      "For 'give up', use forsake_vow instead.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the vow track to recommit (case-insensitive)"),
+    },
+    async ({ track_name }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: recommit_vow applies to vow tracks only. Track "${track.name}" is kind="${track.kind}".` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+        const before = structuredClone(character);
+        const priorTicks = track.ticks;
+        const priorRank = track.rank;
+        const TICKS_PER_BOX = 4;
+        track.ticks = priorTicks >= TICKS_PER_BOX ? TICKS_PER_BOX : 0;
+        const rankIdx = RANK_LADDER.indexOf(priorRank);
+        track.rank = RANK_LADDER[Math.min(rankIdx + 1, RANK_LADDER.length - 1)]!;
+        await saveCharacter(campaignPath, character);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "recommitVow",
+          before,
+          after: character,
+        });
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            ok: true,
+            track,
+            priorTicks,
+            priorRank,
+          }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "create_progress_track",
     "Create a new progress track on the character",
     {
@@ -347,7 +595,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ name, rank, kind }) => {
       try {
         const character = await loadCharacter(campaignPath);
-        const newTrack = { name, rank, kind, ticks: 0, completed: false };
+        const newTrack: ProgressTrack = { name, rank, kind, ticks: 0, status: "active" };
         character.progressTracks.push(newTrack);
         await saveCharacter(campaignPath, character);
 
@@ -378,7 +626,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "fulfill_progress",
     [
-      "Fulfill a progress track: marks it completed.",
+      "Fulfill a progress track: marks it fulfilled.",
       "For vow tracks, also grants XP based on the rank and the roll outcome from roll_progress.",
       "Non-vow tracks (journey, combat, etc.) always grant 0 XP.",
       "",
@@ -408,7 +656,7 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         const before = structuredClone(character);
         const track = character.progressTracks[idx]!;
-        track.completed = true;
+        track.status = "fulfilled";
         const xpGained = vowXp(track, outcome);
         character.experience += xpGained;
         await saveCharacter(campaignPath, character);
@@ -450,11 +698,11 @@ export function register(server: McpServer, campaignPath: string): void {
     [
       "Dismiss/close a progress track without awarding XP.",
       "Use this for non-vow tracks (combat, journey, bond, other) that have resolved fictionally",
-      "but were never formally completed via fulfill_progress — e.g. a battle that ended narratively,",
+      "but were never formally fulfilled via fulfill_progress — e.g. a battle that ended narratively,",
       "a journey that was abandoned, or any track sitting at 40/40 after the fiction has moved on.",
       "Also works for vow tracks when you want to abandon a vow without XP.",
       "",
-      "The track is marked completed=true (same flag as fulfill_progress) but no XP is awarded.",
+      "The track's status is set to 'fulfilled' (same as fulfill_progress) but no XP is awarded.",
       "After closing, the track will no longer appear in session_briefing's 'ready' or 'open' buckets.",
     ].join("\n"),
     {

@@ -9,6 +9,26 @@ export const TICKS_PER_MARK: Record<ProgressTrack["rank"], number> = {
   epic: 1,
 };
 
+export const STRESS_BY_RANK: Record<ProgressTrack["rank"], number> = {
+  troublesome: 1,
+  dangerous: 2,
+  formidable: 3,
+  extreme: 4,
+  epic: 5,
+};
+
+/**
+ * Ordered rank ladder used by `recommit_vow` to bump rank one tier on a
+ * Fulfill Your Vow miss. Epic stays epic (no further escalation).
+ */
+export const RANK_LADDER: ProgressTrack["rank"][] = [
+  "troublesome",
+  "dangerous",
+  "formidable",
+  "extreme",
+  "epic",
+];
+
 /**
  * XP awarded when fulfilling a vow, indexed by rank then outcome.
  * Only vows award XP (journeys, combat, etc. grant 0).
