@@ -724,3 +724,125 @@ describe("forsake_vow", () => {
     expect(text).toMatch(/not found/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// issue #60: recommit_vow (Fulfill-miss recommit branch — clears progress, bumps rank)
+// ---------------------------------------------------------------------------
+
+describe("recommit_vow", () => {
+  it("clears to 4 ticks if any boxes were filled (16 -> 4)", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        progressTracks: [
+          { name: "R", rank: "dangerous", kind: "vow", ticks: 16, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "R" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.ticks).toBe(4);
+    expect(parsed.track.rank).toBe("formidable");
+    expect(parsed.track.status).toBe("active");
+    expect(parsed.priorTicks).toBe(16);
+    expect(parsed.priorRank).toBe("dangerous");
+  });
+
+  it("clears to 0 if no boxes were filled (3 -> 0)", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        progressTracks: [
+          { name: "R", rank: "dangerous", kind: "vow", ticks: 3, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "R" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.ticks).toBe(0);
+    expect(parsed.track.rank).toBe("formidable");
+  });
+
+  it("raises rank one tier — troublesome->dangerous->formidable->extreme->epic", async () => {
+    for (const [from, to] of [
+      ["troublesome", "dangerous"],
+      ["dangerous", "formidable"],
+      ["formidable", "extreme"],
+      ["extreme", "epic"],
+    ] as const) {
+      await writeFile(
+        join(campaignDir, "character.json"),
+        JSON.stringify({
+          ...CHARACTER_WITH_TRACKS,
+          progressTracks: [
+            { name: from, rank: from, kind: "vow", ticks: 0, status: "active" },
+          ],
+        }),
+      );
+      const result = await client.callTool({
+        name: "recommit_vow",
+        arguments: { track_name: from },
+      });
+      expect(result.isError).not.toBe(true);
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.track.rank).toBe(to);
+    }
+  });
+
+  it("epic stays epic (no-op rank bump)", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        progressTracks: [
+          { name: "E", rank: "epic", kind: "vow", ticks: 16, status: "active" },
+        ],
+      }),
+    );
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "E" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.rank).toBe("epic");
+    expect(parsed.track.ticks).toBe(4);
+  });
+
+  it("rejects non-vow tracks", async () => {
+    // "Explore the Caverns" is a journey track in the fixture
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "Explore the Caverns" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/vow tracks only/);
+  });
+
+  it("rejects non-active vows", async () => {
+    // Fulfill the dangerous vow first, then try to recommit it.
+    await client.callTool({
+      name: "fulfill_progress",
+      arguments: { track_name: "Remove Caldren from Holtfen", outcome: "strong_hit" },
+    });
+    const result = await client.callTool({
+      name: "recommit_vow",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not active/);
+  });
+});

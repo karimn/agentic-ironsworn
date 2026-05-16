@@ -25,7 +25,7 @@ import {
 } from "../state/character.js";
 import type { ProgressTrack } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
-import { tickProgress, vowXp, TICKS_PER_MARK, STRESS_BY_RANK } from "../rules/ironsworn/progress.js";
+import { tickProgress, vowXp, TICKS_PER_MARK, STRESS_BY_RANK, RANK_LADDER } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { recordMutation } from "../checkpoint.js";
@@ -499,6 +499,75 @@ export function register(server: McpServer, campaignPath: string): void {
             spirit: finalChar.spirit,
             threadClosed,
             xpGained: 0,
+          }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "recommit_vow",
+    [
+      "Recommit to a vow after a Fulfill Your Vow miss (RAW: 'You recommit').",
+      "",
+      "Clears all but one filled progress box and raises rank by one tier",
+      "(epic stays epic). The track remains active — the vow continues.",
+      "Use this when the player chooses 'recommit' on a Fulfill miss.",
+      "For 'give up', use forsake_vow instead.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the vow track to recommit (case-insensitive)"),
+    },
+    async ({ track_name }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: recommit_vow applies to vow tracks only. Track "${track.name}" is kind="${track.kind}".` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+        const before = structuredClone(character);
+        const priorTicks = track.ticks;
+        const priorRank = track.rank;
+        track.ticks = priorTicks >= 4 ? 4 : 0;
+        const rankIdx = RANK_LADDER.indexOf(priorRank);
+        track.rank = RANK_LADDER[Math.min(rankIdx + 1, RANK_LADDER.length - 1)]!;
+        await saveCharacter(campaignPath, character);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "recommitVow",
+          before,
+          after: character,
+        });
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({
+            ok: true,
+            track,
+            priorTicks,
+            priorRank,
           }) }],
         };
       } catch (e) {

@@ -18,6 +18,18 @@ export const STRESS_BY_RANK: Record<ProgressTrack["rank"], number> = {
 };
 
 /**
+ * Ordered rank ladder used by `recommit_vow` to bump rank one tier on a
+ * Fulfill Your Vow miss. Epic stays epic (no further escalation).
+ */
+export const RANK_LADDER: ProgressTrack["rank"][] = [
+  "troublesome",
+  "dangerous",
+  "formidable",
+  "extreme",
+  "epic",
+];
+
+/**
  * XP awarded when fulfilling a vow, indexed by rank then outcome.
  * Only vows award XP (journeys, combat, etc. grant 0).
  * Source: Ironsworn core rules, Fulfill Your Vow move.
