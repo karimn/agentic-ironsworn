@@ -91,3 +91,21 @@ If matches feel routine, the rulebook's optional rule (p.231) restricts match-ef
 - Translation: the blade slips past your guard — a shallow cut that burns wrong. From the trees, a second figure steps out: the raider you thought you'd buried, walking again.
 - Mechanical: `ironsworn-suffer` → `suffer_harm(1)`; reopen the thread; consider rank escalation on the foe.
 - `record_scene` with the dominant theme — likely `complication_theme: "supernatural-corruption"`, with a secondary note in the scene body about factional reappearance.
+
+---
+
+## NPC-as-Consequence (when an NPC is onstage)
+
+When the missed move is *aimed at an NPC* (Compel, Forge a Bond, Test Your Bond, Aid Your Ally), the NPC's drives often *are* the complication shape — reach there before the abstract palette. `ironsworn-npc-voice` is the source of truth for drive-shaped delivery; this skill names the discipline.
+
+**Example — Compel miss against a holdfast diplomat whose drive is "preserve appearances at any cost."**
+
+- `search_lore` returns the diplomat (drive: preserve appearances) and a closed thread "The Holtfen Compromise" — half-spoken, never settled.
+- `get_recent_complications`: factional, factional, weather. Social is fresh.
+- The consequence shape *is* the drive: the diplomat does not refuse, does not yield, does not budge. The form they take is itself the cost — every hour spent here is an hour your vow doesn't progress, and they will let you sit through it.
+- Mechanical: defer to `ironsworn-suffer` → `suffer_stress(2)` (the slow grind of unmoved formality), and open a debt thread for the favor implicit in the room.
+- `record_scene` `complication_theme: "interpersonal"`.
+
+The d100 table is *not* the first place to look here. The drive is. Texture follows from voice (`ironsworn-npc-voice`) before it follows from category.
+
+**Weak-hit "ask in return" (rulebook p.80) follows the same rule.** A Compel weak hit where the NPC asks a favor must echo their drives — a war-jarl asks for steel, a holtfen elder asks for a tally settled, a bonded healer asks for the truth told. Generic asks ("they want a favor, TBD") are paperwork. Open the debt thread; close the loop in the next scene.
