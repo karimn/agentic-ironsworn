@@ -94,7 +94,7 @@ describe("openThread vow auto-track (issue #2)", () => {
     const { loadCharacter: lc, saveCharacter: sc } = await import("./character.js");
     await openThread(campaignDir, "Slay the Beast", "vow");
     const char = await lc(campaignDir);
-    const track = { name: "Slay the Beast", rank: "formidable" as const, kind: "vow" as const, ticks: 0, completed: false };
+    const track = { name: "Slay the Beast", rank: "formidable" as const, kind: "vow" as const, ticks: 0, status: "active" as const };
     char.progressTracks.push(track);
     await sc(campaignDir, char);
 
@@ -103,7 +103,7 @@ describe("openThread vow auto-track (issue #2)", () => {
     expect(loaded.progressTracks[0]!.name).toBe("Slay the Beast");
     expect(loaded.progressTracks[0]!.rank).toBe("formidable");
     expect(loaded.progressTracks[0]!.kind).toBe("vow");
-    expect(loaded.progressTracks[0]!.completed).toBe(false);
+    expect(loaded.progressTracks[0]!.status).toBe("active");
   });
 
   it("does not require a progress track for non-vow threads", async () => {
@@ -114,7 +114,7 @@ describe("openThread vow auto-track (issue #2)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Issue #3: close_thread on a vow marks its progress track completed
+// Issue #3: close_thread on a vow marks its progress track fulfilled
 // ---------------------------------------------------------------------------
 
 describe("closeThread vow track sync (issue #3)", () => {
@@ -122,11 +122,11 @@ describe("closeThread vow track sync (issue #3)", () => {
     await saveCharacter(campaignDir, structuredClone(SAMPLE_CHARACTER));
   });
 
-  it("marks a matching vow progress track as completed on close", async () => {
+  it("marks a matching vow progress track as fulfilled on close", async () => {
     await openThread(campaignDir, "Defend the Village", "vow");
     // Add a matching progress track
     const char = await loadCharacter(campaignDir);
-    char.progressTracks.push({ name: "Defend the Village", rank: "dangerous", kind: "vow", ticks: 20, completed: false });
+    char.progressTracks.push({ name: "Defend the Village", rank: "dangerous", kind: "vow", ticks: 20, status: "active" });
     await saveCharacter(campaignDir, char);
 
     // Close the thread (simulating the narrative.ts tool handler logic)
@@ -140,7 +140,7 @@ describe("closeThread vow track sync (issue #3)", () => {
         (t) => t.name.toLowerCase() === "defend the village",
       );
       if (idx !== -1) {
-        updatedChar.progressTracks[idx]!.completed = true;
+        updatedChar.progressTracks[idx]!.status = "fulfilled";
         await saveCharacter(campaignDir, updatedChar);
       }
     }
@@ -150,13 +150,13 @@ describe("closeThread vow track sync (issue #3)", () => {
       (t) => t.name.toLowerCase() === "defend the village",
     );
     expect(track).toBeDefined();
-    expect(track!.completed).toBe(true);
+    expect(track!.status).toBe("fulfilled");
   });
 
   it("closing a non-vow thread does not affect progress tracks", async () => {
     await openThread(campaignDir, "A Trade Debt", "debt");
     const char = await loadCharacter(campaignDir);
-    char.progressTracks.push({ name: "A Trade Debt", rank: "troublesome", kind: "other", ticks: 10, completed: false });
+    char.progressTracks.push({ name: "A Trade Debt", rank: "troublesome", kind: "other", ticks: 10, status: "active" });
     await saveCharacter(campaignDir, char);
 
     const thread = await closeThread(campaignDir, "A Trade Debt", "Debt repaid.");
@@ -164,6 +164,6 @@ describe("closeThread vow track sync (issue #3)", () => {
 
     // No track update for non-vow
     const finalChar = await loadCharacter(campaignDir);
-    expect(finalChar.progressTracks[0]!.completed).toBe(false);
+    expect(finalChar.progressTracks[0]!.status).toBe("active");
   });
 });

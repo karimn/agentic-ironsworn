@@ -22,10 +22,10 @@ const CHARACTER_WITH_TRACKS = {
   debilities: {},
   assets: [],
   progressTracks: [
-    { name: "Remove Caldren from Holtfen", rank: "dangerous", kind: "vow", ticks: 0, completed: false },
-    { name: "Explore the Caverns", rank: "troublesome", kind: "journey", ticks: 20, completed: false },
-    { name: "Almost Full", rank: "formidable", kind: "vow", ticks: 36, completed: false },
-    { name: "Combat Ended", rank: "formidable", kind: "combat", ticks: 40, completed: false },
+    { name: "Remove Caldren from Holtfen", rank: "dangerous", kind: "vow", ticks: 0, status: "active" },
+    { name: "Explore the Caverns", rank: "troublesome", kind: "journey", ticks: 20, status: "active" },
+    { name: "Almost Full", rank: "formidable", kind: "vow", ticks: 36, status: "active" },
+    { name: "Combat Ended", rank: "formidable", kind: "combat", ticks: 40, status: "active" },
   ],
   companions: [],
   bonds: 0,
@@ -280,7 +280,7 @@ describe("tick_progress", () => {
 });
 
 describe("close_track", () => {
-  it("marks a non-vow track as completed without awarding XP", async () => {
+  it("marks a non-vow track as fulfilled without awarding XP", async () => {
     const result = await client.callTool({
       name: "close_track",
       arguments: { track_name: "Combat Ended" },
@@ -288,7 +288,7 @@ describe("close_track", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
     expect(parsed.xpAwarded).toBe(0);
   });
 
@@ -303,7 +303,7 @@ describe("close_track", () => {
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
     expect(parsed.xpAwarded).toBe(0);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
     expect(parsed.track.name).toBe("Explore the Caverns");
   });
 
@@ -315,7 +315,7 @@ describe("close_track", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
     expect(parsed.xpAwarded).toBe(0);
   });
 
@@ -327,7 +327,7 @@ describe("close_track", () => {
     expect(result.isError).toBe(true);
   });
 
-  it("is idempotent — closing an already-completed track succeeds", async () => {
+  it("is idempotent — closing an already-fulfilled track succeeds", async () => {
     // First close
     await client.callTool({ name: "close_track", arguments: { track_name: "Combat Ended" } });
     // Second close — should still succeed
@@ -338,7 +338,7 @@ describe("close_track", () => {
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.ok).toBe(true);
-    expect(parsed.track.completed).toBe(true);
+    expect(parsed.track.status).toBe("fulfilled");
   });
 });
 

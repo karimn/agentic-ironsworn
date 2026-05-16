@@ -1,6 +1,6 @@
 // Tests for session_briefing tool
 // Verifies:
-//   (a) tracks are correctly bucketed into open/ready/completed
+//   (a) tracks are correctly bucketed into open/ready/fulfilled/forsaken
 //   (b) recent_scenes are returned chronological oldest-first
 //   (c) threads are split into open/closed_recently
 //   (d) the tool composes correctly from existing state
@@ -31,11 +31,11 @@ const BASE_CHARACTER: Character = {
   debilities: Object.fromEntries(DEBILITIES.map((d) => [d, false])),
   assets: [],
   progressTracks: [
-    { name: "The Iron Vow", rank: "dangerous", kind: "vow", ticks: 16, completed: false },   // open (16 < 40)
-    { name: "Hunt the Troll", rank: "formidable", kind: "combat", ticks: 8, completed: false }, // open (8 < 40)
-    { name: "Combat Resolved", rank: "dangerous", kind: "combat", ticks: 40, completed: false }, // ready (40, not yet completed)
-    { name: "Journey Done", rank: "troublesome", kind: "journey", ticks: 40, completed: false }, // ready (40, not yet completed)
-    { name: "Old Vow", rank: "epic", kind: "vow", ticks: 30, completed: true }, // completed
+    { name: "The Iron Vow", rank: "dangerous", kind: "vow", ticks: 16, status: "active" },   // open (16 < 40)
+    { name: "Hunt the Troll", rank: "formidable", kind: "combat", ticks: 8, status: "active" }, // open (8 < 40)
+    { name: "Combat Resolved", rank: "dangerous", kind: "combat", ticks: 40, status: "active" }, // ready (40, not yet fulfilled)
+    { name: "Journey Done", rank: "troublesome", kind: "journey", ticks: 40, status: "active" }, // ready (40, not yet fulfilled)
+    { name: "Old Vow", rank: "epic", kind: "vow", ticks: 30, status: "fulfilled" }, // fulfilled
   ],
   companions: [],
   bonds: 2,
@@ -78,7 +78,7 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe("session_briefing — track bucketing", () => {
-  it("returns three buckets: open, ready, completed", async () => {
+  it("returns four buckets: open, ready, fulfilled, forsaken", async () => {
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
     expect(result.isError).not.toBe(true);
 
@@ -86,14 +86,16 @@ describe("session_briefing — track bucketing", () => {
       tracks: {
         open: Array<{ name: string; ticks: number }>;
         ready: Array<{ name: string; ticks: number }>;
-        completed: Array<{ name: string; ticks: number; completed: boolean }>;
+        fulfilled: Array<{ name: string; ticks: number; status: string }>;
+        forsaken: Array<{ name: string; ticks: number; status: string }>;
       };
     }>(result);
 
     expect(briefing.tracks).toBeDefined();
     expect(Array.isArray(briefing.tracks.open)).toBe(true);
     expect(Array.isArray(briefing.tracks.ready)).toBe(true);
-    expect(Array.isArray(briefing.tracks.completed)).toBe(true);
+    expect(Array.isArray(briefing.tracks.fulfilled)).toBe(true);
+    expect(Array.isArray(briefing.tracks.forsaken)).toBe(true);
   });
 
   it("buckets tracks with ticks < 40 as open", async () => {
@@ -108,7 +110,7 @@ describe("session_briefing — track bucketing", () => {
     expect(openNames).not.toContain("Old Vow");
   });
 
-  it("buckets tracks with ticks == 40 and completed == false as ready", async () => {
+  it("buckets tracks with ticks == 40 and status == 'active' as ready", async () => {
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
     const briefing = parseToolText<{ tracks: { ready: Array<{ name: string }> } }>(result);
 
@@ -119,27 +121,27 @@ describe("session_briefing — track bucketing", () => {
     expect(readyNames).not.toContain("Old Vow");
   });
 
-  it("buckets tracks with completed == true as completed", async () => {
+  it("buckets tracks with status == 'fulfilled' as fulfilled", async () => {
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
-    const briefing = parseToolText<{ tracks: { completed: Array<{ name: string }> } }>(result);
+    const briefing = parseToolText<{ tracks: { fulfilled: Array<{ name: string }> } }>(result);
 
-    const completedNames = briefing.tracks.completed.map((t) => t.name);
-    expect(completedNames).toContain("Old Vow");
-    expect(completedNames).not.toContain("The Iron Vow");
-    expect(completedNames).not.toContain("Combat Resolved");
+    const fulfilledNames = briefing.tracks.fulfilled.map((t) => t.name);
+    expect(fulfilledNames).toContain("Old Vow");
+    expect(fulfilledNames).not.toContain("The Iron Vow");
+    expect(fulfilledNames).not.toContain("Combat Resolved");
   });
 
-  it("does not put ready/completed tracks in the open bucket", async () => {
+  it("does not put ready/fulfilled tracks in the open bucket", async () => {
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
     const briefing = parseToolText<{
       tracks: {
-        open: Array<{ name: string; ticks: number; completed: boolean }>;
+        open: Array<{ name: string; ticks: number; status: string }>;
       };
     }>(result);
 
     for (const t of briefing.tracks.open) {
       expect(t.ticks).toBeLessThan(40);
-      expect(t.completed).toBe(false);
+      expect(t.status).toBe("active");
     }
   });
 
@@ -150,10 +152,11 @@ describe("session_briefing — track bucketing", () => {
 
     const result = await client.callTool({ name: "session_briefing", arguments: {} });
     expect(result.isError).not.toBe(true);
-    const briefing = parseToolText<{ tracks: { open: unknown[]; ready: unknown[]; completed: unknown[] } }>(result);
+    const briefing = parseToolText<{ tracks: { open: unknown[]; ready: unknown[]; fulfilled: unknown[]; forsaken: unknown[] } }>(result);
     expect(briefing.tracks.open).toHaveLength(0);
     expect(briefing.tracks.ready).toHaveLength(0);
-    expect(briefing.tracks.completed).toHaveLength(0);
+    expect(briefing.tracks.fulfilled).toHaveLength(0);
+    expect(briefing.tracks.forsaken).toHaveLength(0);
   });
 });
 
@@ -249,7 +252,7 @@ describe("session_briefing — recent_scenes", () => {
 
 describe("session_briefing — ready bucket excludes tracks with closed threads", () => {
   it("a ready track whose thread title matches and is closed is NOT in ready", async () => {
-    // "Combat Resolved" track (ticks=40, completed=false) — open matching thread
+    // "Combat Resolved" track (ticks=40, status="active") — open matching thread
     await openThread(campaignDir, "Combat Resolved", "other", "Ongoing combat");
     await closeThread(campaignDir, "Combat Resolved", "Enemy defeated");
 

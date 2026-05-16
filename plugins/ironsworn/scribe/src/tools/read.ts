@@ -297,8 +297,8 @@ export function register(server: McpServer, campaignPath: string): void {
     "session_briefing",
     [
       "Consolidated session-start view. Call this as the FIRST tool at the start of every session (or any morning-after / recap scene) before narrating anything.",
-      "Returns: character digest, progress tracks bucketed into open/ready/completed, narrative threads split into open/closed_recently, and the N most recent scenes in chronological oldest-first order.",
-      "Key invariant: tracks with ticks==40 are in 'ready' (completion pending), NOT 'open'. Never narrate ready/completed tracks as active threats.",
+      "Returns: character digest, progress tracks bucketed into open/ready/fulfilled/forsaken, narrative threads split into open/closed_recently, and the N most recent scenes in chronological oldest-first order.",
+      "Key invariant: tracks with ticks==40 are in 'ready' (completion pending), NOT 'open'. Never narrate ready/fulfilled/forsaken tracks as active threats.",
     ].join(" "),
     {
       recent_scenes_k: z.coerce.number().int().positive().optional().describe(
@@ -336,11 +336,12 @@ export function register(server: McpServer, campaignPath: string): void {
         };
 
         // --- Track bucketing ---
-        // open     = ticks < 40 AND completed == false
-        // ready    = ticks == 40 AND completed == false (full — completion roll pending)
-        //            BUT exclude tracks whose matching thread (by name) is closed —
-        //            those have resolved fictionally and should not surface as pending.
-        // completed = completed == true
+        // open      = active AND ticks < 40
+        // ready     = active AND ticks == 40 (full — completion roll pending)
+        //             BUT exclude tracks whose matching thread (by name) is closed —
+        //             those have resolved fictionally and should not surface as pending.
+        // fulfilled = status == "fulfilled"
+        // forsaken  = status == "forsaken"
         const closedThreadTitles = new Set(
           allThreads
             .filter((t) => t.status === "closed")
@@ -348,15 +349,16 @@ export function register(server: McpServer, campaignPath: string): void {
         );
         const tracks = {
           open: character.progressTracks.filter(
-            (t) => !t.completed && t.ticks < 40,
+            (t) => t.status === "active" && t.ticks < 40,
           ),
           ready: character.progressTracks.filter(
             (t) =>
-              !t.completed &&
+              t.status === "active" &&
               t.ticks >= 40 &&
               !closedThreadTitles.has(t.name.toLowerCase()),
           ),
-          completed: character.progressTracks.filter((t) => t.completed),
+          fulfilled: character.progressTracks.filter((t) => t.status === "fulfilled"),
+          forsaken: character.progressTracks.filter((t) => t.status === "forsaken"),
         };
 
         // --- Thread bucketing ---

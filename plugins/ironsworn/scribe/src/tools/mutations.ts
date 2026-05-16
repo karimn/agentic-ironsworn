@@ -23,6 +23,7 @@ import {
   closeTrack,
   Character,
 } from "../state/character.js";
+import type { ProgressTrack } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
 import { tickProgress, vowXp, TICKS_PER_MARK } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
@@ -260,6 +261,11 @@ export function register(server: McpServer, campaignPath: string): void {
     [
       "Tick a named progress track by the given number of marks.",
       "",
+      "Use `reach_milestone` for vow advancement (RAW Reach a Milestone).",
+      "Use `tick_progress` for: journey waypoints (1 mark per Undertake hit),",
+      "combat harm (rank-dependent ticks per harm point), bond progress (1 raw tick),",
+      "and scene-challenge progress.",
+      "",
       "IMPORTANT — unit clarification:",
       "  `marks` is the number of *progress marks* (boxes), NOT raw ticks.",
       "  Each mark equals a rank-dependent number of ticks:",
@@ -294,6 +300,12 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         const requestedMarks = marks ?? 1;
         const track = character.progressTracks[idx]!;
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
         const priorTicks = track.ticks;
         const ticksRequested = requestedMarks * TICKS_PER_MARK[track.rank];
         const before = structuredClone(character);
@@ -347,7 +359,7 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ name, rank, kind }) => {
       try {
         const character = await loadCharacter(campaignPath);
-        const newTrack = { name, rank, kind, ticks: 0, completed: false };
+        const newTrack: ProgressTrack = { name, rank, kind, ticks: 0, status: "active" };
         character.progressTracks.push(newTrack);
         await saveCharacter(campaignPath, character);
 
@@ -378,7 +390,7 @@ export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "fulfill_progress",
     [
-      "Fulfill a progress track: marks it completed.",
+      "Fulfill a progress track: marks it fulfilled.",
       "For vow tracks, also grants XP based on the rank and the roll outcome from roll_progress.",
       "Non-vow tracks (journey, combat, etc.) always grant 0 XP.",
       "",
@@ -408,7 +420,7 @@ export function register(server: McpServer, campaignPath: string): void {
         }
         const before = structuredClone(character);
         const track = character.progressTracks[idx]!;
-        track.completed = true;
+        track.status = "fulfilled";
         const xpGained = vowXp(track, outcome);
         character.experience += xpGained;
         await saveCharacter(campaignPath, character);
@@ -450,11 +462,11 @@ export function register(server: McpServer, campaignPath: string): void {
     [
       "Dismiss/close a progress track without awarding XP.",
       "Use this for non-vow tracks (combat, journey, bond, other) that have resolved fictionally",
-      "but were never formally completed via fulfill_progress — e.g. a battle that ended narratively,",
+      "but were never formally fulfilled via fulfill_progress — e.g. a battle that ended narratively,",
       "a journey that was abandoned, or any track sitting at 40/40 after the fiction has moved on.",
       "Also works for vow tracks when you want to abandon a vow without XP.",
       "",
-      "The track is marked completed=true (same flag as fulfill_progress) but no XP is awarded.",
+      "The track's status is set to 'fulfilled' (same as fulfill_progress) but no XP is awarded.",
       "After closing, the track will no longer appear in session_briefing's 'ready' or 'open' buckets.",
     ].join("\n"),
     {

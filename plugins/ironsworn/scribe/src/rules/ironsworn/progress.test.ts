@@ -7,7 +7,7 @@ const makeTrack = (rank: ProgressTrack["rank"], ticks: number = 0, kind: Progres
   rank,
   kind,
   ticks,
-  completed: false,
+  status: "active",
 });
 
 describe("classifyBand", () => {

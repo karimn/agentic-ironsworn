@@ -21,7 +21,7 @@ export interface ProgressTrack {
   rank: "troublesome" | "dangerous" | "formidable" | "extreme" | "epic";
   kind: "vow" | "combat" | "journey" | "bond" | "other";
   ticks: number; // 0..40
-  completed: boolean;
+  status: "active" | "fulfilled" | "forsaken";
 }
 
 export interface Character {
@@ -100,6 +100,15 @@ export async function loadCharacter(campaignPath: string): Promise<Character> {
   const char = JSON.parse(raw) as Character;
   char.companions ??= [];
   char.experience ??= 0;
+  const validStatuses = new Set(["active", "fulfilled", "forsaken"]);
+  for (const track of char.progressTracks) {
+    if (!validStatuses.has((track as { status?: string }).status ?? "")) {
+      throw new Error(
+        `Progress track "${track.name}" is missing or has invalid 'status' field. ` +
+        `Run: bun run scripts/migrate-track-status.ts (with SCRIBE_CAMPAIGN set)`,
+      );
+    }
+  }
   return char;
 }
 
@@ -357,7 +366,7 @@ export async function closeTrack(
     if (!track) {
       throw new Error(`Progress track not found: "${trackName}"`);
     }
-    track.completed = true;
+    track.status = "fulfilled";
   });
 }
 
