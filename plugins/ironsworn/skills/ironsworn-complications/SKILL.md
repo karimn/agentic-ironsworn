@@ -20,7 +20,7 @@ description: >
 
 # Ironsworn Complications — Craft Layer
 
-A miss without a cost is a lie. A complication without texture is paperwork. This skill is the craft layer between "a cost is owed" and "the player feels it." It does not own diversity-protocol enforcement (`agents/ironsworn-gm.md` does, via `get_recent_complications`) or the Pay the Price *decision* (`ironsworn-oracle` does). It owns *texture* — how the cost lands in the senses, in the lore, in the campaign's weight.
+A miss without a cost is a lie. A complication without texture is paperwork. This skill owns *texture* — how a cost lands in the senses, in the lore, in the campaign's weight. It does not own diversity-protocol enforcement (`agents/ironsworn-gm.md` does, via `get_recent_complications`) or the Pay the Price *decision* (`ironsworn-oracle` does).
 
 ---
 
@@ -42,11 +42,11 @@ Handoffs: `ironsworn-oracle` (which consequence), `ironsworn-suffer` (the harm/s
 ## When to Invoke
 
 - Any miss whose outcome reads "Pay the Price" — combat, journey, social, scene challenge.
-- A **match** on the challenge dice (p.9, p.117) — twist on strong hits, heightened complication on misses. Matched 10s on miss = *"as bad as things get."* On social moves a match makes the refusal louder and the demand more pointed — defer voice to `ironsworn-npc-voice`.
-- A weak-hit "victory comes at a cost" beat — including social weak hits where the NPC asks something in return (rulebook p.80). The favor *is* a complication; it lands as a debt thread that must echo the NPC's drives.
-- The GM volunteers a complication to escalate stakes; the player narrates "things get worse" or asks "what does the world do."
+- A **match** on the challenge dice (p.9, p.117) — twist on strong hits, heightened complication on misses; matched 10s on miss = *"as bad as things get."* A match during montage is also the rulebook's cue to **zoom in** (p.222) — defer the camera to `ironsworn-pacing`, return here for texture. On social misses a match makes the refusal louder, the demand more pointed — defer voice to `ironsworn-npc-voice`.
+- A weak-hit "victory comes at a cost" beat — including social weak hits where the NPC asks something in return (p.80). The favor *is* a complication; it lands as a debt thread echoing the NPC's drives.
+- The GM volunteers a complication; the player narrates "things get worse" or asks "what does the world do."
 
-If the fiction obviously points at one cost (combat miss → harm), skip to texture — but never skip the diversity check.
+If the fiction points at one cost (combat miss → harm), skip to texture — but never skip the diversity check.
 
 ---
 
@@ -61,9 +61,10 @@ If the fiction obviously points at one cost (combat miss → harm), skip to text
 
 ---
 
-## Four Texture Rules
+## Texture Rules
 
 - **One sense, one detail.** The bowstring sounds like a snapped bone. The wind is suddenly inside the hood. The map page is wet and tearing.
+- **Land it in a scene slot.** Per `ironsworn-scene-craft`, complications belong in the **visible stake** of the framing paragraph (smoke on the horizon, the empty chair) or the **image** of the close (blood on iron, an empty doorway). A weak-hit "ask in return" *is* the closing question. Anywhere else is narration noise.
 - **Inevitable in retrospect.** The world catching up, not the GM punishing. *"Of course the snares were empty — something larger walked through."*
 - **Land it on something the player cares about.** The bonded NPC, the cherished asset, the open vow — not the cheapest item on the menu.
 - **Match size to moment.** Small misses cost supply or time; climactic misses change the campaign's shape (`references/escalation.md`).
@@ -72,18 +73,17 @@ If the fiction obviously points at one cost (combat miss → harm), skip to text
 
 ## References
 
-- `references/palette.md` — thematic palette + Pay the Price d100 (p.105/116) translation patterns + match handling.
-- `references/by-region.md` — complication archetypes per Ironlands biome.
-- `references/escalation.md` — small/medium/large arc with worked session examples.
+- `references/palette.md` — palette + d100 (p.105/116) translation + match handling + NPC-as-consequence.
+- `references/by-region.md` — archetypes per Ironlands biome.
+- `references/escalation.md` — small/medium/large arc with worked sessions.
 
 ---
 
 ## Common Mistakes
 
-- **A miss that costs nothing.** A hit that costs nothing isn't a hit (rulebook p.117).
+- **A miss that costs nothing.** A hit that costs nothing isn't a hit (p.117).
 - **Skipping `get_recent_complications`.** Three weather-misses in a row dulls the world.
 - **Inventing when an old thread fits.** `list_threads` first; escalate before invention.
 - **Generic texture.** *"It is harmful"* → *"you take harm"* is paperwork. Render the wound.
-- **Reaching past the NPC.** When one is onstage, the consequence often *is* their drives — don't bypass.
 - **Treating the d100 as a script.** It is a prompt — translate through campaign theme.
 - **Forgetting `record_scene`'s `complication_theme`.** The protocol can't enforce diversity it can't see.
