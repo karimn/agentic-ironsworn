@@ -25,7 +25,7 @@ import {
 } from "../state/character.js";
 import type { ProgressTrack } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
-import { tickProgress, vowXp, TICKS_PER_MARK } from "../rules/ironsworn/progress.js";
+import { tickProgress, vowXp, TICKS_PER_MARK, STRESS_BY_RANK } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { recordMutation } from "../checkpoint.js";
@@ -424,14 +424,6 @@ export function register(server: McpServer, campaignPath: string): void {
       }
     },
   );
-
-  const STRESS_BY_RANK: Record<ProgressTrack["rank"], number> = {
-    troublesome: 1,
-    dangerous: 2,
-    formidable: 3,
-    extreme: 4,
-    epic: 5,
-  };
 
   server.tool(
     "forsake_vow",

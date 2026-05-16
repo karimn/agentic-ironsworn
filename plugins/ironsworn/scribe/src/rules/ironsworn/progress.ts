@@ -9,6 +9,14 @@ export const TICKS_PER_MARK: Record<ProgressTrack["rank"], number> = {
   epic: 1,
 };
 
+export const STRESS_BY_RANK: Record<ProgressTrack["rank"], number> = {
+  troublesome: 1,
+  dangerous: 2,
+  formidable: 3,
+  extreme: 4,
+  epic: 5,
+};
+
 /**
  * XP awarded when fulfilling a vow, indexed by rank then outcome.
  * Only vows award XP (journeys, combat, etc. grant 0).
