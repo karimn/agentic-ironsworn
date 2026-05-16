@@ -459,3 +459,117 @@ describe("fulfill_progress — vow auto-closes matching thread", () => {
     expect(thread?.status).toBe("open");
   });
 });
+
+// ---------------------------------------------------------------------------
+// issue #60: reach_milestone (vow-only)
+// ---------------------------------------------------------------------------
+
+describe("reach_milestone", () => {
+  it("applies rank-correct ticks for count=1 — troublesome (12 ticks)", async () => {
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "T-Vow", rank: "troublesome", kind: "vow" },
+    });
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "T-Vow" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.ticks).toBe(12);
+    expect(parsed.applied.milestones_applied).toBe(1);
+    expect(parsed.applied.ticks_added).toBe(12);
+    expect(parsed.applied.prior_ticks).toBe(0);
+    expect(parsed.applied.clamped).toBe(false);
+  });
+
+  it("applies rank-correct ticks — dangerous (8), formidable (4), extreme (2), epic (1)", async () => {
+    for (const [rank, ticks] of [
+      ["dangerous", 8],
+      ["formidable", 4],
+      ["extreme", 2],
+      ["epic", 1],
+    ] as const) {
+      const trackName = `${rank}-Vow`;
+      await client.callTool({
+        name: "create_progress_track",
+        arguments: { name: trackName, rank, kind: "vow" },
+      });
+      const result = await client.callTool({
+        name: "reach_milestone",
+        arguments: { track_name: trackName },
+      });
+      expect(result.isError).not.toBe(true);
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      expect(parsed.track.ticks).toBe(ticks);
+    }
+  });
+
+  it("applies count=2 correctly (dangerous = 16 ticks)", async () => {
+    // "Remove Caldren from Holtfen" is a dangerous vow at ticks=0 in the fixture
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Remove Caldren from Holtfen", count: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.ticks).toBe(16);
+    expect(parsed.applied.milestones_applied).toBe(2);
+    expect(parsed.applied.ticks_added).toBe(16);
+  });
+
+  it("rejects non-vow tracks", async () => {
+    // "Explore the Caverns" is a journey track in the fixture
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Explore the Caverns" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/vow tracks only/);
+    expect(text).toMatch(/tick_progress/);
+  });
+
+  it("rejects non-active tracks", async () => {
+    // Fulfill "Remove Caldren from Holtfen" first, then try reach_milestone on it
+    await client.callTool({
+      name: "fulfill_progress",
+      arguments: { track_name: "Remove Caldren from Holtfen", outcome: "strong_hit" },
+    });
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not active/);
+  });
+
+  it("clamps at 40 with warning", async () => {
+    // "Almost Full" is a formidable vow at ticks=36 (4 from max). One milestone = 4 ticks → exactly fills.
+    // Apply count=2 → requested 8 ticks, only 4 fit, clamp.
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Almost Full", count: 2 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.track.ticks).toBe(40);
+    expect(parsed.applied.prior_ticks).toBe(36);
+    expect(parsed.applied.ticks_added).toBe(4);
+    expect(parsed.applied.clamped).toBe(true);
+    expect(parsed.warnings).toBeDefined();
+    expect(parsed.warnings).toHaveLength(1);
+  });
+
+  it("rejects unknown track", async () => {
+    const result = await client.callTool({
+      name: "reach_milestone",
+      arguments: { track_name: "Nope" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not found/);
+  });
+});

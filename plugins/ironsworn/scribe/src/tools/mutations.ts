@@ -345,6 +345,87 @@ export function register(server: McpServer, campaignPath: string): void {
   );
 
   server.tool(
+    "reach_milestone",
+    [
+      "Apply RAW Reach a Milestone events to a vow track. Vow-only.",
+      "",
+      "RAW: when the player overcomes a critical obstacle directly tied to a vow,",
+      "call this with the vow's track_name. The tool reads the track's rank and",
+      "applies the canonical milestone amount (troublesome=3 boxes, dangerous=2,",
+      "formidable=1, extreme=2 ticks, epic=1 tick). One call = one milestone event.",
+      "",
+      "For non-vow tracks (journey waypoints, combat harm, bonds, scene challenges)",
+      "use tick_progress instead — those have their own tick semantics.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the vow track (case-insensitive)"),
+      count: z.coerce.number().int().positive().optional().describe(
+        "Number of milestone events to apply (default 1).",
+      ),
+    },
+    async ({ track_name, count }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: reach_milestone applies to vow tracks only. Track "${track.name}" is kind="${track.kind}". For journey waypoints, combat harm, or bonds, use tick_progress.` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "active") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not active (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+        const milestonesApplied = count ?? 1;
+        const priorTicks = track.ticks;
+        const ticksRequested = milestonesApplied * TICKS_PER_MARK[track.rank];
+        const before = structuredClone(character);
+        const updatedTrack = tickProgress(track, milestonesApplied);
+        const ticksAdded = updatedTrack.ticks - priorTicks;
+        const clamped = ticksAdded < ticksRequested;
+        character.progressTracks[idx] = updatedTrack;
+        await saveCharacter(campaignPath, character);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "reachMilestone",
+          before,
+          after: character,
+        });
+        recordMutation(campaignPath);
+        const applied = {
+          milestones_applied: milestonesApplied,
+          ticks_added: ticksAdded,
+          prior_ticks: priorTicks,
+          clamped,
+        };
+        const warnings: string[] = clamped
+          ? [`Requested ${milestonesApplied} milestone(s) (${ticksRequested} ticks) would exceed max; clamped at 40`]
+          : [];
+        const payload: Record<string, unknown> = { ok: true, track: updatedTrack, applied };
+        if (warnings.length > 0) payload.warnings = warnings;
+        return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "create_progress_track",
     "Create a new progress track on the character",
     {
