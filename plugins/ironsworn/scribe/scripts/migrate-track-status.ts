@@ -11,7 +11,19 @@ export async function migrateTrackStatus(campaignPath: string): Promise<Migratio
     throw new Error(`character.json not found at ${charPath}`);
   }
   const raw = readFileSync(charPath, "utf8");
-  const character: { progressTracks: Record<string, unknown>[] } = JSON.parse(raw);
+  let character: { progressTracks: Record<string, unknown>[] };
+  try {
+    character = JSON.parse(raw);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to parse ${charPath}: ${msg}`);
+  }
+
+  if (!Array.isArray(character.progressTracks)) {
+    throw new Error(
+      `Invalid character.json at ${charPath}: 'progressTracks' must be an array (got ${typeof character.progressTracks})`,
+    );
+  }
 
   let touched = 0;
   for (const track of character.progressTracks) {
@@ -43,5 +55,10 @@ if (import.meta.main) {
     console.error("Set SCRIBE_CAMPAIGN to the campaign directory");
     process.exit(1);
   }
-  await migrateTrackStatus(campaign);
+  try {
+    await migrateTrackStatus(campaign);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
 }

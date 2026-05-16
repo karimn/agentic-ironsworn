@@ -92,4 +92,10 @@ describe("migrate-track-status", () => {
   it("throws if character.json is missing", async () => {
     expect(migrateTrackStatus(dir)).rejects.toThrow(/character\.json/);
   });
+
+  it("throws a useful error if character.json is malformed JSON", async () => {
+    const path = join(dir, "character.json");
+    writeFileSync(path, "{ this is not valid json");
+    expect(migrateTrackStatus(dir)).rejects.toThrow(path);
+  });
 });

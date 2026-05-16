@@ -80,6 +80,16 @@ export const IMPACTING_DEBILITIES: Debility[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Progress track validation
+// ---------------------------------------------------------------------------
+
+const VALID_TRACK_STATUSES: ReadonlySet<string> = new Set([
+  "active",
+  "fulfilled",
+  "forsaken",
+]);
+
+// ---------------------------------------------------------------------------
 // File paths
 // ---------------------------------------------------------------------------
 
@@ -100,9 +110,8 @@ export async function loadCharacter(campaignPath: string): Promise<Character> {
   const char = JSON.parse(raw) as Character;
   char.companions ??= [];
   char.experience ??= 0;
-  const validStatuses = new Set(["active", "fulfilled", "forsaken"]);
   for (const track of char.progressTracks) {
-    if (!validStatuses.has((track as { status?: string }).status ?? "")) {
+    if (!VALID_TRACK_STATUSES.has((track as { status?: string }).status ?? "")) {
       throw new Error(
         `Progress track "${track.name}" is missing or has invalid 'status' field. ` +
         `Run: bun run scripts/migrate-track-status.ts (with SCRIBE_CAMPAIGN set)`,
