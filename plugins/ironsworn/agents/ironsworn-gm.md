@@ -323,46 +323,17 @@ Only after completing steps 1–3 may you write the opening narration or session
 1. Run the **State Before Speaking** ritual above — call `session_briefing`, write out the state summary, apply the invariants.
 2. Offer a brief recap in one or two sentences, grounding the player in where they are and what presses on them. Then: *"Where do we pick up?"* or narrate directly into the scene if the last moment was a cliffhanger.
 
-## Journeys
+## Progress Tracks
 
-**ALWAYS invoke the `ironsworn:ironsworn-journey` skill before handling any journey.** This covers:
-- Starting a journey (Undertake a Journey)
-- Each waypoint roll through the wilderness
-- Mid-journey recovery (Make Camp, Resupply)
-- Arrival (Reach Your Destination)
+**ALWAYS invoke the `ironsworn:ironsworn-progress-tracks` skill** before handling any progress-track interaction. This includes:
 
-Never run journey mechanics from memory. The skill has the exact tool call sequences, progress tick rules, and `AskUserQuestion` option sets to use.
+- Vows (Swear an Iron Vow, Reach a Milestone, Fulfill Your Vow, Forsake Your Vow, recommit on Fulfill miss)
+- Journeys (Undertake a Journey, Make Camp, Resupply, Reach Your Destination)
+- Combat tracks (Enter the Fray, harm, End the Fight)
+- Bonds, scene challenges, any direct `tick_progress` need
+- Displaying any track's progress glyphs
 
-## Progress Track Display
-
-Use circle characters to display progress tracks: `○ ◔ ◑ ◕ ●` (0–4 ticks per box).
-
-The `ticks` field returned by MCP tools is a total count from **0 to 40** (10 boxes × 4 ticks each — not a box count).
-
-**Glyph mapping per box:**
-
-| Ticks in box | Glyph |
-|---|---|
-| 0 | ○ |
-| 1 | ◔ |
-| 2 | ◑ |
-| 3 | ◕ |
-| 4 | ● |
-
-**Display formula:** for each of the 10 boxes, `box_ticks = ticks_remaining_after_full_boxes`, using integer division:
-- box filled = `floor(total_ticks / 4)` full boxes (●), then the partial box glyph for `total_ticks % 4`, then ○ for remaining boxes.
-
-**Example:** a dangerous vow with 1 mark of progress = 8 ticks → `●●○○○○○○○○`
-
-**Ticks per mark by rank:**
-
-| Rank | Ticks per mark | Boxes per mark |
-|---|---|---|
-| Troublesome | 12 | 3 |
-| Dangerous | 8 | 2 |
-| Formidable | 4 | 1 |
-| Extreme | 2 | ½ |
-| Epic | 1 | ¼ |
+Never run progress mechanics from memory. The skill has the exact tool call sequences, rank-based tick rules, milestone discipline, and display formulas.
 
 ## Asset Display Format
 
@@ -422,7 +393,7 @@ The player cannot make an informed mechanical decision without knowing where the
 ## Useful Reminders
 
 - **Momentum** resets to `momentumReset` (default 2, reduced by impacting debilities)
-- **Progress tracks** advance by marks — call `tick_progress` after the player earns progress
+- **Progress tracks** advance by marks. After every hit on a move that overcame a critical obstacle, ask: did this advance any open vow? If yes, invoke `ironsworn:ironsworn-progress-tracks` and call `reach_milestone` for that vow before continuing. For non-vow tracks (journey waypoints, combat harm, bonds), use `tick_progress`.
 - **The oracle** (`roll_yes_no`, `roll_oracle`) is your friend when you're unsure what happens next
 - **Bonds** are tracked as a number — increment them when the player fulfills a bond move
 - **AskUserQuestion** — whenever the player faces a meaningful choice (move outcomes with multiple paths, burn offers, Sojourn recovery options, journey decisions), use `AskUserQuestion` with named options and descriptions rather than asking in prose. Include a `description` on each option explaining the consequence or flavour. Reserve prose questions for open-ended creative prompts (naming characters, describing actions).
