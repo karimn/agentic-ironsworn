@@ -66,6 +66,15 @@ A campaign lives in its own directory (default: `campaigns/default/`):
 
 When spawning multiple agents to work on independent issues/PRs in parallel, always pass `isolation: "worktree"` to each `Agent` call. Without it, concurrent agents share the working tree and will conflict on branch checkouts and file edits.
 
+For multi-issue batches (4+ independent issues that benefit from shared learnings), use the **agent-teams** workflow instead of parallel subagents — see `docs/process/team-of-agents-playbook.md`. It documents the full lifecycle: enabling the experimental feature, pre-creating worktrees, shared learnings file, TeamCreate + spawn, lead-as-coordinator pattern, sequenced merge, single follow-up version bump, and cleanup. Proven on umbrella #104 (PRs #109–#112).
+
+## GitHub / gh CLI
+
+- Active account: `karimn` (personal). The enterprise account `kmjq089_azu` is also present but inactive for this repo.
+- Git protocol: SSH via the `github-personal` host alias in `~/.ssh/config`
+- If `gh` complains about auth, run `gh auth refresh` — the token is stored in keychain and occasionally needs a refresh, not a full re-login
+- Do NOT suggest switching to HTTPS or re-running `gh auth login` unless the token is actually missing
+
 ## Prerequisites
 
 - **Bun** — runtime for the scribe server and tests
