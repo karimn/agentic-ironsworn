@@ -92,10 +92,13 @@ export function register(server: McpServer, campaignPath: string): void {
       beats: z.array(BeatInputSchema).optional().describe(
         "Optional ordered narrative beats for the scene. When omitted, only the summary is stored (backward-compatible)."
       ),
+      quality_notes: z.string().optional().describe(
+        "Optional fiction/RP quality feedback for this scene (e.g. 'Combat felt dangerous — layered pressure worked well', 'Complication theme was repetitive'). Captured for GM improvement and included in semantic search."
+      ),
     },
-    async ({ summary, kind, npcs, lore_ids, complication_theme, beats }) => {
+    async ({ summary, kind, npcs, lore_ids, complication_theme, beats, quality_notes }) => {
       try {
-        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined);
+        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined, quality_notes);
         recordMutation(campaignPath);
         const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
@@ -122,8 +125,11 @@ export function register(server: McpServer, campaignPath: string): void {
       append_beats: z.array(BeatInputSchema).optional().describe(
         "New beats to append to the scene's existing beats array (does not replace existing beats)"
       ),
+      quality_notes: z.string().optional().describe(
+        "Fiction/RP quality feedback to set or replace on this scene"
+      ),
     },
-    async ({ id, summary, kind, npcs, lore_ids, append_beats }) => {
+    async ({ id, summary, kind, npcs, lore_ids, append_beats, quality_notes }) => {
       try {
         const existing = await getScene(campaignPath, id);
         if (existing === null) {
@@ -132,7 +138,7 @@ export function register(server: McpServer, campaignPath: string): void {
             isError: true,
           };
         }
-        await updateScene(campaignPath, id, { summary, kind });
+        await updateScene(campaignPath, id, { summary, kind, quality_notes });
         if (append_beats && append_beats.length > 0) {
           await recordBeats(campaignPath, id, append_beats as BeatInput[]);
         }

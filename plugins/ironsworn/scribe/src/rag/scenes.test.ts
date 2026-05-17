@@ -47,6 +47,74 @@ describe("recordScene + searchScenes", () => {
   });
 });
 
+describe("quality_notes", () => {
+  it("stores and retrieves quality_notes on record_scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    const id = await recordScene(campaignDir, "A tense duel at the river crossing.", "combat", undefined, undefined, "Combat felt dangerous — layered pressure with NPC in peril worked well.");
+    const scene = await getScene(campaignDir, id);
+    expect(scene).not.toBeNull();
+    expect(scene!.quality_notes).toBe("Combat felt dangerous — layered pressure with NPC in peril worked well.");
+  });
+
+  it("quality_notes is absent when not set", async () => {
+    if (!(await ollamaAvailable())) return;
+    const id = await recordScene(campaignDir, "A quiet moment by the fire.", "social");
+    const scene = await getScene(campaignDir, id);
+    expect(scene).not.toBeNull();
+    expect(scene!.quality_notes).toBeUndefined();
+  });
+
+  it("searchScenes returns quality_notes in results", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "Ambush on the forest road.", "combat", undefined, undefined, "Third consecutive social obstacle — complication theme was repetitive.");
+    const results = await searchScenes(campaignDir, "forest ambush", 3);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]!.quality_notes).toBe("Third consecutive social obstacle — complication theme was repetitive.");
+  });
+
+  it("updateScene sets quality_notes on an existing scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    const id = await recordScene(campaignDir, "A diplomatic meeting at the keep.", "social");
+
+    await updateScene(campaignDir, id, { quality_notes: "GM overreached in narrating player intent." });
+
+    const updated = await getScene(campaignDir, id);
+    expect(updated).not.toBeNull();
+    expect(updated!.quality_notes).toBe("GM overreached in narrating player intent.");
+    expect(updated!.text).toBe("A diplomatic meeting at the keep.");
+  });
+
+  it("quality_notes is searchable via its text content", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "A scene with unremarkable summary.", "exploration", undefined, undefined, "Pacing was slow — too many travel details without tension.");
+    const results = await searchScenes(campaignDir, "pacing slow travel", 3);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]!.quality_notes).toContain("Pacing was slow");
+  });
+
+  it("export/import round-trips quality_notes", async () => {
+    if (!(await ollamaAvailable())) return;
+    const id = await recordScene(campaignDir, "The ward-stone scene.", "social", undefined, undefined, "Strong atmosphere — sensory details landed well.");
+
+    const exported = await exportScenes(campaignDir);
+    const exportedScene = exported.find((s) => s.id === id);
+    expect(exportedScene).toBeDefined();
+    expect(exportedScene!.quality_notes).toBe("Strong atmosphere — sensory details landed well.");
+
+    const dir2 = await mkdtemp(join(tmpdir(), "scribe-quality-import-test-"));
+    try {
+      const inserted = await importScene(dir2, exportedScene!.id, exportedScene!.text, exportedScene!.timestamp, exportedScene!.kind, exportedScene!.complication_theme, exportedScene!.beats, exportedScene!.quality_notes);
+      expect(inserted).toBe(true);
+
+      const reimported = await getScene(dir2, id);
+      expect(reimported).not.toBeNull();
+      expect(reimported!.quality_notes).toBe("Strong atmosphere — sensory details landed well.");
+    } finally {
+      await rm(dir2, { recursive: true });
+    }
+  });
+});
+
 describe("getRecentComplications", () => {
   it("returns only scenes with complication_theme set", async () => {
     if (!(await ollamaAvailable())) return;
