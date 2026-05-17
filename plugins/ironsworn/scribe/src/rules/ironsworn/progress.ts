@@ -92,3 +92,33 @@ export function rollProgress(track: ProgressTrack): ProgressRollResult {
     match: c1 === c2,
   };
 }
+
+export interface EpilogueRollResult {
+  bonds: number;
+  progressScore: number;
+  challengeDice: [number, number];
+  outcome: "strong" | "weak" | "miss";
+  match: boolean;
+  oraclePrompt: string | null;
+}
+
+export function rollEpilogue(bonds: number): EpilogueRollResult {
+  const progressScore = Math.min(bonds, 10);
+  const c1 = roll("d10").total;
+  const c2 = roll("d10").total;
+  const band = classifyBand(progressScore, c1, c2);
+  const outcome = band === "strong_hit" ? "strong" : band === "weak_hit" ? "weak" : "miss";
+  const oraclePrompt =
+    band === "strong_hit" ? null :
+    band === "weak_hit" ? "Envision an unexpected turn in your new life." :
+    "Envision how your fears are realized.";
+
+  return {
+    bonds,
+    progressScore,
+    challengeDice: [c1, c2],
+    outcome,
+    match: c1 === c2,
+    oraclePrompt,
+  };
+}

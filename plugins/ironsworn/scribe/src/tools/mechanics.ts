@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { roll } from "../rules/dice.js";
 import { resolveMove, applyMomentumBurn } from "../rules/ironsworn/moves.js";
-import { rollProgress } from "../rules/ironsworn/progress.js";
+import { rollProgress, rollEpilogue } from "../rules/ironsworn/progress.js";
 import { rollOracle, rollYesNo } from "../rules/ironsworn/oracles.js";
 import { loadCharacter, saveCharacter, appendJournal } from "../state/character.js";
 import { burnMomentum } from "../rules/ironsworn/momentum.js";
@@ -115,6 +115,33 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
         const result = rollProgress(track);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "roll_epilogue",
+    "Roll Write Your Epilogue — a progress roll against bonds (not a track). " +
+    "Reads bonds from character.json, rolls two challenge d10s, and records the campaign-end event to the journal.",
+    {},
+    async () => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const result = rollEpilogue(character.bonds);
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "writeEpilogue",
+          before: character,
+          after: character,
+        });
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],
         };
