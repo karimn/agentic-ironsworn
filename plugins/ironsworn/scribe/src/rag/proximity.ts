@@ -57,6 +57,10 @@ export interface LinkProximityInput {
     excerpt?: string;
     confidence?: number;
   };
+  /** @internal Used during import replay to preserve original created_at. */
+  _created_at?: string;
+  /** @internal Used during import replay to skip automatic provenance recording. */
+  _skipRecordingProvenance?: boolean;
 }
 
 export interface LinkProximityResult {
@@ -245,7 +249,7 @@ export async function linkProximity(
     );
 
     const id = makeProximityId(canonical.fromId, canonical.toId, input.dimension);
-    const now = new Date().toISOString();
+    const now = input._created_at ?? new Date().toISOString();
     const metadataJson = JSON.stringify(input.metadata ?? {});
 
     // Detect existing row to set `updated`.
@@ -290,7 +294,9 @@ export async function linkProximity(
       );
     }
 
-    await recordProvenance(conn, "proximity", id, input.provenance);
+    if (!input._skipRecordingProvenance) {
+      await recordProvenance(conn, "proximity", id, input.provenance, now);
+    }
 
     const warnings = typeWarnings(input.dimension, fromRow.type, toRow.type);
 

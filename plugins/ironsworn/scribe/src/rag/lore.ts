@@ -68,6 +68,10 @@ export interface LinkLoreInput {
   notes?: string;
   metadata?: Record<string, unknown>;
   provenance?: ProvenanceInput;
+  /** @internal Used during import replay to preserve original created_at. */
+  _created_at?: string;
+  /** @internal Used during import replay to skip automatic provenance recording. */
+  _skipRecordingProvenance?: boolean;
 }
 
 export interface UpsertLoreInput {
@@ -79,6 +83,10 @@ export interface UpsertLoreInput {
   metadata?: Record<string, unknown>;
   aliases?: string[];
   provenance?: ProvenanceInput;
+  /** @internal Used during import replay to preserve original created_at. */
+  _created_at?: string;
+  /** @internal Used during import replay to skip automatic provenance recording. */
+  _skipRecordingProvenance?: boolean;
 }
 
 export interface UpsertLoreResult {
@@ -148,10 +156,11 @@ export async function recordProvenance(
   subjectKind: "entity" | "relation" | "proximity",
   subjectId: string,
   prov: ProvenanceInput | undefined,
+  createdAtOverride?: string,
 ): Promise<void> {
   const effective: ProvenanceInput = prov ?? { source_kind: "manual" };
   const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+  const now = createdAtOverride ?? new Date().toISOString();
   await conn.run(
     `INSERT INTO lore_provenance
        (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
@@ -188,7 +197,7 @@ export async function upsertLore(
   ]);
 
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
-  const now = new Date().toISOString();
+  const now = input._created_at ?? new Date().toISOString();
   const contentJson = JSON.stringify(input.content ?? {});
 
   const conn = await openLoreWriteConn(instance);
@@ -272,7 +281,9 @@ export async function upsertLore(
       );
     }
 
-    await recordProvenance(conn, "entity", id, input.provenance);
+    if (!input._skipRecordingProvenance) {
+      await recordProvenance(conn, "entity", id, input.provenance, now);
+    }
 
     return { id, canonical: input.canonical, aliases: mergedAliases, updated };
   } finally {
@@ -370,7 +381,7 @@ export async function linkLore(
   try {
     const fromId = await resolveId(conn, input.from);
     const toId = await resolveId(conn, input.to);
-    const now = new Date().toISOString();
+    const now = input._created_at ?? new Date().toISOString();
     const overwriteMetadata = input.metadata !== undefined;
     const metadataJson = JSON.stringify(input.metadata ?? {});
 
@@ -394,12 +405,15 @@ export async function linkLore(
     // changed. listProvenance returns this full history. If a future
     // consumer needs only "facts that meaningfully changed", we can add a
     // dedup pass at the recordProvenance layer; for now, history wins.
-    await recordProvenance(
-      conn,
-      "relation",
-      `${fromId}|${toId}|${input.relation}`,
-      input.provenance,
-    );
+    if (!input._skipRecordingProvenance) {
+      await recordProvenance(
+        conn,
+        "relation",
+        `${fromId}|${toId}|${input.relation}`,
+        input.provenance,
+        now,
+      );
+    }
 
     return { from_id: fromId, to_id: toId, relation: input.relation };
   } finally {
@@ -703,6 +717,61 @@ export async function exportLore(
     }));
 
     return { entities, relations };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function exportProvenance(
+  campaignPath: string,
+): Promise<ProvenanceEntry[]> {
+  const instance = await getLoreDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const rows = (
+      await conn.runAndReadAll(
+        `SELECT id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at
+         FROM lore_provenance ORDER BY created_at`,
+      )
+    ).getRowObjectsJS() as Record<string, unknown>[];
+
+    return rows.map((r) => ({
+      id: String(r["id"]),
+      subject_kind: String(r["subject_kind"]) as "entity" | "relation" | "proximity",
+      subject_id: String(r["subject_id"]),
+      source_kind: String(r["source_kind"]),
+      source_id: r["source_id"] != null ? String(r["source_id"]) : null,
+      excerpt: r["excerpt"] != null ? String(r["excerpt"]) : null,
+      confidence: typeof r["confidence"] === "number" ? r["confidence"] : null,
+      created_at: String(r["created_at"]),
+    }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
+export async function replayProvenance(
+  campaignPath: string,
+  entry: ProvenanceEntry,
+): Promise<void> {
+  const instance = await getLoreDb(campaignPath);
+  const conn = await openLoreWriteConn(instance);
+  try {
+    await conn.run(
+      `INSERT INTO lore_provenance
+         (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.id,
+        entry.subject_kind,
+        entry.subject_id,
+        entry.source_kind,
+        entry.source_id,
+        entry.excerpt,
+        entry.confidence,
+        entry.created_at,
+      ],
+    );
   } finally {
     conn.closeSync();
   }
