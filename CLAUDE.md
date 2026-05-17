@@ -58,6 +58,36 @@ A campaign lives in its own directory (default: `campaigns/default/`):
 - `npcs/`, `threads/` — per-entity markdown/JSON files
 - `state-journal.jsonl` — append-only mutation audit log
 
+## Schema migrations
+
+The scribe server has a lightweight migration system in `scribe/src/migrations/`.
+
+**DuckDB (lore + scenes):** Each DB gets a `_schema_migrations` table tracking applied version numbers. `runDbMigrations` is called at the end of each `initDb` in `rag/lore-db.ts` and `rag/scenes.ts` — migrations run automatically on first DB access after server start. Add new entries to `migrations/lore.ts` or `migrations/scenes.ts`:
+
+```ts
+{
+  version: 1,
+  description: "add source_url column to lore_entities",
+  async up(conn) {
+    await conn.run("ALTER TABLE lore_entities ADD COLUMN IF NOT EXISTS source_url TEXT");
+  },
+}
+```
+
+Also update the corresponding `CREATE TABLE` statement in `initDb` so fresh installs get the column without running the migration.
+
+**Character JSON:** `character.json` carries a `schemaVersion` field. `runCharacterMigrations` is called in `loadCharacter`; if migrations run, the file is saved immediately. `saveCharacter` always stamps the current version. Add entries to `CHARACTER_MIGRATIONS` in `state/character.ts` and bump `CURRENT_CHARACTER_VERSION`:
+
+```ts
+{
+  toVersion: 1,
+  description: "rename bonds to bondCount",
+  up(data) { data["bondCount"] = data["bonds"]; delete data["bonds"]; return data; },
+}
+```
+
+**Rules:** migrations are append-only — never edit or reorder existing entries. Version 0 is the implicit baseline (existing campaigns get the tracking table created but no migrations applied). To squash old migrations: update `initDb` / `CHARACTER_MIGRATIONS` to reflect the current schema, delete the old entries, and bump a baseline version constant in the runner so it skips past them.
+
 ## Plugin versioning
 
 **Every PR must bump `plugins/ironsworn/.claude-plugin/plugin.json`** — the Stop hook blocks completion otherwise. Use semver: bump minor for new tools/features, patch for fixes. The hook compares against `origin/main` and also verifies the version actually increased.
