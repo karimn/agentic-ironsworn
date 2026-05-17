@@ -125,7 +125,7 @@ async function getEmbedding(query: string): Promise<number[]> {
 // RRF merge
 // ---------------------------------------------------------------------------
 
-interface ScoredRow {
+export interface ScoredRow {
   id: string;
   text: string;
   headingPath: string[];
@@ -134,7 +134,7 @@ interface ScoredRow {
   page: string;
 }
 
-function mergeRRF(
+export function mergeRRF(
   vectorRows: ScoredRow[],
   bm25Rows: ScoredRow[],
   k: number,

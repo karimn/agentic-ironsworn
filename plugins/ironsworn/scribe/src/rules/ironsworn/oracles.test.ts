@@ -1,5 +1,12 @@
 import { describe, it, expect } from "bun:test";
-import { rollOracle, rollYesNo } from "./oracles.js";
+import { existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { rollOracle, rollYesNo, getOracleTables } from "./oracles.js";
+
+const ORACLES_YAML_EXISTS = existsSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "data", "oracles.yaml"),
+);
 
 describe("rollYesNo", () => {
   it("returns valid structure", () => {
@@ -49,6 +56,79 @@ describe("rollOracle", () => {
     expect(() => rollOracle("zzz-nonexistent-table")).toThrow(/not found/i);
   });
 
-  // Integration tests — only run if oracles.yaml exists
-  // (Can't test rollOracle results without the data file)
+  it("returns a valid result for the Action table", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    const result = rollOracle("Action");
+    expect(result.tableName).toBe("Action");
+    expect(result.roll).toBeGreaterThanOrEqual(1);
+    expect(result.roll).toBeLessThanOrEqual(100);
+    expect(typeof result.outcome).toBe("string");
+    expect(result.outcome.length).toBeGreaterThan(0);
+  });
+
+  it("roll is always within the valid range for the table dice", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    // Action uses d100; run many times to confirm bounds
+    for (let i = 0; i < 100; i++) {
+      const r = rollOracle("Action");
+      expect(r.roll).toBeGreaterThanOrEqual(1);
+      expect(r.roll).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it("resolves a table by alias", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    // "Table A" has alias "Ironlander Name"
+    const result = rollOracle("Ironlander Name");
+    expect(result.tableName).toBe("Table A");
+    expect(typeof result.outcome).toBe("string");
+    expect(result.outcome.length).toBeGreaterThan(0);
+  });
+
+  it("alias lookup is case-insensitive", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    const result = rollOracle("ironlander name");
+    expect(result.tableName).toBe("Table A");
+  });
+
+  it("table name lookup is case-insensitive", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    const result = rollOracle("action");
+    expect(result.tableName).toBe("Action");
+  });
+
+  it("outcome covers the full roll range — no gaps in Action table entries", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    // Run 500 times; if any gap existed an error would be thrown.
+    for (let i = 0; i < 500; i++) {
+      expect(() => rollOracle("Action")).not.toThrow();
+    }
+  });
+});
+
+describe("getOracleTables", () => {
+  it("returns a non-empty array when oracles.yaml exists", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    const tables = getOracleTables();
+    expect(Array.isArray(tables)).toBe(true);
+    expect(tables.length).toBeGreaterThan(0);
+  });
+
+  it("each table has name, dice, and rolls fields", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    for (const table of getOracleTables()) {
+      expect(typeof table.name).toBe("string");
+      expect(["d6", "d10", "d100", "1d100", "1d10", "1d6"]).toContain(table.dice);
+      expect(Array.isArray(table.rolls)).toBe(true);
+      expect(table.rolls.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("known tables are present (Action, Theme, Pay the Price)", () => {
+    if (!ORACLES_YAML_EXISTS) return;
+    const names = getOracleTables().map((t) => t.name);
+    expect(names).toContain("Action");
+    expect(names).toContain("Theme");
+    expect(names).toContain("Pay the Price");
+  });
 });
