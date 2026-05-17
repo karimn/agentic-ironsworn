@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { upsertLore, getLore, searchLore, linkLore, getLoreGraph, listProvenance } from "./lore.js";
+import { getLoreDb } from "./lore-db.js";
 
 let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
@@ -554,5 +555,36 @@ describe("integration: rename preserves graph", () => {
     const graphByOld = await getLoreGraph(campaignDir, "Elven Iron", 1);
     expect(graphByNew?.nodes.length).toBe(graphByOld?.nodes.length);
     expect(graphByNew?.edges.length).toBe(2);
+  });
+});
+
+describe("lore_proximity_edges schema", () => {
+  it("creates the proximity table on cold init", async () => {
+    const instance = await getLoreDb(campaignDir);
+    const conn = await instance.connect();
+    try {
+      const result = await conn.runAndReadAll(
+        `SELECT column_name, data_type
+         FROM information_schema.columns
+         WHERE table_name = 'lore_proximity_edges'
+         ORDER BY ordinal_position`,
+      );
+      const cols = (result.getRowObjectsJS() as Record<string, unknown>[])
+        .map((r) => String(r["column_name"]));
+      expect(cols).toEqual([
+        "id",
+        "from_id",
+        "to_id",
+        "dimension",
+        "magnitude",
+        "direction",
+        "order_kind",
+        "notes",
+        "metadata",
+        "created_at",
+      ]);
+    } finally {
+      conn.closeSync();
+    }
   });
 });
