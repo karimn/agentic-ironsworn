@@ -1,5 +1,7 @@
 import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
 import { mkdir } from "node:fs/promises";
+import { runDbMigrations } from "../migrations/index.js";
+import { SCENES_MIGRATIONS } from "../migrations/scenes.js";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -144,6 +146,8 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
         WITH (metric = 'cosine')
       `);
     }
+
+    await runDbMigrations(conn, SCENES_MIGRATIONS);
   } finally {
     conn.closeSync();
   }

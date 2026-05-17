@@ -1,5 +1,6 @@
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { join } from "node:path";
+import { runCharacterMigrations, type CharacterMigration } from "../migrations/index.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,7 +25,23 @@ export interface ProgressTrack {
   status: "active" | "fulfilled" | "forsaken";
 }
 
+// Current character JSON schema version. Increment when a migration is added.
+export const CURRENT_CHARACTER_VERSION = 0;
+
+// Character JSON migrations. The baseline schema is version 0. Append new
+// entries here when fields are added, removed, or restructured; never edit or
+// reorder existing entries.
+//
+// Example:
+//   {
+//     toVersion: 1,
+//     description: "rename 'bonds' to 'bondCount'",
+//     up(data) { data["bondCount"] = data["bonds"]; delete data["bonds"]; return data; },
+//   },
+const CHARACTER_MIGRATIONS: CharacterMigration[] = [];
+
 export interface Character {
+  schemaVersion?: number;
   name: string;
   stats: {
     edge: number;
@@ -107,7 +124,19 @@ function journalPath(campaignPath: string): string {
 
 export async function loadCharacter(campaignPath: string): Promise<Character> {
   const raw = await readFile(characterPath(campaignPath), "utf-8");
-  const char = JSON.parse(raw) as Character;
+  let data = JSON.parse(raw) as Record<string, unknown>;
+
+  const { data: migrated, migrated: didMigrate } = runCharacterMigrations(
+    data,
+    CHARACTER_MIGRATIONS,
+    CURRENT_CHARACTER_VERSION,
+  );
+  if (didMigrate) {
+    await writeFile(characterPath(campaignPath), JSON.stringify(migrated, null, 2), "utf-8");
+  }
+  data = migrated;
+
+  const char = data as unknown as Character;
   char.companions ??= [];
   char.experience ??= 0;
   for (const track of char.progressTracks) {
@@ -125,6 +154,7 @@ export async function saveCharacter(
   campaignPath: string,
   char: Character,
 ): Promise<void> {
+  char.schemaVersion = CURRENT_CHARACTER_VERSION;
   await writeFile(characterPath(campaignPath), JSON.stringify(char, null, 2), "utf-8");
 }
 
