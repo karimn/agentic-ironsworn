@@ -19,6 +19,14 @@ import {
   extractLoreFromScene,
   extractUnprocessedScenes,
 } from "../rag/extraction.js";
+import {
+  linkProximity,
+  proximityDistance,
+  proximityWithin,
+  PROXIMITY_DIMENSIONS,
+  COMPASS_POINTS,
+  type ProximityDimension,
+} from "../rag/proximity.js";
 import { recordMutation } from "../checkpoint.js";
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -297,6 +305,97 @@ export function register(server: McpServer, campaignPath: string): void {
         });
         recordMutation(campaignPath);
         return { content: [{ type: "text", text: JSON.stringify(report) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "link_proximity",
+    "Create or update a weighted proximity edge between two lore entities. Dimension is 'space' (magnitude in days walk, requires direction) or 'time' (magnitude in days, requires order_kind). Idempotent on (from, to, dimension); re-linking updates the row. Returns warnings (does not block) when entity types are unusual for the dimension (spatial on non-place; temporal on non-event).",
+    {
+      from: z.string().describe("Source entity (id, canonical, or alias)"),
+      to: z.string().describe("Target entity (id, canonical, or alias)"),
+      dimension: z.enum(PROXIMITY_DIMENSIONS).describe("'space' or 'time'"),
+      magnitude: z.coerce.number().positive().describe(
+        "For space: days walk (fractional ok). For time: days (fractional ok).",
+      ),
+      direction: z.enum(COMPASS_POINTS).optional().describe(
+        "Required when dimension='space'; forbidden otherwise. 8-point compass.",
+      ),
+      order_kind: z.enum(["before", "after"]).optional().describe(
+        "Required when dimension='time'; forbidden otherwise. 'after' is normalized to 'before' at write time.",
+      ),
+      notes: z.string().optional().describe("Optional prose context"),
+      metadata: z.record(z.string(), z.unknown()).optional(),
+      provenance: provenanceSchema.optional(),
+    },
+    async (input) => {
+      try {
+        const result = await linkProximity(campaignPath, {
+          ...input,
+          dimension: input.dimension as ProximityDimension,
+        });
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "proximity_distance",
+    "Shortest accumulated magnitude between two lore entities along the given dimension. Returns null if the entities are in disconnected components. Symmetric — A→B equals B→A.",
+    {
+      from: z.string().describe("Source entity (id, canonical, or alias)"),
+      to: z.string().describe("Target entity (id, canonical, or alias)"),
+      dimension: z.enum(PROXIMITY_DIMENSIONS).describe("'space' or 'time'"),
+    },
+    async ({ from, to, dimension }) => {
+      try {
+        const result = await proximityDistance(
+          campaignPath,
+          from,
+          to,
+          dimension as ProximityDimension,
+        );
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "proximity_within",
+    "All lore entities reachable from the anchor within `radius` along the given dimension, sorted ascending by distance. Includes the anchor at distance 0.",
+    {
+      anchor: z.string().describe("Anchor entity (id, canonical, or alias)"),
+      radius: z.coerce.number().nonnegative().describe(
+        "Max accumulated magnitude. Days walk for space, days for time.",
+      ),
+      dimension: z.enum(PROXIMITY_DIMENSIONS).describe("'space' or 'time'"),
+    },
+    async ({ anchor, radius, dimension }) => {
+      try {
+        const results = await proximityWithin(
+          campaignPath,
+          anchor,
+          radius,
+          dimension as ProximityDimension,
+        );
+        return { content: [{ type: "text", text: JSON.stringify(results) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
