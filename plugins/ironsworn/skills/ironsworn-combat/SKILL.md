@@ -18,6 +18,8 @@ Combat is a distinct mode of play. The clock runs faster, the fiction is sharper
 
 For all progress-track mechanics (ticks, glyphs, fulfill flow), defer to `ironsworn-progress-tracks`. For Endure Harm / Endure Stress / Face Death triggered by a Pay the Price, defer to `ironsworn-suffer`. For oracle prompts during combat, defer to `ironsworn-oracle`.
 
+**Fiction Grounding Protocol:** Must invoke before narrating foe descriptions, fight texture, or any fiction beat that introduces a place, NPC, or faction — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs

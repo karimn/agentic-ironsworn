@@ -18,6 +18,8 @@ description: >
 
 Pacing is the GM's decision about **where the camera lives**: zoomed out across days, or zoomed into a single breath. Ironsworn breathes in and out; this skill keeps the rhythm honest.
 
+**Fiction Grounding Protocol:** Must invoke before narrating any scene framing or transition beat that introduces a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs

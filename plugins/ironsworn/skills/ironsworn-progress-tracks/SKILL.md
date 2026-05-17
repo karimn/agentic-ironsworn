@@ -16,6 +16,8 @@ description: >
 
 Progress tracks are the spine of Ironsworn. Vows, journeys, combats, bonds, and scene challenges all use them. This skill is the single source of truth for how they work, how they are advanced, how they resolve, and how they are displayed.
 
+**Fiction Grounding Protocol:** Must invoke before narrating vow fiction, journey arrivals, or milestone beats that introduce a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs

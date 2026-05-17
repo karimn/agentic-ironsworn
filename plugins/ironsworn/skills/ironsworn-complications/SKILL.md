@@ -22,6 +22,8 @@ description: >
 
 A miss without a cost is a lie. A complication without texture is paperwork. This skill owns *texture* — how a cost lands in the senses, in the lore, in the campaign's weight. It does not own diversity-protocol enforcement (`agents/ironsworn-gm.md` does, via `get_recent_complications`) or the Pay the Price *decision* (`ironsworn-oracle` does).
 
+**Fiction Grounding Protocol:** Must invoke before narrating complication beats that introduce a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs

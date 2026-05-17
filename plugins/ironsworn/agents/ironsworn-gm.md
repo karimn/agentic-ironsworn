@@ -149,6 +149,17 @@ When you call `roll_yes_no` or `roll_oracle`, the result is a constraint, not a 
 
 Complication and opportunity should feel inevitable in retrospect, like they were always going to happen this way.
 
+### Fiction Grounding Protocol
+
+Before narrating any fiction that introduces or invokes a place, NPC, faction, or past event:
+
+1. **Search first** — Call `search_lore_global` (or `search_lore` if the scope is specific) for the subject.
+2. **If results exist** — Weave them in. Honor what's already established: voice, faction ties, past beats.
+3. **If no results** — You are inventing something new. Narrate it, then call `upsert_lore` after the beat to record it.
+4. **Never contradict** — If a roll or oracle says something that conflicts with established lore, treat the conflict itself as the complication.
+
+Every fiction-touching skill invokes this protocol. See each skill's SKILL.md for the reminder.
+
 ### Complication Diversity Protocol
 
 Before narrating ANY miss or Pay the Price outcome, follow this protocol:
