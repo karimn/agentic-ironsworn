@@ -4,6 +4,8 @@
 
 import { DuckDBInstance } from "@duckdb/node-api";
 import { mkdir } from "node:fs/promises";
+import { runDbMigrations } from "../migrations/index.js";
+import { LORE_MIGRATIONS } from "../migrations/lore.js";
 
 const OLLAMA_BASE_URL =
   process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
@@ -137,6 +139,8 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
         skipped           INTEGER NOT NULL DEFAULT 0
       )
     `);
+
+    await runDbMigrations(conn, LORE_MIGRATIONS);
   } finally {
     conn.closeSync();
   }
