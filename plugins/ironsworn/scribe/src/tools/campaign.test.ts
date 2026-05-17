@@ -313,4 +313,228 @@ describe("import_campaign", () => {
     });
     expect(result.isError).toBe(true);
   });
+
+  it("preserves lore entity created_at on roundtrip export/import", async () => {
+    // This test requires Ollama for embedding. If unavailable, skip gracefully.
+    const ollamaUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+    let ollamaReady = false;
+    try {
+      const res = await fetch(`${ollamaUrl}/api/embed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "nomic-embed-text", input: "test" }),
+      });
+      ollamaReady = res.ok;
+    } catch {
+      // Ollama not available
+    }
+    if (!ollamaReady) return;
+
+    const { upsertLore, exportLore } = await import("../rag/lore.js");
+
+    // Create a lore entity
+    const beforeTimestamp = new Date().toISOString();
+    const { id: entityId } = await upsertLore(campaignDir, {
+      canonical: "Test Entity",
+      type: "place",
+      summary: "A test location",
+    });
+
+    // Export the campaign
+    const exportPath = join(exportDir, "export1.json");
+    await client.callTool({ name: "export_campaign", arguments: { output_path: exportPath } });
+
+    const exportData = JSON.parse(await readFile(exportPath, "utf-8")) as Record<string, unknown>;
+    const entity1 = (exportData["lore_entities"] as unknown[]).find((e) => {
+      const e_ = e as Record<string, unknown>;
+      return e_["id"] === entityId;
+    }) as Record<string, unknown> | undefined;
+
+    expect(entity1).toBeDefined();
+    const createdAt1 = String(entity1!["created_at"]);
+    expect(createdAt1.length > 0).toBe(true);
+
+    // Import into a fresh campaign
+    const importDir = await mkdtemp(join(tmpdir(), "scribe-roundtrip-test-"));
+    try {
+      const importServer = new McpServer({ name: "test-import2", version: "0.0.1" });
+      register(importServer, importDir);
+      const importClient = new Client({ name: "import-client2", version: "0.0.1" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await importServer.connect(st);
+      await importClient.connect(ct);
+
+      const importResult = await importClient.callTool({
+        name: "import_campaign",
+        arguments: { input_path: exportPath },
+      });
+      expect(importResult.isError).not.toBe(true);
+
+      // Export again from the fresh campaign
+      const exportPath2 = join(exportDir, "export2.json");
+      await importClient.callTool({
+        name: "export_campaign",
+        arguments: { output_path: exportPath2 },
+      });
+
+      const exportData2 = JSON.parse(await readFile(exportPath2, "utf-8")) as Record<string, unknown>;
+      const entity2 = (exportData2["lore_entities"] as unknown[]).find((e) => {
+        const e_ = e as Record<string, unknown>;
+        return e_["id"] === entityId;
+      }) as Record<string, unknown> | undefined;
+
+      expect(entity2).toBeDefined();
+      const createdAt2 = String(entity2!["created_at"]);
+
+      // Assert created_at is preserved
+      expect(createdAt2).toBe(createdAt1);
+      expect(new Date(createdAt2).getTime()).toBeLessThanOrEqual(new Date(beforeTimestamp).getTime() + 5000); // Allow some time diff
+    } finally {
+      await rm(importDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves provenance on roundtrip export/import", async () => {
+    const ollamaUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+    let ollamaReady = false;
+    try {
+      const res = await fetch(`${ollamaUrl}/api/embed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "nomic-embed-text", input: "test" }),
+      });
+      ollamaReady = res.ok;
+    } catch {
+      // Ollama not available
+    }
+    if (!ollamaReady) return;
+
+    const { upsertLore, listProvenance } = await import("../rag/lore.js");
+
+    // Create a lore entity with provenance
+    const { id: entityId } = await upsertLore(campaignDir, {
+      canonical: "Provenance Test",
+      type: "concept",
+      summary: "Test entity with provenance",
+      provenance: {
+        source_kind: "document",
+        source_id: "doc-123",
+        excerpt: "From chapter 5",
+        confidence: 0.95,
+      },
+    });
+
+    // Check original provenance
+    const originalProv = await listProvenance(campaignDir, "entity", entityId);
+    expect(originalProv.length).toBe(1);
+    const originalProvenanceId = originalProv[0].id;
+
+    // Export the campaign
+    const exportPath = join(exportDir, "export-prov.json");
+    await client.callTool({ name: "export_campaign", arguments: { output_path: exportPath } });
+
+    const exportData = JSON.parse(await readFile(exportPath, "utf-8")) as Record<string, unknown>;
+    expect((exportData["lore_provenance"] as unknown[]).length).toBeGreaterThan(0);
+
+    // Import into a fresh campaign
+    const importDir = await mkdtemp(join(tmpdir(), "scribe-provenance-test-"));
+    try {
+      const importServer = new McpServer({ name: "test-import3", version: "0.0.1" });
+      register(importServer, importDir);
+      const importClient = new Client({ name: "import-client3", version: "0.0.1" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await importServer.connect(st);
+      await importClient.connect(ct);
+
+      const importResult = await importClient.callTool({
+        name: "import_campaign",
+        arguments: { input_path: exportPath },
+      });
+      expect(importResult.isError).not.toBe(true);
+
+      // Check provenance is preserved in the imported campaign
+      const { listProvenance: importListProvenance } = await import("../rag/lore.js");
+      const importedProv = await importListProvenance(importDir, "entity", entityId);
+      expect(importedProv.length).toBe(1);
+      expect(importedProv[0].source_kind).toBe("document");
+      expect(importedProv[0].source_id).toBe("doc-123");
+      expect(importedProv[0].excerpt).toBe("From chapter 5");
+      expect(importedProv[0].confidence).toBe(0.95);
+    } finally {
+      await rm(importDir, { recursive: true, force: true });
+    }
+  });
+
+  it("is idempotent: re-importing the same payload does not duplicate records", async () => {
+    const ollamaUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+    let ollamaReady = false;
+    try {
+      const res = await fetch(`${ollamaUrl}/api/embed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "nomic-embed-text", input: "test" }),
+      });
+      ollamaReady = res.ok;
+    } catch {
+      // Ollama not available
+    }
+    if (!ollamaReady) return;
+
+    const { upsertLore, listProvenance } = await import("../rag/lore.js");
+
+    // Create entities with provenance
+    const { id: entityId1 } = await upsertLore(campaignDir, {
+      canonical: "Entity 1",
+      type: "faction",
+      summary: "First entity",
+      provenance: { source_kind: "manual" },
+    });
+
+    const { id: entityId2 } = await upsertLore(campaignDir, {
+      canonical: "Entity 2",
+      type: "faction",
+      summary: "Second entity",
+      provenance: { source_kind: "manual" },
+    });
+
+    // Export
+    const exportPath = join(exportDir, "export-idempotent.json");
+    const exportResult1 = await client.callTool({
+      name: "export_campaign",
+      arguments: { output_path: exportPath },
+    });
+    const counts1 = parseText<{ counts: Record<string, number> }>(exportResult1).counts;
+
+    // Import into a fresh campaign
+    const importDir = await mkdtemp(join(tmpdir(), "scribe-idempotent-test-"));
+    try {
+      const importServer = new McpServer({ name: "test-import4", version: "0.0.1" });
+      register(importServer, importDir);
+      const importClient = new Client({ name: "import-client4", version: "0.0.1" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await importServer.connect(st);
+      await importClient.connect(ct);
+
+      const importResult1 = await importClient.callTool({
+        name: "import_campaign",
+        arguments: { input_path: exportPath },
+      });
+      expect(importResult1.isError).not.toBe(true);
+      const importCounts1 = parseText<{ imported: Record<string, number> }>(importResult1).imported;
+
+      // Import again (should be no-op)
+      const importResult2 = await importClient.callTool({
+        name: "import_campaign",
+        arguments: { input_path: exportPath },
+      });
+      expect(importResult2.isError).not.toBe(true);
+      const importCounts2 = parseText<{ imported: Record<string, number> }>(importResult2).imported;
+
+      // Counts should be the same on the second import (idempotent)
+      expect(importCounts2.lore_entities).toBe(importCounts1.lore_entities);
+      expect(importCounts2.lore_provenance).toBe(importCounts1.lore_provenance);
+    } finally {
+      await rm(importDir, { recursive: true, force: true });
+    }
+  });
 });

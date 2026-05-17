@@ -5,7 +5,7 @@ import { dirname } from "node:path";
 import { loadCharacter, saveCharacter } from "../state/character.js";
 import { loadThreads, saveThreads } from "../state/threads.js";
 import { listNpcs, writeNpcRaw } from "../state/npcs.js";
-import { exportLore, upsertLore, linkLore, checkpointLore, type LoreType } from "../rag/lore.js";
+import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "../rag/lore.js";
 import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "../rag/proximity.js";
 import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
 
@@ -18,6 +18,7 @@ interface CampaignExport {
   lore_entities: unknown[];
   lore_relations: unknown[];
   lore_proximity: unknown[];
+  lore_provenance: unknown[];
   scenes: unknown[];
 }
 
@@ -61,12 +62,13 @@ export function register(server: McpServer, campaignPath: string): void {
           checkpointScenes(campaignPath).catch(() => undefined),
         ]);
 
-        const [character, threads, npcs, { entities, relations }, proximity, scenes] = await Promise.all([
+        const [character, threads, npcs, { entities, relations }, proximity, provenance, scenes] = await Promise.all([
           loadCharacter(campaignPath).catch(() => null),
           loadThreads(campaignPath),
           listNpcs(campaignPath),
           exportLore(campaignPath).catch(() => ({ entities: [], relations: [] })),
           exportProximity(campaignPath).catch(() => []),
+          exportProvenance(campaignPath).catch(() => []),
           include_scenes !== false
             ? exportScenes(campaignPath).catch(() => [])
             : Promise.resolve([]),
@@ -81,6 +83,7 @@ export function register(server: McpServer, campaignPath: string): void {
           lore_entities: entities,
           lore_relations: relations,
           lore_proximity: proximity,
+          lore_provenance: provenance,
           scenes,
         };
 
@@ -97,6 +100,7 @@ export function register(server: McpServer, campaignPath: string): void {
                 lore_entities: entities.length,
                 lore_relations: relations.length,
                 lore_proximity: proximity.length,
+                lore_provenance: provenance.length,
                 npcs: Object.keys(npcs).length,
                 threads: threads.length,
                 scenes: scenes.length,
@@ -131,7 +135,7 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
 
-        const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, scenes: 0 };
+        const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, lore_provenance: 0, scenes: 0 };
 
         if (data.character) {
           await saveCharacter(campaignPath, data.character as Parameters<typeof saveCharacter>[1]);
@@ -161,6 +165,8 @@ export function register(server: McpServer, campaignPath: string): void {
               content: (e["content"] ?? {}) as Record<string, unknown>,
               metadata: (e["metadata"] ?? {}) as Record<string, unknown>,
               aliases: Array.isArray(e["aliases"]) ? (e["aliases"] as unknown[]).map(String) : [],
+              _created_at: e["created_at"] != null ? String(e["created_at"]) : undefined,
+              _skipRecordingProvenance: true,
             });
             counts.lore_entities++;
           }
@@ -175,6 +181,8 @@ export function register(server: McpServer, campaignPath: string): void {
               relation: String(r["relation"]),
               notes: r["notes"] != null ? String(r["notes"]) : undefined,
               metadata: (r["metadata"] ?? {}) as Record<string, unknown>,
+              _created_at: r["created_at"] != null ? String(r["created_at"]) : undefined,
+              _skipRecordingProvenance: true,
             });
             counts.lore_relations++;
           }
@@ -195,6 +203,8 @@ export function register(server: McpServer, campaignPath: string): void {
               dimension,
               magnitude,
               metadata: (e["metadata"] ?? {}) as Record<string, unknown>,
+              _created_at: e["created_at"] != null ? String(e["created_at"]) : undefined,
+              _skipRecordingProvenance: true,
             };
             if (direction !== undefined) input.direction = direction;
             if (order_kind !== undefined) input.order_kind = order_kind;
@@ -202,6 +212,23 @@ export function register(server: McpServer, campaignPath: string): void {
 
             await linkProximity(campaignPath, input);
             counts.lore_proximity++;
+          }
+        }
+
+        if (Array.isArray(data.lore_provenance)) {
+          for (const entry of data.lore_provenance) {
+            const p = entry as Record<string, unknown>;
+            await replayProvenance(campaignPath, {
+              id: String(p["id"]),
+              subject_kind: String(p["subject_kind"]) as "entity" | "relation" | "proximity",
+              subject_id: String(p["subject_id"]),
+              source_kind: String(p["source_kind"]),
+              source_id: p["source_id"] != null ? String(p["source_id"]) : null,
+              excerpt: p["excerpt"] != null ? String(p["excerpt"]) : null,
+              confidence: typeof p["confidence"] === "number" ? p["confidence"] : null,
+              created_at: String(p["created_at"]),
+            });
+            counts.lore_provenance++;
           }
         }
 
