@@ -400,3 +400,33 @@ describe("proximityWithin", () => {
     expect(stone!.type).toBe("place");
   });
 });
+
+import { exportProximity } from "./proximity.js";
+
+describe("exportProximity", () => {
+  it("returns all stored edges with all columns", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    await seedEvent("E1");
+    await seedEvent("E2");
+
+    await linkProximity(campaignDir, {
+      from: "A", to: "B", dimension: "space", magnitude: 1, direction: "E",
+    });
+    await linkProximity(campaignDir, {
+      from: "E1", to: "E2", dimension: "time", magnitude: 3, order_kind: "before",
+    });
+
+    const edges = await exportProximity(campaignDir);
+    expect(edges.length).toBe(2);
+
+    const space = edges.find((e) => e.dimension === "space");
+    expect(space?.direction).toBe("E");
+    expect(space?.order_kind).toBeNull();
+
+    const time = edges.find((e) => e.dimension === "time");
+    expect(time?.order_kind).toBe("before");
+    expect(time?.direction).toBeNull();
+  });
+});

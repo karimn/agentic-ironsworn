@@ -480,3 +480,58 @@ export async function proximityWithin(
     conn.closeSync();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Export / Import helpers
+// ---------------------------------------------------------------------------
+
+export interface ProximityEdgeExport {
+  id: string;
+  from_id: string;
+  to_id: string;
+  dimension: ProximityDimension;
+  magnitude: number;
+  direction: CompassPoint | null;
+  order_kind: OrderKind | null;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function exportProximity(
+  campaignPath: string,
+): Promise<ProximityEdgeExport[]> {
+  const instance = await getLoreDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const result = await conn.runAndReadAll(
+      `SELECT id, from_id, to_id, dimension, magnitude, direction, order_kind,
+              notes, metadata, created_at
+       FROM lore_proximity_edges
+       ORDER BY created_at`,
+    );
+    return (result.getRowObjectsJS() as Record<string, unknown>[]).map((r) => {
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}");
+      } catch {
+        metadata = {};
+      }
+      const magRaw = r["magnitude"];
+      return {
+        id: String(r["id"]),
+        from_id: String(r["from_id"]),
+        to_id: String(r["to_id"]),
+        dimension: String(r["dimension"]) as ProximityDimension,
+        magnitude: typeof magRaw === "number" ? magRaw : Number(magRaw),
+        direction: r["direction"] != null ? (String(r["direction"]) as CompassPoint) : null,
+        order_kind: r["order_kind"] != null ? (String(r["order_kind"]) as OrderKind) : null,
+        notes: r["notes"] != null ? String(r["notes"]) : null,
+        metadata,
+        created_at: String(r["created_at"]),
+      };
+    });
+  } finally {
+    conn.closeSync();
+  }
+}
