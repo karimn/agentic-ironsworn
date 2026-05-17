@@ -26,7 +26,7 @@ Social moves resolve persuasion, recovery in community, and the relationships th
 | Tool | When |
 |---|---|
 | `resolve_move` | Compel, Sojourn, Forge a Bond, Test Your Bond, Aid Your Ally, Write Your Epilogue (action rolls) |
-| `roll_progress` | Write Your Epilogue (progress roll on bonds) |
+| `roll_epilogue` | Write Your Epilogue (progress roll on bonds — reads bonds directly, no track required) |
 | `override` (path=`bonds`) | Increment / clear `bonds` after Forge a Bond or Test Your Bond outcomes |
 | `get_character_digest` | Read current `bonds` value before mutating |
 | `upsert_npc` | Record a new NPC, or update impression after a beat |
@@ -105,11 +105,11 @@ After choosing, the player may **focus** one chosen *Recover* action: re-roll +h
 **Fiction Notes.** Aid is a fiction frame on an existing move. Decide the supporting action (cover, feint, scout, reassure), pick the stat that matches, and resolve as Secure an Advantage — the result modifies the ally's next roll, not yours.
 
 ### Write Your Epilogue
-**Trigger:** the character retires from the life of the Ironsworn. This is a **progress roll on bonds**, not an action roll: use `roll_progress` (treat each filled bond, up to 10, as a filled progress box).
+**Trigger:** the character retires from the life of the Ironsworn. This is a **progress roll on bonds**, not an action roll: call `roll_epilogue` (reads `bonds` directly from character state, no track required).
 
-- Strong → things come to pass as hoped.
-- Weak → an unexpected turn — narrate the new life (`roll_oracle` if unsure).
-- Miss → fears realized.
+- Strong → things come to pass as hoped. (`oraclePrompt` is null — no oracle needed.)
+- Weak → an unexpected turn — narrate the new life. Call `roll_oracle` using the returned `oraclePrompt`.
+- Miss → fears realized. Call `roll_oracle` using the returned `oraclePrompt`.
 
 After resolution, the campaign closes for that character. **Fiction Notes.** Epilogue is the *cost-benefit ledger of bonds* paying out — few bonds risks isolation, many cashes them in for the life earned. Run it as montage, not scene.
 
@@ -122,7 +122,7 @@ After resolution, the campaign closes for that character. **Fiction Notes.** Epi
 - **A weak-hit promise is a thread.** `open_thread` (debt or vow). Don't trust memory.
 - **Don't conflate Sojourn with Make Camp** — community heart vs wilderness supply.
 - **Aid Your Ally is not a separate roll table** — it's Secure an Advantage with the bonus given to the ally.
-- **Write Your Epilogue uses `roll_progress` on bonds**, not `resolve_move`. It ends the campaign for that character.
+- **Write Your Epilogue uses `roll_epilogue`**, not `resolve_move` or `roll_progress`. It reads `bonds` directly and ends the campaign for that character.
 - **Ground in lore first** — `search_lore_global` / `get_npc` before inventing motives, debts, or community history.
 
 ---

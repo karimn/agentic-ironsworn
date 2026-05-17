@@ -112,6 +112,63 @@ describe("resolve_move burn_momentum", () => {
   });
 });
 
+describe("roll_epilogue", () => {
+  it("returns outcome, bonds, challengeDice, and match fields", async () => {
+    const result = await client.callTool({ name: "roll_epilogue", arguments: {} });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(["strong", "weak", "miss"]).toContain(parsed.outcome);
+    expect(parsed.bonds).toBe(0);
+    expect(Array.isArray(parsed.challengeDice)).toBe(true);
+    expect(parsed.challengeDice).toHaveLength(2);
+    expect(typeof parsed.match).toBe("boolean");
+  });
+
+  it("reads bonds from character.json", async () => {
+    const bondsChar = { ...CHARACTER, bonds: 7 };
+    await writeFile(join(campaignDir, "character.json"), JSON.stringify(bondsChar));
+    const result = await client.callTool({ name: "roll_epilogue", arguments: {} });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.bonds).toBe(7);
+    expect(parsed.progressScore).toBe(7);
+  });
+
+  it("caps bonds at 10 for progress score", async () => {
+    const bondsChar = { ...CHARACTER, bonds: 15 };
+    await writeFile(join(campaignDir, "character.json"), JSON.stringify(bondsChar));
+    const result = await client.callTool({ name: "roll_epilogue", arguments: {} });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.bonds).toBe(15);
+    expect(parsed.progressScore).toBe(10);
+  });
+
+  it("includes oraclePrompt on weak hit or miss, null on strong hit", async () => {
+    // Run many times to cover outcomes; at least verify the field is present and correct type
+    for (let i = 0; i < 30; i++) {
+      const result = await client.callTool({ name: "roll_epilogue", arguments: {} });
+      const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+      if (parsed.outcome === "strong") {
+        expect(parsed.oraclePrompt).toBeNull();
+      } else {
+        expect(typeof parsed.oraclePrompt).toBe("string");
+        expect(parsed.oraclePrompt.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("writes a writeEpilogue entry to the journal", async () => {
+    const { readFile } = await import("node:fs/promises");
+    await client.callTool({ name: "roll_epilogue", arguments: {} });
+    const journal = await readFile(join(campaignDir, "state-journal.jsonl"), "utf-8");
+    const entries = journal.trim().split("\n").map((l) => JSON.parse(l));
+    const epilogueEntry = entries.find((e) => e.kind === "writeEpilogue");
+    expect(epilogueEntry).toBeDefined();
+    expect(epilogueEntry.kind).toBe("writeEpilogue");
+  });
+});
+
 describe("resolve_move resource stats", () => {
   it("accepts supply as a valid stat", async () => {
     const result = await client.callTool({ name: "resolve_move", arguments: { move_name: "Make Camp", stat: "supply", adds: 0 } });
