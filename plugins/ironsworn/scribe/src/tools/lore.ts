@@ -316,7 +316,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "link_proximity",
-    "Create or update a weighted proximity edge between two lore entities. Dimension is 'space' (magnitude in days walk, requires direction) or 'time' (magnitude in days, requires order_kind). Idempotent on (from, to, dimension); re-linking updates the row. Returns warnings (does not block) when entity types are unusual for the dimension (spatial on non-place; temporal on non-event).",
+    "Create or update a weighted proximity edge between two lore entities. Dimension is 'space' (magnitude in days walk, requires direction) or 'time' (magnitude in days, requires order_kind). Idempotent on (from, to, dimension); re-linking updates the row. Result.warnings is a string[] populated (without blocking the write) when entity types are unusual for the dimension — spatial on non-place/non-faction, or temporal on non-event. Inspect result.warnings; an empty array means no concerns.",
     {
       from: z.string().describe("Source entity (id, canonical, or alias)"),
       to: z.string().describe("Target entity (id, canonical, or alias)"),
