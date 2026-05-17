@@ -31,7 +31,7 @@ export interface ProvenanceInput {
 
 export interface ProvenanceEntry {
   id: string;
-  subject_kind: "entity" | "relation";
+  subject_kind: "entity" | "relation" | "proximity";
   subject_id: string;
   source_kind: string;
   source_id: string | null;
@@ -143,9 +143,9 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
 // Provenance helper
 // ---------------------------------------------------------------------------
 
-async function recordProvenance(
+export async function recordProvenance(
   conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
-  subjectKind: "entity" | "relation",
+  subjectKind: "entity" | "relation" | "proximity",
   subjectId: string,
   prov: ProvenanceInput | undefined,
 ): Promise<void> {

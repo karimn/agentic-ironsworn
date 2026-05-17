@@ -6,6 +6,7 @@ import { loadCharacter, saveCharacter } from "../state/character.js";
 import { loadThreads, saveThreads } from "../state/threads.js";
 import { listNpcs, writeNpcRaw } from "../state/npcs.js";
 import { exportLore, upsertLore, linkLore, checkpointLore, type LoreType } from "../rag/lore.js";
+import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "../rag/proximity.js";
 import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
 
 interface CampaignExport {
@@ -16,6 +17,7 @@ interface CampaignExport {
   npcs: Record<string, string>;
   lore_entities: unknown[];
   lore_relations: unknown[];
+  lore_proximity: unknown[];
   scenes: unknown[];
 }
 
@@ -59,11 +61,12 @@ export function register(server: McpServer, campaignPath: string): void {
           checkpointScenes(campaignPath).catch(() => undefined),
         ]);
 
-        const [character, threads, npcs, { entities, relations }, scenes] = await Promise.all([
+        const [character, threads, npcs, { entities, relations }, proximity, scenes] = await Promise.all([
           loadCharacter(campaignPath).catch(() => null),
           loadThreads(campaignPath),
           listNpcs(campaignPath),
           exportLore(campaignPath).catch(() => ({ entities: [], relations: [] })),
+          exportProximity(campaignPath).catch(() => []),
           include_scenes !== false
             ? exportScenes(campaignPath).catch(() => [])
             : Promise.resolve([]),
@@ -77,6 +80,7 @@ export function register(server: McpServer, campaignPath: string): void {
           npcs,
           lore_entities: entities,
           lore_relations: relations,
+          lore_proximity: proximity,
           scenes,
         };
 
@@ -92,6 +96,7 @@ export function register(server: McpServer, campaignPath: string): void {
               counts: {
                 lore_entities: entities.length,
                 lore_relations: relations.length,
+                lore_proximity: proximity.length,
                 npcs: Object.keys(npcs).length,
                 threads: threads.length,
                 scenes: scenes.length,
@@ -126,7 +131,7 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
 
-        const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, scenes: 0 };
+        const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, scenes: 0 };
 
         if (data.character) {
           await saveCharacter(campaignPath, data.character as Parameters<typeof saveCharacter>[1]);
@@ -172,6 +177,31 @@ export function register(server: McpServer, campaignPath: string): void {
               metadata: (r["metadata"] ?? {}) as Record<string, unknown>,
             });
             counts.lore_relations++;
+          }
+        }
+
+        if (Array.isArray(data.lore_proximity)) {
+          for (const edge of data.lore_proximity) {
+            const e = edge as Record<string, unknown>;
+            const dimension = String(e["dimension"]) as ProximityDimension;
+            const direction = e["direction"] != null ? (String(e["direction"]) as CompassPoint) : undefined;
+            const order_kind = e["order_kind"] != null ? (String(e["order_kind"]) as OrderKind) : undefined;
+            const magRaw = e["magnitude"];
+            const magnitude = typeof magRaw === "number" ? magRaw : Number(magRaw);
+
+            const input: Parameters<typeof linkProximity>[1] = {
+              from: String(e["from_id"]),
+              to: String(e["to_id"]),
+              dimension,
+              magnitude,
+              metadata: (e["metadata"] ?? {}) as Record<string, unknown>,
+            };
+            if (direction !== undefined) input.direction = direction;
+            if (order_kind !== undefined) input.order_kind = order_kind;
+            if (e["notes"] != null) input.notes = String(e["notes"]);
+
+            await linkProximity(campaignPath, input);
+            counts.lore_proximity++;
           }
         }
 

@@ -140,6 +140,39 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       )
     `);
 
+    // Proximity layer (issue #108). Pairwise weighted edges between lore
+    // entities along a single dimension (`space` or `time`). Spatial edges
+    // are symmetric in magnitude — direction inversion happens at read time.
+    // Temporal edges are normalized so from_id is the earlier event and
+    // order_kind is always 'before'. UNIQUE (from_id, to_id, dimension)
+    // ensures one row per pair per dimension; canonical ordering at write
+    // time prevents (A,B) and (B,A) from coexisting.
+    await conn.run(`
+      CREATE TABLE IF NOT EXISTS lore_proximity_edges (
+        id         TEXT PRIMARY KEY,
+        from_id    TEXT NOT NULL,
+        to_id      TEXT NOT NULL,
+        dimension  TEXT NOT NULL,
+        magnitude  FLOAT NOT NULL,
+        direction  TEXT,
+        order_kind TEXT,
+        notes      TEXT,
+        metadata   TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        UNIQUE (from_id, to_id, dimension)
+      )
+    `);
+
+    await conn.run(`
+      CREATE INDEX IF NOT EXISTS lore_proximity_from_idx
+      ON lore_proximity_edges (from_id, dimension)
+    `);
+
+    await conn.run(`
+      CREATE INDEX IF NOT EXISTS lore_proximity_to_idx
+      ON lore_proximity_edges (to_id, dimension)
+    `);
+
     await runDbMigrations(conn, LORE_MIGRATIONS);
   } finally {
     conn.closeSync();

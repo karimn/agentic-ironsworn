@@ -39,7 +39,7 @@ Entry point: `server.ts`. Tools are registered from six modules:
 | `tools/mechanics.ts` | Dice, move resolution, oracles |
 | `tools/mutations.ts` | All character state changes (health, momentum, assets, companions, XP) |
 | `tools/narrative.ts` | Scene recording, NPC upserts, thread management |
-| `tools/lore.ts` | Knowledge graph CRUD and semantic search |
+| `tools/lore.ts` | Knowledge graph CRUD, semantic search, and proximity edges (`link_proximity`, `proximity_distance`, `proximity_within`) |
 | `tools/campaign.ts` | Checkpoint, export/import |
 
 Supporting modules:
@@ -47,6 +47,7 @@ Supporting modules:
 - `rag/scenes.ts` + `rag/lore.ts` — DuckDB + Ollama embedding stores
 - `rag/lore-db.ts` — shared DuckDB schema/connection + Ollama embedding client (used by `lore.ts` and `communities.ts`)
 - `rag/communities.ts` — GraphRAG community detection + Claude summarization
+- `rag/proximity.ts` — weighted spatial/temporal proximity edges with Dijkstra distance + radius queries
 - `rules/` — pure Ironsworn logic (dice, moves, progress, assets, momentum, oracles)
 - `context/build.ts` — assembles GM session context from all sources
 - `checkpoint.ts` — periodic DuckDB WAL flush (every 5 min or 20 writes)
