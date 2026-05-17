@@ -48,13 +48,11 @@ What lives where:
 Resolution order for where expansions are found (first hit wins per
 expansion name; all discovered expansions load):
 
-1. `SCRIBE_EXPANSIONS_DIR` — explicit external path. The user already keeps
-   RPG rules at an allow-listed path
-   (`settings.json` → `sandbox.filesystem.allowWrite`), so this is the
-   natural home for a local working copy.
-2. `${SCRIBE_PLUGIN_ROOT}/expansions/<name>/` — co-located, for a developer
-   who clones the private repo here (gitignored; **no `.gitmodules` in the
-   public repo** so the private URL is never leaked — see Decision D1).
+1. `SCRIBE_EXPANSIONS_DIR` — explicit external path override.
+2. `${SCRIBE_PLUGIN_ROOT}/expansions/<name>/` — co-located submodule.
+   `plugins/ironsworn/expansions/delve/` is a git submodule; the directory
+   is empty for anyone without credentials, non-empty for purchasers who ran
+   `git submodule update --init`.
 3. none found → base game only.
 
 An expansion is *active* only if discovered **and** allow-listed via
@@ -188,11 +186,11 @@ naturally `progressTracks` — `ProgressTrack.kind` is
 `"vow"|"combat"|"journey"|"bond"|"other"`; `"other"` already absorbs them,
 or a core migration adds `"delve-site"`.
 
-Proposal: one core character migration introducing a typed passthrough bag
-`expansions: Record<string, unknown>` (round-trips untouched), plus keep
-sites as `progressTracks` with `kind:"other"` and a discriminator in
-`customState`. Avoids leaking Delve concepts into core enums.
-(Decision D5: typed `"delve-site"` enum value vs opaque bag.)
+Core character migration v1 adds `"delve-site"` to `ProgressTrack.kind`.
+Sites are first-class progress tracks; the Delve expansion creates them with
+this kind and can query/filter them directly. `CURRENT_CHARACTER_VERSION`
+bumps to 1; the migration is a no-op on existing data (just widens the
+allowed enum, no field changes needed).
 
 ### 5. GM context injection
 
@@ -229,15 +227,22 @@ the CC-visible skill files.)
 - `plugin.json` Stop-hook version bump still required for **core** loader
   changes; the private expansion versions independently.
 
-## Open decisions (need your call)
+## Decisions (settled)
 
-- **D1** Private repo as a real git submodule (convenient, but `.gitmodules`
-  leaks the private URL) vs gitignored manual clone / `SCRIBE_EXPANSIONS_DIR`
-  (no leak). Spec currently assumes the latter.
-- **D3** Name collisions: hard error vs auto-namespace expansion entries.
-- **D4** Shared DBs + namespaced migrations vs per-expansion `.duckdb`.
-- **D5** Sites as core `"delve-site"` track kind vs opaque `expansions` bag.
-- **D6** Skill delivery: symlink-on-enable vs sibling skills-only plugin.
+- **D1** Git submodule at `plugins/ironsworn/expansions/delve/` pointing to
+  the private repo. `.gitmodules` is committed to the public repo, making
+  the pointer visible (but not accessible) to anyone. Plain `git clone`
+  leaves the submodule directory empty; the plugin's `existsSync` guards
+  mean the base game runs unaffected. Only `git submodule update --init`
+  with valid credentials enables Delve.
+- **D2** All Delve code (logic, migrations, context, skills) lives in the
+  private repo. The public repo exposes only the SDK interfaces.
+- **D3** Name collisions between expansion entries and core: hard error at
+  load (logged to stderr, expansion treated as inert).
+- **D4** Shared DBs with namespaced migrations.
+- **D5** `"delve-site"` added to the core `ProgressTrack.kind` union via a
+  core character migration. Sites are first-class progress tracks.
+- **D6** Skill delivery: symlink-on-enable via `/ironsworn-expansion` command.
 
 ## Build order (once decisions land)
 
