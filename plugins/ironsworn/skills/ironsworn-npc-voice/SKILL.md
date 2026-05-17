@@ -17,6 +17,8 @@ description: >
 
 NPCs in Ironsworn have no stats — they exist entirely in fiction (rulebook p. 24, 133). This skill is the craft layer for keeping them **distinctive, motivated, and continuous** across sessions. Every line and reaction must be grounded in the lore record.
 
+**Fiction Grounding Protocol:** Must invoke before writing any NPC dialogue or reaction that introduces or invokes a place, faction, or past event — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs

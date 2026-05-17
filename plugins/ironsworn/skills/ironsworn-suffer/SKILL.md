@@ -17,6 +17,8 @@ description: >
 
 Suffer moves apply costs when the world pushes back. This skill is the single source of truth for **applying** consequences. Choosing *which* consequence belongs to `ironsworn-oracle` Pay the Price; this skill takes it from there.
 
+**Fiction Grounding Protocol:** Must invoke before narrating consequence beats that introduce a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 **The discipline:** *A hit that costs nothing isn't a hit.* Never narrate "you take a wound" without `suffer_harm`; never narrate "you're rattled" without `suffer_stress`. The journal is how the campaign remembers wounds.
 
 ---

@@ -19,6 +19,8 @@ description: >
 
 The oracle is the engine of surprise. Anything you don't already know, the dice can tell you. This skill is the single source of truth for the two Fate moves — **Ask the Oracle** and **Pay the Price** — and for how every other skill should reach for `roll_yes_no` and `roll_oracle`.
 
+**Fiction Grounding Protocol:** Must invoke before narrating oracle answer interpretations that introduce a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs

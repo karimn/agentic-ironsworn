@@ -19,6 +19,8 @@ description: >
 
 # Ironsworn Scene Craft
 
+**Fiction Grounding Protocol:** Must invoke before framing any scene that introduces or invokes a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 A scene has a place, a moment, a stake, and an exit. This skill is the operational form of the rulebook's *Begin and End with the Fiction* principle (Ch. 7, p. 226). It loads alongside any mechanics skill when the texture of a moment matters more than the dice.
 
 ---

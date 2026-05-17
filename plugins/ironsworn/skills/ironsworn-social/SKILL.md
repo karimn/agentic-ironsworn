@@ -17,6 +17,8 @@ description: >
 
 Social moves resolve persuasion, recovery in community, and the relationships that anchor the character to the Ironlands. This skill is the single source of truth for **how** these moves resolve, what tool calls follow each outcome, and where social play hands off to other skills.
 
+**Fiction Grounding Protocol:** Must invoke before narrating NPC voice, bond stakes, or any fiction beat that introduces a place, NPC, faction, or past event — see `agents/ironsworn-gm.md`.
+
 ---
 
 ## Tools This Skill Governs
