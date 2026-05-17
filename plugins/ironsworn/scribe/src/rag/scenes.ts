@@ -18,6 +18,7 @@ export interface Scene {
   timestamp: string;
   kind: string;
   complication_theme?: string;
+  quality_notes?: string;
   beats?: Beat[];
   score?: number;
 }
@@ -97,12 +98,17 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
         embedding          FLOAT[768] NOT NULL,
         timestamp          TEXT NOT NULL,
         kind               TEXT NOT NULL DEFAULT 'scene',
-        complication_theme TEXT
+        complication_theme TEXT,
+        quality_notes      TEXT
       )
     `);
 
     await conn.run(`
       ALTER TABLE scenes ADD COLUMN IF NOT EXISTS complication_theme TEXT
+    `);
+
+    await conn.run(`
+      ALTER TABLE scenes ADD COLUMN IF NOT EXISTS quality_notes TEXT
     `);
 
     await conn.run(`
@@ -249,9 +255,11 @@ export async function recordScene(
   kind?: string,
   complicationTheme?: string,
   beats?: BeatInput[],
+  qualityNotes?: string,
 ): Promise<string> {
+  const embedText = qualityNotes ? `${summary}\n${qualityNotes}` : summary;
   const [embedding, instance] = await Promise.all([
-    getEmbedding(summary),
+    getEmbedding(embedText),
     getDb(campaignPath),
   ]);
 
@@ -264,9 +272,9 @@ export async function recordScene(
   const conn = await openWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme)
-       VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?)`,
-      [id, summary, timestamp, sceneKind, complicationTheme ?? null],
+      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme, quality_notes)
+       VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?, ?)`,
+      [id, summary, timestamp, sceneKind, complicationTheme ?? null, qualityNotes ?? null],
     );
   } finally {
     conn.closeSync();
@@ -290,7 +298,7 @@ export async function getScene(
   try {
     const rows = (
       await conn.runAndReadAll(
-        `SELECT id, text, timestamp, kind, complication_theme FROM scenes WHERE id = ?`,
+        `SELECT id, text, timestamp, kind, complication_theme, quality_notes FROM scenes WHERE id = ?`,
         [id],
       )
     ).getRowObjectsJS() as Record<string, unknown>[];
@@ -302,6 +310,7 @@ export async function getScene(
       timestamp: String(row["timestamp"]),
       kind: String(row["kind"]),
       complication_theme: row["complication_theme"] != null ? String(row["complication_theme"]) : undefined,
+      quality_notes: row["quality_notes"] != null ? String(row["quality_notes"]) : undefined,
     };
   } finally {
     conn.closeSync();
@@ -317,7 +326,7 @@ export async function getScene(
 export async function updateScene(
   campaignPath: string,
   id: string,
-  fields: { summary?: string; kind?: string; complication_theme?: string },
+  fields: { summary?: string; kind?: string; complication_theme?: string; quality_notes?: string },
 ): Promise<void> {
   const instance = await getDb(campaignPath);
 
@@ -325,12 +334,40 @@ export async function updateScene(
   const setClauses: string[] = [];
   const params: DuckDBValue[] = [];
 
-  if (fields.summary !== undefined) {
-    // Re-embed when summary changes
-    const embedding = await getEmbedding(fields.summary);
+  if (fields.summary !== undefined || fields.quality_notes !== undefined) {
+    // Re-embed when summary or quality_notes changes; need current values for the other field
+    let embedSummary = fields.summary;
+    let embedNotes = fields.quality_notes;
+
+    if (embedSummary === undefined || embedNotes === undefined) {
+      // Fetch current values for whichever field is not being updated
+      const checkConn = await instance.connect();
+      try {
+        const rows = (
+          await checkConn.runAndReadAll(
+            `SELECT text, quality_notes FROM scenes WHERE id = ?`,
+            [id],
+          )
+        ).getRowObjectsJS() as Record<string, unknown>[];
+        if (rows.length > 0) {
+          if (embedSummary === undefined) embedSummary = String(rows[0]!["text"] ?? "");
+          if (embedNotes === undefined) {
+            const n = rows[0]!["quality_notes"];
+            embedNotes = n != null ? String(n) : undefined;
+          }
+        }
+      } finally {
+        checkConn.closeSync();
+      }
+    }
+
+    const embedText = embedNotes ? `${embedSummary}\n${embedNotes}` : embedSummary!;
+    const embedding = await getEmbedding(embedText);
     const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
-    setClauses.push(`text = ?`);
-    params.push(fields.summary);
+    if (fields.summary !== undefined) {
+      setClauses.push(`text = ?`);
+      params.push(fields.summary);
+    }
     setClauses.push(`embedding = ${embeddingLiteral}`);
   }
   if (fields.kind !== undefined) {
@@ -340,6 +377,10 @@ export async function updateScene(
   if (fields.complication_theme !== undefined) {
     setClauses.push(`complication_theme = ?`);
     params.push(fields.complication_theme);
+  }
+  if (fields.quality_notes !== undefined) {
+    setClauses.push(`quality_notes = ?`);
+    params.push(fields.quality_notes);
   }
 
   if (setClauses.length === 0) return;
@@ -568,6 +609,7 @@ export interface SceneExport {
   timestamp: string;
   kind: string;
   complication_theme?: string;
+  quality_notes?: string;
   beats?: BeatExport[];
 }
 
@@ -577,7 +619,7 @@ export async function exportScenes(campaignPath: string): Promise<SceneExport[]>
   try {
     const sceneRows = (
       await conn.runAndReadAll(
-        `SELECT id, text, timestamp, kind, complication_theme FROM scenes ORDER BY timestamp`,
+        `SELECT id, text, timestamp, kind, complication_theme, quality_notes FROM scenes ORDER BY timestamp`,
       )
     ).getRowObjectsJS() as Record<string, unknown>[];
 
@@ -621,6 +663,7 @@ export async function exportScenes(campaignPath: string): Promise<SceneExport[]>
         timestamp: String(r["timestamp"]),
         kind: String(r["kind"]),
         complication_theme: r["complication_theme"] != null ? String(r["complication_theme"]) : undefined,
+        quality_notes: r["quality_notes"] != null ? String(r["quality_notes"]) : undefined,
       };
       if (beats && beats.length > 0) entry.beats = beats;
       return entry;
@@ -638,6 +681,7 @@ export async function importScene(
   kind: string,
   complicationTheme?: string,
   beats?: BeatExport[],
+  qualityNotes?: string,
 ): Promise<boolean> {
   const instance = await getDb(campaignPath);
 
@@ -654,7 +698,8 @@ export async function importScene(
   if (exists) return false;
 
   // Fetch scene + all beat embeddings in parallel
-  const allTexts = [text, ...(beats ?? []).map((b) => b.text)];
+  const embedText = qualityNotes ? `${text}\n${qualityNotes}` : text;
+  const allTexts = [embedText, ...(beats ?? []).map((b) => b.text)];
   const allEmbeddings = await Promise.all(allTexts.map(getEmbedding));
   const sceneEmbedding = allEmbeddings[0]!;
   const beatEmbeddings = allEmbeddings.slice(1);
@@ -664,8 +709,8 @@ export async function importScene(
   const conn = await openWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme) VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?)`,
-      [id, text, timestamp, kind, complicationTheme ?? null],
+      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme, quality_notes) VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?, ?)`,
+      [id, text, timestamp, kind, complicationTheme ?? null, qualityNotes ?? null],
     );
 
     if (beats && beats.length > 0) {
@@ -737,7 +782,7 @@ export async function searchScenes(
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
-      `SELECT id, text, timestamp, kind, complication_theme,
+      `SELECT id, text, timestamp, kind, complication_theme, quality_notes,
               array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
        FROM scenes
        ORDER BY score DESC
@@ -753,6 +798,7 @@ export async function searchScenes(
       timestamp: String(row["timestamp"] ?? ""),
       kind: String(row["kind"] ?? "scene"),
       complication_theme: row["complication_theme"] != null ? String(row["complication_theme"]) : undefined,
+      quality_notes: row["quality_notes"] != null ? String(row["quality_notes"]) : undefined,
       score:
         typeof row["score"] === "number"
           ? row["score"]
