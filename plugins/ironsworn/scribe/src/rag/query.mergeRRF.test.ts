@@ -27,7 +27,7 @@ describe("mergeRRF", () => {
   });
 
   it("limits results to k", () => {
-    const rows = ["a", "b", "c", "d", "e"].map(row);
+    const rows = ["a", "b", "c", "d", "e"].map((id) => row(id));
     const result = mergeRRF(rows, [], 3);
     expect(result).toHaveLength(3);
   });
@@ -65,7 +65,7 @@ describe("mergeRRF", () => {
 
   it("results are sorted by descending score", () => {
     // Rank 0 in vector wins over rank 1, wins over rank 2, etc.
-    const vectorRows = ["a", "b", "c", "d"].map(row);
+    const vectorRows = ["a", "b", "c", "d"].map((id) => row(id));
     const result = mergeRRF(vectorRows, [], 4);
     for (let i = 1; i < result.length; i++) {
       expect(result[i - 1]!.score).toBeGreaterThanOrEqual(result[i]!.score);
@@ -73,8 +73,8 @@ describe("mergeRRF", () => {
   });
 
   it("all returned rows carry a positive score", () => {
-    const vectorRows = ["x", "y"].map(row);
-    const bm25Rows = ["y", "z"].map(row);
+    const vectorRows = ["x", "y"].map((id) => row(id));
+    const bm25Rows = ["y", "z"].map((id) => row(id));
     const result = mergeRRF(vectorRows, bm25Rows, 10);
     for (const r of result) {
       expect(r.score).toBeGreaterThan(0);

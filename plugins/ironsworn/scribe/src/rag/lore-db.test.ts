@@ -86,11 +86,15 @@ describe("openLoreWriteConn", () => {
 // ---------------------------------------------------------------------------
 
 describe("getLoreEmbedding", () => {
+  // mockImplementationOnce argument must be cast because `typeof fetch` includes
+  // the non-standard `preconnect` property that plain functions don't carry.
+  type FetchFn = typeof fetch;
+
   it("throws a clear error when Ollama is unreachable (network failure)", async () => {
     const spy = spyOn(globalThis, "fetch");
-    spy.mockImplementationOnce(() => {
+    spy.mockImplementationOnce((() => {
       throw new Error("connect ECONNREFUSED 127.0.0.1:11434");
-    });
+    }) as unknown as FetchFn);
     try {
       await expect(getLoreEmbedding("test text")).rejects.toThrow(/ollama unavailable/i);
     } finally {
@@ -100,9 +104,9 @@ describe("getLoreEmbedding", () => {
 
   it("throws when Ollama returns a non-OK HTTP response", async () => {
     const spy = spyOn(globalThis, "fetch");
-    spy.mockImplementationOnce(async () =>
-      new Response(null, { status: 500, statusText: "Internal Server Error" }),
-    );
+    spy.mockImplementationOnce((async () =>
+      new Response(null, { status: 500, statusText: "Internal Server Error" })
+    ) as unknown as FetchFn);
     try {
       await expect(getLoreEmbedding("test text")).rejects.toThrow(/ollama embed failed/i);
     } finally {
@@ -112,12 +116,12 @@ describe("getLoreEmbedding", () => {
 
   it("throws when the response body has an unexpected shape", async () => {
     const spy = spyOn(globalThis, "fetch");
-    spy.mockImplementationOnce(async () =>
+    spy.mockImplementationOnce((async () =>
       new Response(JSON.stringify({ result: "oops" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }),
-    );
+      })
+    ) as unknown as FetchFn);
     try {
       await expect(getLoreEmbedding("test text")).rejects.toThrow(/unexpected ollama response/i);
     } finally {
@@ -128,12 +132,12 @@ describe("getLoreEmbedding", () => {
   it("throws when the embedding has wrong dimensions", async () => {
     const spy = spyOn(globalThis, "fetch");
     const badEmbedding = new Array(512).fill(0.1); // 512 instead of 768
-    spy.mockImplementationOnce(async () =>
+    spy.mockImplementationOnce((async () =>
       new Response(JSON.stringify({ embeddings: [badEmbedding] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }),
-    );
+      })
+    ) as unknown as FetchFn);
     try {
       await expect(getLoreEmbedding("test text")).rejects.toThrow(/768/);
     } finally {
@@ -145,12 +149,12 @@ describe("getLoreEmbedding", () => {
     const spy = spyOn(globalThis, "fetch");
     const badEmbedding = new Array(768).fill(0.1);
     badEmbedding[0] = NaN;
-    spy.mockImplementationOnce(async () =>
+    spy.mockImplementationOnce((async () =>
       new Response(JSON.stringify({ embeddings: [badEmbedding] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }),
-    );
+      })
+    ) as unknown as FetchFn);
     try {
       await expect(getLoreEmbedding("test text")).rejects.toThrow(/invalid embedding values/i);
     } finally {
@@ -161,12 +165,12 @@ describe("getLoreEmbedding", () => {
   it("returns a 768-dim float array on a well-formed response", async () => {
     const spy = spyOn(globalThis, "fetch");
     const goodEmbedding = new Array(768).fill(0.42);
-    spy.mockImplementationOnce(async () =>
+    spy.mockImplementationOnce((async () =>
       new Response(JSON.stringify({ embeddings: [goodEmbedding] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }),
-    );
+      })
+    ) as unknown as FetchFn);
     try {
       const result = await getLoreEmbedding("hello");
       expect(result).toHaveLength(768);
