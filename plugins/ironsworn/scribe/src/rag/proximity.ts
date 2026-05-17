@@ -306,3 +306,177 @@ export async function linkProximity(
     conn.closeSync();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Read path — graph load + Dijkstra
+// ---------------------------------------------------------------------------
+
+interface AdjList {
+  [nodeId: string]: Array<{ to: string; cost: number }>;
+}
+
+async function loadAdjacency(
+  conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
+  dimension: ProximityDimension,
+): Promise<AdjList> {
+  const result = await conn.runAndReadAll(
+    `SELECT from_id, to_id, magnitude FROM lore_proximity_edges WHERE dimension = ?`,
+    [dimension],
+  );
+  const adj: AdjList = {};
+  for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
+    const from = String(row["from_id"]);
+    const to = String(row["to_id"]);
+    const magRaw = row["magnitude"];
+    const cost = typeof magRaw === "number" ? magRaw : Number(magRaw);
+    if (!(cost > 0) || !isFinite(cost)) continue;
+
+    (adj[from] ??= []).push({ to, cost });
+    (adj[to] ??= []).push({ to: from, cost });
+  }
+  return adj;
+}
+
+/**
+ * Dijkstra without a priority queue — campaign graphs are small enough that
+ * an O(V^2) scan dominated by O(V+E) is fine. Returns a map from node id
+ * to shortest distance from `start`. Nodes not present in the map are
+ * unreachable.
+ *
+ * If `radius` is provided, expansion stops as soon as the smallest-tentative
+ * node exceeds the cutoff.
+ */
+function dijkstra(
+  adj: AdjList,
+  start: string,
+  radius?: number,
+): Map<string, number> {
+  const dist = new Map<string, number>();
+  dist.set(start, 0);
+  const visited = new Set<string>();
+
+  while (true) {
+    let u: string | null = null;
+    let uDist = Infinity;
+    for (const [node, d] of dist) {
+      if (visited.has(node)) continue;
+      if (d < uDist) {
+        u = node;
+        uDist = d;
+      }
+    }
+    if (u === null) break;
+    if (radius !== undefined && uDist > radius) break;
+
+    visited.add(u);
+    for (const { to, cost } of adj[u] ?? []) {
+      const next = uDist + cost;
+      const prev = dist.get(to);
+      if (prev === undefined || next < prev) {
+        dist.set(to, next);
+      }
+    }
+  }
+
+  return dist;
+}
+
+const UNIT_BY_DIMENSION: Record<ProximityDimension, "days walk" | "days"> = {
+  space: "days walk",
+  time: "days",
+};
+
+// ---------------------------------------------------------------------------
+// proximityDistance
+// ---------------------------------------------------------------------------
+
+export async function proximityDistance(
+  campaignPath: string,
+  from: string,
+  to: string,
+  dimension: ProximityDimension,
+): Promise<ProximityDistance | null> {
+  const instance = await getLoreDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const fromRow = await resolveLore(conn, from);
+    const toRow = await resolveLore(conn, to);
+
+    if (fromRow.id === toRow.id) {
+      return { distance: 0, unit: UNIT_BY_DIMENSION[dimension] };
+    }
+
+    const adj = await loadAdjacency(conn, dimension);
+    const dist = dijkstra(adj, fromRow.id);
+    const target = dist.get(toRow.id);
+    if (target === undefined) return null;
+
+    return { distance: target, unit: UNIT_BY_DIMENSION[dimension] };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// proximityWithin
+// ---------------------------------------------------------------------------
+
+export async function proximityWithin(
+  campaignPath: string,
+  anchor: string,
+  radius: number,
+  dimension: ProximityDimension,
+): Promise<ProximityNeighbor[]> {
+  if (!(radius >= 0) || !isFinite(radius)) {
+    throw new Error(`radius must be >= 0 (got ${radius})`);
+  }
+
+  const instance = await getLoreDb(campaignPath);
+  const conn = await instance.connect();
+  try {
+    const anchorRow = await resolveLore(conn, anchor);
+
+    const adj = await loadAdjacency(conn, dimension);
+    const dist = dijkstra(adj, anchorRow.id, radius);
+
+    // Filter to nodes within the radius (Dijkstra may have populated some
+    // beyond the cutoff via relaxation before its early-exit).
+    const ids = Array.from(dist.entries())
+      .filter(([, d]) => d <= radius)
+      .map(([id]) => id);
+
+    if (ids.length === 0) return [];
+
+    const placeholders = ids.map(() => "?").join(",");
+    const result = await conn.runAndReadAll(
+      `SELECT id, canonical, type FROM lore_entities WHERE id IN (${placeholders})`,
+      ids,
+    );
+
+    const meta = new Map<string, { canonical: string; type: string }>();
+    for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
+      meta.set(String(row["id"]), {
+        canonical: String(row["canonical"]),
+        type: String(row["type"]),
+      });
+    }
+
+    const neighbors: ProximityNeighbor[] = ids
+      .map((id) => {
+        const m = meta.get(id);
+        if (!m) return null;
+        return {
+          id,
+          canonical: m.canonical,
+          type: m.type,
+          distance: dist.get(id) as number,
+        };
+      })
+      .filter((n): n is ProximityNeighbor => n !== null);
+
+    neighbors.sort((a, b) => a.distance - b.distance);
+    return neighbors;
+  } finally {
+    conn.closeSync();
+  }
+}

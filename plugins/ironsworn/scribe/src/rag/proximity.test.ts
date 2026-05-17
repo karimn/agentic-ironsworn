@@ -249,3 +249,154 @@ describe("linkProximity — write path", () => {
     ).rejects.toThrow(/magnitude/);
   });
 });
+
+describe("proximityDistance", () => {
+  it("returns 0 between an entity and itself", async () => {
+    if (!(await ollamaAvailable())) return;
+    const aId = await seedPlace("A");
+    const { proximityDistance } = await import("./proximity.js");
+    const result = await proximityDistance(campaignDir, aId, aId, "space");
+    expect(result).toEqual({ distance: 0, unit: "days walk" });
+  });
+
+  it("returns null for disconnected entities", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    const { proximityDistance } = await import("./proximity.js");
+    const result = await proximityDistance(campaignDir, "A", "B", "space");
+    expect(result).toBeNull();
+  });
+
+  it("accumulates magnitude across edges (A → B → C)", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    await seedPlace("C");
+    await linkProximity(campaignDir, {
+      from: "A", to: "B", dimension: "space", magnitude: 1, direction: "E",
+    });
+    await linkProximity(campaignDir, {
+      from: "B", to: "C", dimension: "space", magnitude: 2, direction: "E",
+    });
+
+    const { proximityDistance } = await import("./proximity.js");
+    const result = await proximityDistance(campaignDir, "A", "C", "space");
+    expect(result?.distance).toBe(3);
+    expect(result?.unit).toBe("days walk");
+  });
+
+  it("is symmetric (C → A == A → C)", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    await seedPlace("C");
+    await linkProximity(campaignDir, {
+      from: "A", to: "B", dimension: "space", magnitude: 1, direction: "E",
+    });
+    await linkProximity(campaignDir, {
+      from: "B", to: "C", dimension: "space", magnitude: 2, direction: "E",
+    });
+
+    const { proximityDistance } = await import("./proximity.js");
+    const forward = await proximityDistance(campaignDir, "A", "C", "space");
+    const backward = await proximityDistance(campaignDir, "C", "A", "space");
+    expect(forward?.distance).toBe(backward?.distance);
+  });
+
+  it("isolates dimensions (spatial edges don't bridge temporal queries)", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    await linkProximity(campaignDir, {
+      from: "A", to: "B", dimension: "space", magnitude: 1, direction: "E",
+    });
+
+    const { proximityDistance } = await import("./proximity.js");
+    const result = await proximityDistance(campaignDir, "A", "B", "time");
+    expect(result).toBeNull();
+  });
+
+  it("returns 'days' unit for temporal queries", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedEvent("E1");
+    await seedEvent("E2");
+    await linkProximity(campaignDir, {
+      from: "E1", to: "E2", dimension: "time", magnitude: 5, order_kind: "before",
+    });
+
+    const { proximityDistance } = await import("./proximity.js");
+    const result = await proximityDistance(campaignDir, "E1", "E2", "time");
+    expect(result?.distance).toBe(5);
+    expect(result?.unit).toBe("days");
+  });
+});
+
+describe("proximityWithin", () => {
+  it("returns the anchor itself at distance 0", async () => {
+    if (!(await ollamaAvailable())) return;
+    const aId = await seedPlace("A");
+    const { proximityWithin } = await import("./proximity.js");
+    const within = await proximityWithin(campaignDir, aId, 1, "space");
+    expect(within.length).toBe(1);
+    expect(within[0].id).toBe(aId);
+    expect(within[0].distance).toBe(0);
+  });
+
+  it("includes nodes within the radius and excludes nodes beyond it", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    await seedPlace("C");
+    await linkProximity(campaignDir, {
+      from: "A", to: "B", dimension: "space", magnitude: 1, direction: "E",
+    });
+    await linkProximity(campaignDir, {
+      from: "B", to: "C", dimension: "space", magnitude: 2, direction: "E",
+    });
+
+    const { proximityWithin } = await import("./proximity.js");
+    const within = await proximityWithin(campaignDir, "A", 1.5, "space");
+    const ids = within.map((n) => n.id);
+    expect(ids).toContain("a");
+    expect(ids).toContain("b");
+    expect(ids).not.toContain("c");
+  });
+
+  it("returns results sorted ascending by distance", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("A");
+    await seedPlace("B");
+    await seedPlace("C");
+    await linkProximity(campaignDir, {
+      from: "A", to: "B", dimension: "space", magnitude: 1, direction: "E",
+    });
+    await linkProximity(campaignDir, {
+      from: "B", to: "C", dimension: "space", magnitude: 2, direction: "E",
+    });
+
+    const { proximityWithin } = await import("./proximity.js");
+    const within = await proximityWithin(campaignDir, "A", 10, "space");
+    const distances = within.map((n) => n.distance);
+    for (let i = 1; i < distances.length; i++) {
+      expect(distances[i]).toBeGreaterThanOrEqual(distances[i - 1]);
+    }
+  });
+
+  it("populates canonical and type for each neighbor", async () => {
+    if (!(await ollamaAvailable())) return;
+    await seedPlace("Holtfen");
+    await seedPlace("Hinge Stone");
+    await linkProximity(campaignDir, {
+      from: "Holtfen", to: "Hinge Stone",
+      dimension: "space", magnitude: 0.5, direction: "E",
+    });
+
+    const { proximityWithin } = await import("./proximity.js");
+    const within = await proximityWithin(campaignDir, "Holtfen", 1, "space");
+    const stone = within.find((n) => n.id === "hinge-stone");
+    expect(stone).toBeDefined();
+    expect(stone!.canonical).toBe("Hinge Stone");
+    expect(stone!.type).toBe("place");
+  });
+});
