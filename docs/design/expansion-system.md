@@ -18,46 +18,52 @@ installed. Absence is the default and is never an error — this mirrors the
 existing `existsSync(path) → return []` pattern in `moves.ts`/`oracles.ts`
 and the per-section `try/catch` in `context/build.ts`.
 
-## Why not a sibling Claude Code plugin
+## Plugin architecture
 
-Delve is an *expansion*, not an independent capability. It mutates the same
-character (momentum, health, progress tracks) the scribe server already
-owns, and the GM must reason about base + Delve rules in the same turn. Two
-plugins means two MCP namespaces, two servers racing on the same campaign
-files, and a base GM agent that can't see Delve tools. So: **one scribe
-server, a component loader, expansions register into it.** CC's plugin model
-stays single-plugin; the expansion boundary lives inside scribe.
+Delve is a **CC plugin with no MCP server of its own**. This sidesteps the
+original objections to sibling plugins (namespace collision, racing writes,
+agent blindness) because there is only ever one MCP server — the core
+scribe. Delve's tools register into it at startup via the expansion loader.
+
+CC handles what it's good at for the Delve plugin: installation, versioning,
+updates, and skill loading. Scribe handles what it must own: state, tools,
+and DB. The two roles don't overlap.
 
 ## Distribution / licensing boundary
 
-The plugin is distributed via the CC marketplace
-(`/plugin marketplace add …`), which clones the **public** repo into
-`~/.claude/plugins/cache/…`. Marketplace installs do not fetch private
-submodules — so a private Delve repo is simply absent for the public, which
-is exactly the desired outcome for paid content.
-
 What lives where:
 
-| Artifact | Public repo (`agentic-rpg`) | Private Delve repo |
+| Artifact | Public repo (`agentic-rpg`) | Private Delve CC plugin |
 |---|---|---|
 | Expansion loader, manifest schema, data-source merger, migration namespacing, context extension point | yes | — |
 | Stub/example expansion with **no** copyrighted text (for tests/docs) | yes | — |
 | Delve move text, oracle tables, asset cards, site/threat content | no | yes |
-| Delve-specific server code, migrations, context section | no | yes |
+| Delve-specific server code, migrations, context section, skills | no | yes |
 
-Resolution order for where expansions are found (first hit wins per
-expansion name; all discovered expansions load):
+**Delve is a separate CC plugin** installed from a private repo via
+`/plugin install <private-url>`. CC places it in
+`~/.claude/plugins/cache/<repo>/ironsworn-delve/<version>/` and tracks it in
+`~/.claude/plugins/installed_plugins.json` with an `installPath` field.
 
-1. `SCRIBE_EXPANSIONS_DIR` — explicit external path override.
-2. `${SCRIBE_PLUGIN_ROOT}/expansions/<name>/` — co-located submodule.
-   `plugins/ironsworn/expansions/delve/` is a git submodule; the directory
-   is empty for anyone without credentials, non-empty for purchasers who ran
-   `git submodule update --init`.
-3. none found → base game only.
+**Discovery:** the expansion loader reads `installed_plugins.json` at server
+startup, finds any entry whose key matches `ironsworn-delve@*`, and uses
+`installPath` directly — no path construction, no hardcoded repo name.
+Users without the private plugin simply have no matching entry; discovery
+returns nothing and the base game runs unaffected.
+
+```ts
+const json = JSON.parse(readFileSync(join(homedir(), ".claude/plugins/installed_plugins.json"), "utf-8"));
+const entry = Object.entries(json.plugins).find(([k]) => k.startsWith("ironsworn-delve@"));
+const installPath = entry?.[1][0].installPath; // absolute, ready to use
+```
+
+**Skills** declared in Delve's `skills/` directory are loaded by CC
+automatically when the plugin is installed — no symlinks, no enable command,
+version-tracked alongside the plugin itself.
 
 An expansion is *active* only if discovered **and** allow-listed via
-`SCRIBE_EXPANSIONS=delve,...` (or a campaign config key). Files present but
-not allow-listed = inert. This lets a purchaser toggle Delve per campaign.
+`SCRIBE_EXPANSIONS=delve,...` (or a campaign config key), so a purchaser can
+toggle Delve per campaign without uninstalling it.
 
 ## Expansion package layout
 
@@ -123,9 +129,9 @@ export function dataSources(dataset: "moves" | "oracles" | "assets"): string[]
 `dataSources("moves")` (many), iterate + concat, keep the singleton cache.
 
 **Conflict policy:** an expansion entry whose `name` collides with a core
-entry is a hard error at load (fail fast, logged to stderr) — expansions
-must not silently shadow core rules. Cross-expansion collisions: same rule.
-(Open question D3: namespace instead of error?)
+entry is a hard error at load (fail fast, logged to stderr, expansion treated
+as inert) — expansions must not silently shadow core rules. Cross-expansion
+collisions: same rule.
 
 ### 2. Component loader — `server.ts`
 
@@ -173,9 +179,6 @@ Core namespace = `""`. This requires one **core** lore/scenes migration
 "never edit existing entries" rule in CLAUDE.md. Expansion migration arrays
 are passed through the same runner under their manifest `name`.
 
-Decision D4: shared DBs with namespaced migrations **vs** a separate
-`expansion-<name>.duckdb` per expansion (full isolation, zero core schema
-change, but cross-store joins become app-level).
 
 ### 4. Character state
 
@@ -205,17 +208,14 @@ arrive in `userPrefix`.
 
 ### 6. Skills + agent (CC-visible layer)
 
-CC scans `plugins/ironsworn/skills/*` once at load. An expansion ships its
-skills under `skills/`; enabling an expansion **symlinks** them into
-`plugins/ironsworn/skills/` (gitignored). `ironsworn-gm.md` stays
-expansion-agnostic — it's instructed to use whatever MCP tools exist and to
-read the "Active Expansions" context section, rather than hardcoding Delve.
+CC loads skills from every installed plugin automatically. Delve's `skills/`
+directory is part of the Delve CC plugin, so CC handles delivery, versioning,
+and loading with no extra machinery. `ironsworn-gm.md` stays
+expansion-agnostic — it uses whatever MCP tools exist and reads the "Active
+Expansions" context section injected by step 5, rather than hardcoding Delve.
 
-Delivery mechanism: extend `ironsworn-init.sh`, or a new
-`/ironsworn-expansion <name> [enable|disable]` command, to (a) verify the
-expansion dir, (b) symlink skills, (c) write the allow-list entry.
-(Decision D6: symlink-on-enable vs a thin sibling plugin that carries only
-the CC-visible skill files.)
+The Delve plugin's `.claude-plugin/plugin.json` declares no `.mcp.json`,
+so CC never tries to start a second MCP server for it.
 
 ## Graceful absence checklist
 
@@ -223,38 +223,36 @@ the CC-visible skill files.)
 - loader: dir absent / not allow-listed / compat mismatch → inert, stderr note
 - migrations: not run if expansion inactive; namespaced so re-activation resumes
 - context: `try/catch` → section omitted
-- skills: symlinks absent → CC just doesn't show them
+- skills: Delve plugin not installed → CC never loads its skills
 - `plugin.json` Stop-hook version bump still required for **core** loader
   changes; the private expansion versions independently.
 
 ## Decisions (settled)
 
-- **D1** Git submodule at `plugins/ironsworn/expansions/delve/` pointing to
-  the private repo. `.gitmodules` is committed to the public repo, making
-  the pointer visible (but not accessible) to anyone. Plain `git clone`
-  leaves the submodule directory empty; the plugin's `existsSync` guards
-  mean the base game runs unaffected. Only `git submodule update --init`
-  with valid credentials enables Delve.
+- **D1** Delve is a separate CC plugin installed from a private repo URL.
+  Discovered at runtime via `~/.claude/plugins/installed_plugins.json`
+  (`installPath` field). No submodule, no symlinks, no hardcoded paths.
+  Version tracking and skill loading handled by CC for free.
 - **D2** All Delve code (logic, migrations, context, skills) lives in the
-  private repo. The public repo exposes only the SDK interfaces.
+  private plugin repo. The public repo exposes only the SDK interfaces.
 - **D3** Name collisions between expansion entries and core: hard error at
   load (logged to stderr, expansion treated as inert).
 - **D4** Shared DBs with namespaced migrations.
 - **D5** `"delve-site"` added to the core `ProgressTrack.kind` union via a
   core character migration. Sites are first-class progress tracks.
-- **D6** Skill delivery: symlink-on-enable via `/ironsworn-expansion` command.
+- **D6** Skill delivery: CC-native; no install step needed.
 
-## Build order (once decisions land)
+## Build order
 
 1. Manifest schema + `expansions/loader.ts` + `ExpansionContext` (no
-   behavior change; nothing to load yet).
+   behavior change; nothing to load yet). Loader reads
+   `installed_plugins.json` to discover installed expansion plugins.
 2. `data/sources.ts`; refactor moves/oracles/assets to multi-source +
    conflict policy + tests.
 3. Migration namespacing core change + tests.
-4. Character passthrough bag migration + tests.
+4. `"delve-site"` character migration + tests.
 5. `buildContext` extension point + tests.
 6. Wire `loadExpansions` into `server.ts`.
-7. Skill symlink + `/ironsworn-expansion` command + `ironsworn-init.sh`.
-8. Stub expansion in public repo exercising every contribution type
-   (the test fixture and the documentation example).
-9. Private Delve repo authored against the stub's contract.
+7. Stub expansion in public repo exercising every contribution type
+   (test fixture and documentation example).
+8. Private Delve CC plugin repo authored against the stub's contract.
