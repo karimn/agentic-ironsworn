@@ -1,9 +1,11 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { loadCharacter } from "../state/character.js";
 import { searchScenes } from "../rag/scenes.js";
 import { listThreads } from "../state/threads.js";
+import { getActiveExpansions, type LoadedExpansion } from "../expansions/loader.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -133,8 +135,33 @@ async function buildThreadsSection(campaignPath: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Main export
+// Main exports
 // ---------------------------------------------------------------------------
+
+export async function buildExpansionSections(
+  campaignPath: string,
+  expansions: LoadedExpansion[],
+): Promise<string> {
+  const sections: string[] = [];
+
+  for (const expansion of expansions) {
+    if (!expansion.manifest.contributes.context) continue;
+    if (expansion.manifest.agentBriefing) {
+      sections.push(`## Active Expansion: ${expansion.name}\n${expansion.manifest.agentBriefing}`);
+    }
+    const sectionPath = join(expansion.installPath, "context", "section.ts");
+    if (!existsSync(sectionPath)) continue;
+    try {
+      const mod = (await import(sectionPath)) as { buildSection(campaignPath: string): Promise<string> };
+      const text = await mod.buildSection(campaignPath);
+      if (text) sections.push(text);
+    } catch {
+      // omit on failure — consistent with all other buildContext sections
+    }
+  }
+
+  return sections.join("\n\n");
+}
 
 export async function buildContext(
   campaignPath: string,
@@ -197,6 +224,14 @@ export async function buildContext(
     if (threadSection) sections.push(threadSection);
   } catch {
     // omit if threads unavailable
+  }
+
+  // Expansion context sections
+  try {
+    const expansionSection = await buildExpansionSections(campaignPath, getActiveExpansions());
+    if (expansionSection) sections.push(expansionSection);
+  } catch {
+    // omit if expansion context fails
   }
 
   return {
