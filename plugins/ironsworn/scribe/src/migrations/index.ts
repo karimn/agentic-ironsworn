@@ -13,15 +13,27 @@ export interface DbMigration {
 }
 
 /**
- * Creates a `_schema_migrations` table (if absent), determines the current
- * schema version, and applies any pending migrations in order. Safe to call
- * on both fresh and existing databases — version 0 is the implicit baseline
- * established by the `CREATE TABLE IF NOT EXISTS` calls in each initDb.
+ * Applies pending migrations in version order. Safe to call on fresh and
+ * existing databases — version 0 is the implicit baseline.
+ *
+ * Core callers pass no namespace (or namespace="") and use the original
+ * `_schema_migrations` table. Expansion callers pass a named namespace and
+ * use `_schema_migrations_ns (namespace, version)` so their version numbers
+ * never collide with core.
  */
 export async function runDbMigrations(
   conn: DuckDBConn,
   migrations: DbMigration[],
+  namespace = "",
 ): Promise<void> {
+  if (namespace === "") {
+    await runCoreMigrations(conn, migrations);
+  } else {
+    await runNamespacedMigrations(conn, migrations, namespace);
+  }
+}
+
+async function runCoreMigrations(conn: DuckDBConn, migrations: DbMigration[]): Promise<void> {
   await conn.run(`
     CREATE TABLE IF NOT EXISTS _schema_migrations (
       version    INTEGER PRIMARY KEY,
@@ -36,20 +48,53 @@ export async function runDbMigrations(
   const raw = rows[0]?.["v"] ?? 0;
   const current = typeof raw === "bigint" ? Number(raw) : (raw as number);
 
-  const pending = migrations
-    .filter((m) => m.version > current)
-    .sort((a, b) => a.version - b.version);
-
-  for (const migration of pending) {
+  for (const migration of pending(migrations, current)) {
     await migration.up(conn);
     await conn.run("INSERT INTO _schema_migrations VALUES (?, ?)", [
       migration.version,
       new Date().toISOString(),
     ]);
-    console.error(
-      `[scribe] db migration v${migration.version}: ${migration.description}`,
-    );
+    console.error(`[scribe] db migration [core] v${migration.version}: ${migration.description}`);
   }
+}
+
+async function runNamespacedMigrations(
+  conn: DuckDBConn,
+  migrations: DbMigration[],
+  namespace: string,
+): Promise<void> {
+  await conn.run(`
+    CREATE TABLE IF NOT EXISTS _schema_migrations_ns (
+      namespace  TEXT NOT NULL DEFAULT '',
+      version    INTEGER NOT NULL,
+      applied_at TEXT NOT NULL,
+      PRIMARY KEY (namespace, version)
+    )
+  `);
+
+  const result = await conn.runAndReadAll(
+    "SELECT COALESCE(MAX(version), 0) AS v FROM _schema_migrations_ns WHERE namespace = ?",
+    [namespace],
+  );
+  const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+  const raw = rows[0]?.["v"] ?? 0;
+  const current = typeof raw === "bigint" ? Number(raw) : (raw as number);
+
+  for (const migration of pending(migrations, current)) {
+    await migration.up(conn);
+    await conn.run("INSERT INTO _schema_migrations_ns VALUES (?, ?, ?)", [
+      namespace,
+      migration.version,
+      new Date().toISOString(),
+    ]);
+    console.error(`[scribe] db migration [${namespace}] v${migration.version}: ${migration.description}`);
+  }
+}
+
+function pending(migrations: DbMigration[], current: number): DbMigration[] {
+  return migrations
+    .filter((m) => m.version > current)
+    .sort((a, b) => a.version - b.version);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,12 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { DuckDBInstance } from "@duckdb/node-api";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { runDbMigrations, runCharacterMigrations } from "./index.js";
 
 // ---------------------------------------------------------------------------
-// runDbMigrations
+// runDbMigrations — core (namespace="")
 // ---------------------------------------------------------------------------
 
 describe("runDbMigrations", () => {
@@ -117,6 +120,65 @@ describe("runDbMigrations", () => {
     } finally {
       conn.closeSync();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runDbMigrations — namespaced (expansion migrations)
+// ---------------------------------------------------------------------------
+
+describe("runDbMigrations namespacing", () => {
+  let db: DuckDBInstance;
+  let conn: Awaited<ReturnType<DuckDBInstance["connect"]>>;
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "scribe-migrations-"));
+    db = await DuckDBInstance.create(join(tmpDir, "test.duckdb"));
+    conn = await db.connect();
+  });
+
+  afterEach(async () => {
+    conn.closeSync();
+    db.closeSync();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("runs core (namespace='') and expansion migrations independently", async () => {
+    const coreMigrations = [
+      { version: 1, description: "core v1", async up(c: typeof conn) { await c.run("CREATE TABLE core_t (id TEXT)"); } },
+    ];
+    const expansionMigrations = [
+      { version: 1, description: "expansion v1", async up(c: typeof conn) { await c.run("CREATE TABLE exp_t (id TEXT)"); } },
+    ];
+
+    await runDbMigrations(conn, coreMigrations, "");
+    await runDbMigrations(conn, expansionMigrations, "delve");
+
+    const coreRows = await conn.runAndReadAll("SELECT * FROM core_t");
+    expect(coreRows.getRowObjectsJS()).toEqual([]);
+    const expRows = await conn.runAndReadAll("SELECT * FROM exp_t");
+    expect(expRows.getRowObjectsJS()).toEqual([]);
+  });
+
+  it("does not re-run already-applied expansion migrations", async () => {
+    let runCount = 0;
+    const migrations = [
+      { version: 1, description: "once", async up(c: typeof conn) { runCount++; await c.run("CREATE TABLE once_t (id TEXT)"); } },
+    ];
+
+    await runDbMigrations(conn, migrations, "test");
+    await runDbMigrations(conn, migrations, "test");
+
+    expect(runCount).toBe(1);
+  });
+
+  it("same version number in different namespaces is not a collision", async () => {
+    const m1 = [{ version: 1, description: "ns1 v1", async up(c: typeof conn) { await c.run("CREATE TABLE ns1 (id TEXT)"); } }];
+    const m2 = [{ version: 1, description: "ns2 v1", async up(c: typeof conn) { await c.run("CREATE TABLE ns2 (id TEXT)"); } }];
+
+    await expect(runDbMigrations(conn, m1, "ns1")).resolves.toBeUndefined();
+    await expect(runDbMigrations(conn, m2, "ns2")).resolves.toBeUndefined();
   });
 });
 
