@@ -20,7 +20,8 @@ This repo ships a single Claude Code plugin: the **Ironsworn solo GM companion**
 
 ### Plugin layer (`plugins/ironsworn/`)
 - **`agents/ironsworn-gm.md`** — the GM agent system prompt; the core of gameplay
-- **`skills/`** — invocable skills (journey, character builder, world truths); each has a `SKILL.md`
+- **`skills/`** — 11 invocable skills (combat, oracle, scene-craft, etc.); each is a directory with a `SKILL.md`
+- **`commands/`** — slash commands: `ironsworn-init` (scaffold a campaign folder) and `extract-session-lore`
 - **`scribe/`** — MCP server that backs the agent with persistence and rules logic
 - **`.claude-plugin/plugin.json`** — version field; must be bumped on every PR (Stop hook enforces this)
 - **`settings.json`** — sandbox permissions and the Stop hook that runs `scripts/check-version-bump.sh`
@@ -48,6 +49,8 @@ Supporting modules:
 - `rag/lore-db.ts` — shared DuckDB schema/connection + Ollama embedding client (used by `lore.ts` and `communities.ts`)
 - `rag/communities.ts` — GraphRAG community detection + Claude summarization
 - `rag/proximity.ts` — weighted spatial/temporal proximity edges with Dijkstra distance + radius queries
+- `rag/extraction.ts` — LLM-driven entity/relation extraction from scenes into the lore graph
+- `rag/query.ts` — hybrid BM25 + vector search with Reciprocal Rank Fusion
 - `rules/` — pure Ironsworn logic (dice, moves, progress, assets, momentum, oracles)
 - `context/build.ts` — assembles GM session context from all sources
 - `checkpoint.ts` — periodic DuckDB WAL flush (every 5 min or 20 writes)
@@ -151,6 +154,7 @@ For multi-issue batches (4+ independent issues that benefit from shared learning
 
 ## Prerequisites
 
+- **First-time setup:** `cd plugins/ironsworn/scribe && bun install`
 - **Bun** — runtime for the scribe server and tests
 - **Ollama** with `nomic-embed-text` — required for scene/lore embedding (tests that need it are skipped if Ollama is unreachable)
 - **DuckDB** native bindings — included via `duckdb` npm package
