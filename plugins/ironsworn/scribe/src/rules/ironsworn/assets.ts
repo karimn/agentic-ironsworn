@@ -1,7 +1,6 @@
 import { parse } from "yaml";
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dataSources } from "../../data/sources.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,35 +26,30 @@ export interface AssetDefinition {
 // Data loading
 // ---------------------------------------------------------------------------
 
-// Prefer SCRIBE_PLUGIN_ROOT when running inside a Claude Code plugin install.
-// Fall back to walking up from source when running out of the dev tree so
-// `bun test` and `bun run` keep working with zero config.
-function resolveAssetsPath(): string {
-  const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
-  if (pluginRoot) {
-    return resolve(pluginRoot, "data", "assets.yaml");
-  }
-  // scribe/src/rules/ironsworn/ → scribe/src/rules/ → scribe/src/ → scribe/ → plugin root
-  const pluginRootFallback = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
-    "..",
-    "..",
-  );
-  return resolve(pluginRootFallback, "data", "assets.yaml");
-}
-
 let _assets: AssetDefinition[] | null = null;
 
 function loadAssets(): AssetDefinition[] {
-  if (!existsSync(resolveAssetsPath())) {
-    return [];
+  const paths = dataSources("assets");
+  const seen = new Map<string, string>(); // name → source path
+  const all: AssetDefinition[] = [];
+
+  for (const filePath of paths) {
+    if (!existsSync(filePath)) continue;
+    const raw = readFileSync(filePath, "utf-8");
+    const parsed = parse(raw) as unknown;
+    if (!Array.isArray(parsed)) continue;
+    for (const entry of parsed as AssetDefinition[]) {
+      const key = entry.name?.toLowerCase() ?? "";
+      if (seen.has(key)) {
+        throw new Error(
+          `[scribe] asset name collision: "${entry.name}" appears in both "${seen.get(key)}" and "${filePath}"`,
+        );
+      }
+      seen.set(key, filePath);
+      all.push(entry);
+    }
   }
-  const raw = readFileSync(resolveAssetsPath(), "utf-8");
-  const parsed = parse(raw) as unknown;
-  if (!Array.isArray(parsed)) return [];
-  return parsed as AssetDefinition[];
+  return all;
 }
 
 function getAssets(): AssetDefinition[] {
@@ -63,6 +57,10 @@ function getAssets(): AssetDefinition[] {
     _assets = loadAssets();
   }
   return _assets;
+}
+
+export function resetAssetsCache(): void {
+  _assets = null;
 }
 
 // ---------------------------------------------------------------------------
