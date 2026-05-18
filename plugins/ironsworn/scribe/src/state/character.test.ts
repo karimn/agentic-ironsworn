@@ -59,6 +59,27 @@ describe("loadCharacter / saveCharacter", () => {
     expect(loaded.name).toBe("Kira");
     expect(loaded.stats.heart).toBe(3);
   });
+
+  it("migrates character from v0 to v1 and accepts delve-site track kind", async () => {
+    const raw = {
+      name: "Kira",
+      stats: { edge: 2, heart: 3, iron: 1, shadow: 2, wits: 3 },
+      momentum: 2, momentumReset: 2,
+      health: 5, spirit: 5, supply: 3,
+      debilities: Object.fromEntries(DEBILITIES.map((d) => [d, false])),
+      assets: [], companions: [], bonds: 0, experience: 0, customState: {},
+      progressTracks: [
+        { name: "The Iron Hold", rank: "formidable", kind: "delve-site", ticks: 0, status: "active" },
+      ],
+    };
+    const { writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    await writeFile(join(campaignDir, "character.json"), JSON.stringify(raw));
+
+    const char = await loadCharacter(campaignDir);
+    expect(char.schemaVersion).toBe(1);
+    expect(char.progressTracks[0]?.kind).toBe("delve-site");
+  });
 });
 
 describe("takeMomentum", () => {

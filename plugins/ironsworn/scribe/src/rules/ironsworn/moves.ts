@@ -1,8 +1,7 @@
 import { parse } from "yaml";
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { roll } from "../dice.js";
+import { dataSources } from "../../data/sources.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,36 +63,30 @@ interface MoveData {
 // Load moves
 // ---------------------------------------------------------------------------
 
-// Prefer SCRIBE_PLUGIN_ROOT when running inside a Claude Code plugin install.
-// Fall back to walking up from source when running out of the dev tree so
-// `bun test` and `bun run` keep working with zero config.
-function resolveMovesPath(): string {
-  const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
-  if (pluginRoot) {
-    return resolve(pluginRoot, "data", "moves.yaml");
-  }
-  // Fall back to walking up from source to the plugin root for dev-time use.
-  // scribe/src/rules/ironsworn/ → scribe/src/rules/ → scribe/src/ → scribe/ → plugin root
-  const pluginRootFallback = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
-    "..",
-    "..",
-  );
-  return resolve(pluginRootFallback, "data", "moves.yaml");
-}
-
 let _moves: MoveData[] | null = null;
 
 function loadMoves(): MoveData[] {
-  if (!existsSync(resolveMovesPath())) {
-    return [];
+  const paths = dataSources("moves");
+  const seen = new Map<string, string>(); // name → source path
+  const all: MoveData[] = [];
+
+  for (const filePath of paths) {
+    if (!existsSync(filePath)) continue;
+    const raw = readFileSync(filePath, "utf-8");
+    const parsed = parse(raw) as unknown;
+    if (!Array.isArray(parsed)) continue;
+    for (const entry of parsed as MoveData[]) {
+      const key = entry.name?.toLowerCase() ?? "";
+      if (seen.has(key)) {
+        throw new Error(
+          `[scribe] move name collision: "${entry.name}" appears in both "${seen.get(key)}" and "${filePath}"`,
+        );
+      }
+      seen.set(key, filePath);
+      all.push(entry);
+    }
   }
-  const raw = readFileSync(resolveMovesPath(), "utf-8");
-  const parsed = parse(raw) as unknown;
-  if (!Array.isArray(parsed)) return [];
-  return parsed as MoveData[];
+  return all;
 }
 
 export function getMoves(): MoveData[] {
@@ -101,6 +94,10 @@ export function getMoves(): MoveData[] {
     _moves = loadMoves();
   }
   return _moves;
+}
+
+export function resetMovesCache(): void {
+  _moves = null;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,10 @@
+- name: Stub Move
+  trigger: When you test the expansion system...
+  stat_options:
+  - edge
+  stat_hint: With precision
+  roll_type: action
+  outcomes:
+    strong_hit: Stub strong hit.
+    weak_hit: Stub weak hit.
+    miss: Stub miss.

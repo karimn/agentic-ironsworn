@@ -20,13 +20,13 @@ export interface Companion {
 export interface ProgressTrack {
   name: string;
   rank: "troublesome" | "dangerous" | "formidable" | "extreme" | "epic";
-  kind: "vow" | "combat" | "journey" | "bond" | "other";
+  kind: "vow" | "combat" | "journey" | "bond" | "other" | "delve-site";
   ticks: number; // 0..40
   status: "active" | "fulfilled" | "forsaken";
 }
 
 // Current character JSON schema version. Increment when a migration is added.
-export const CURRENT_CHARACTER_VERSION = 0;
+export const CURRENT_CHARACTER_VERSION = 1;
 
 // Character JSON migrations. The baseline schema is version 0. Append new
 // entries here when fields are added, removed, or restructured; never edit or
@@ -38,7 +38,13 @@ export const CURRENT_CHARACTER_VERSION = 0;
 //     description: "rename 'bonds' to 'bondCount'",
 //     up(data) { data["bondCount"] = data["bonds"]; delete data["bonds"]; return data; },
 //   },
-const CHARACTER_MIGRATIONS: CharacterMigration[] = [];
+const CHARACTER_MIGRATIONS: CharacterMigration[] = [
+  {
+    toVersion: 1,
+    description: "widen ProgressTrack.kind to include delve-site",
+    up(data) { return data; },
+  },
+];
 
 export interface Character {
   schemaVersion?: number;

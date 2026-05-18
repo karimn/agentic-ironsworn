@@ -173,7 +173,7 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       ON lore_proximity_edges (to_id, dimension)
     `);
 
-    await runDbMigrations(conn, LORE_MIGRATIONS);
+    await runDbMigrations(conn, LORE_MIGRATIONS, "");
   } finally {
     conn.closeSync();
   }

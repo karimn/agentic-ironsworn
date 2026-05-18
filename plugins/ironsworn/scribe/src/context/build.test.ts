@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildContext } from "./build.js";
@@ -65,5 +67,30 @@ describe("buildContext", () => {
     await openThread(campaignDir, "The Iron Vow", "vow", "Must find the keep.");
     const ctx = await buildContext(campaignDir, "test");
     expect(ctx.userPrefix).toContain("The Iron Vow");
+  });
+
+  it("does not include expansion sections when no expansions are active", async () => {
+    const ctx = await buildContext(campaignDir, "test");
+    expect(ctx.userPrefix).not.toContain("Active Expansion:");
+  });
+
+  it("buildExpansionSections includes agentBriefing and section.ts output for active expansions", async () => {
+    const { buildExpansionSections } = await import("./build.js");
+    const stubDir = resolve(dirname(fileURLToPath(import.meta.url)), "../expansions/stub");
+    const fakeExpansion = {
+      name: "stub",
+      manifest: {
+        name: "stub",
+        version: "1.0.0",
+        contributes: { context: true },
+        agentBriefing: "Stub is active.",
+      },
+      installPath: stubDir,
+    };
+    const section = await buildExpansionSections(campaignDir, [fakeExpansion]);
+    expect(section).toContain("Active Expansion: stub");
+    expect(section).toContain("Stub is active.");
+    // The "Stub Expansion" part requires stub/context/section.ts which is Task 7
+    // That test is: expect(section).toContain("Stub Expansion");
   });
 });

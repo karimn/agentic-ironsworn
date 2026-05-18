@@ -6,6 +6,7 @@ import * as mutationsTools from "./tools/mutations.js";
 import * as narrativeTools from "./tools/narrative.js";
 import * as loreTools from "./tools/lore.js";
 import * as campaignTools from "./tools/campaign.js";
+import { loadExpansions } from "./expansions/loader.js";
 import { checkpointLore } from "./rag/lore.js";
 import { checkpointScenes } from "./rag/scenes.js";
 import { startPeriodicCheckpoint } from "./checkpoint.js";
@@ -23,6 +24,8 @@ mutationsTools.register(server, CAMPAIGN_PATH);
 narrativeTools.register(server, CAMPAIGN_PATH);
 loreTools.register(server, CAMPAIGN_PATH);
 campaignTools.register(server, CAMPAIGN_PATH);
+
+await loadExpansions(server, CAMPAIGN_PATH);
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown — flush WAL before the process exits

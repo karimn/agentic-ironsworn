@@ -1,8 +1,7 @@
 import { parse } from "yaml";
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { roll } from "../dice.js";
+import { dataSources } from "../../data/sources.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,35 +43,30 @@ export interface YesNoResult {
 // Oracle data loading
 // ---------------------------------------------------------------------------
 
-// Prefer SCRIBE_PLUGIN_ROOT when running inside a Claude Code plugin install.
-// Fall back to walking up from source when running out of the dev tree so
-// `bun test` and `bun run` keep working with zero config.
-function resolveOraclesPath(): string {
-  const pluginRoot = process.env.SCRIBE_PLUGIN_ROOT;
-  if (pluginRoot) {
-    return resolve(pluginRoot, "data", "oracles.yaml");
-  }
-  // Fall back to walking up from source to the plugin root for dev-time use.
-  const pluginRootFallback = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "..",
-    "..",
-    "..",
-  );
-  return resolve(pluginRootFallback, "data", "oracles.yaml");
-}
-
 let _oracles: OracleTable[] | null = null;
 
 function loadOracles(): OracleTable[] {
-  if (!existsSync(resolveOraclesPath())) {
-    return [];
+  const paths = dataSources("oracles");
+  const seen = new Map<string, string>(); // name → source path
+  const all: OracleTable[] = [];
+
+  for (const filePath of paths) {
+    if (!existsSync(filePath)) continue;
+    const raw = readFileSync(filePath, "utf-8");
+    const parsed = parse(raw) as unknown;
+    if (!Array.isArray(parsed)) continue;
+    for (const entry of parsed as OracleTable[]) {
+      const key = entry.name?.toLowerCase() ?? "";
+      if (seen.has(key)) {
+        throw new Error(
+          `[scribe] oracle table name collision: "${entry.name}" appears in both "${seen.get(key)}" and "${filePath}"`,
+        );
+      }
+      seen.set(key, filePath);
+      all.push(entry);
+    }
   }
-  const raw = readFileSync(resolveOraclesPath(), "utf-8");
-  const parsed = parse(raw) as unknown;
-  if (!Array.isArray(parsed)) return [];
-  return parsed as OracleTable[];
+  return all;
 }
 
 function getOracles(): OracleTable[] {
@@ -80,6 +74,10 @@ function getOracles(): OracleTable[] {
     _oracles = loadOracles();
   }
   return _oracles;
+}
+
+export function resetOraclesCache(): void {
+  _oracles = null;
 }
 
 export function getOracleTables(): OracleTable[] {

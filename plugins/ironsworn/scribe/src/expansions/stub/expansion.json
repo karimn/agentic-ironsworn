@@ -1,0 +1,12 @@
+{
+  "name": "stub",
+  "version": "1.0.0",
+  "ironswornCompat": ">=0.0.0",
+  "contributes": {
+    "data": ["moves", "oracles", "assets"],
+    "server": true,
+    "context": true,
+    "skills": []
+  },
+  "agentBriefing": "Stub expansion is active. This is a test fixture."
+}

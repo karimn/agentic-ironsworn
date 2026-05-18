@@ -147,7 +147,7 @@ async function initDb(campaignPath: string): Promise<DuckDBInstance> {
       `);
     }
 
-    await runDbMigrations(conn, SCENES_MIGRATIONS);
+    await runDbMigrations(conn, SCENES_MIGRATIONS, "");
   } finally {
     conn.closeSync();
   }
