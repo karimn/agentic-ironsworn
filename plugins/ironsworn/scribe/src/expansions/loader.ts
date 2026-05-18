@@ -65,18 +65,35 @@ function getPluginVersion(): string {
   }
 }
 
-function compareSemver(a: string, b: string): number {
-  const p = (s: string) => s.split(".").map(Number) as [number, number, number];
-  const [aM, am, ap] = p(a);
-  const [bM, bm, bp] = p(b);
-  return aM - bM || am - bm || ap - bp;
+const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)$/;
+
+function parseSemver(s: string): [number, number, number] | null {
+  const m = s.match(SEMVER_RE);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function compareSemver(a: string, b: string): number | null {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  if (!pa || !pb) return null;
+  return pa[0] - pb[0] || pa[1] - pb[1] || pa[2] - pb[2];
 }
 
 function satisfiesCompat(running: string, range: string | undefined): boolean {
   if (!range) return true;
   const m = range.match(/^>=(\d+\.\d+\.\d+)$/);
-  if (!m) return true;
-  return compareSemver(running, m[1]) >= 0;
+  if (!m) {
+    // Unrecognised range format — skip the expansion rather than silently passing it.
+    process.stderr.write(`[scribe] unrecognised ironswornCompat range "${range}" — skipping expansion\n`);
+    return false;
+  }
+  const cmp = compareSemver(running, m[1]!);
+  if (cmp === null) {
+    process.stderr.write(`[scribe] could not parse semver "${running}" or "${m[1]}" — skipping expansion\n`);
+    return false;
+  }
+  return cmp >= 0;
 }
 
 export async function discoverExpansions(): Promise<LoadedExpansion[]> {
@@ -137,6 +154,10 @@ export async function discoverExpansions(): Promise<LoadedExpansion[]> {
   return result;
 }
 
+// Returns the expansion list cached by the most recent loadExpansions() call.
+// Always returns [] until loadExpansions() has run — server.ts calls it at
+// startup before any tool executes, so data loaders (moves/oracles/assets)
+// and buildContext will see the full list when handling actual requests.
 export function getActiveExpansions(): LoadedExpansion[] {
   return _active ?? [];
 }
