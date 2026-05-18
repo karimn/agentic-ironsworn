@@ -89,6 +89,49 @@ Also update the corresponding `CREATE TABLE` statement in `initDb` so fresh inst
 
 **Rules:** migrations are append-only — never edit or reorder existing entries. Version 0 is the implicit baseline (existing campaigns get the tracking table created but no migrations applied). To squash old migrations: update `initDb` / `CHARACTER_MIGRATIONS` to reflect the current schema, delete the old entries, and bump a baseline version constant in the runner so it skips past them.
 
+## Expansion system
+
+The scribe server supports optional **expansion plugins** — separate CC plugins (typically private repos) that contribute new moves, oracles, assets, MCP tools, DB migrations, and GM context sections without touching this public repo. This is how paid content like Ironsworn: Delve is added.
+
+### How it works
+
+At server startup, `loadExpansions()` in `scribe/src/expansions/loader.ts` reads `~/.claude/plugins/installed_plugins.json`, finds any installed plugin whose name starts with `ironsworn-`, filters by the `SCRIBE_EXPANSIONS` allow-list, and dynamically loads its `server/index.ts`. The loaded expansion receives an `ExpansionContext` with character I/O, dice, DB handles, and the migration runner — it never reimplements scribe plumbing.
+
+### Enabling an expansion
+
+In `.mcp.json`, add to the scribe server env:
+```json
+"SCRIBE_EXPANSIONS": "delve"
+```
+Multiple expansions: `"SCRIBE_EXPANSIONS": "delve,other"`. The expansion must be installed as a CC plugin (via `/plugin install <private-url>`) for the loader to find it.
+
+For local dev without a CC install, set `SCRIBE_PLUGINS_JSON` to a JSON file that mimics `installed_plugins.json`:
+```json
+{
+  "version": 2,
+  "plugins": {
+    "ironsworn-delve@your-private-repo": [{ "installPath": "/path/to/delve", "version": "1.0.0", "scope": "user" }]
+  }
+}
+```
+
+### Building an expansion
+
+The stub at `scribe/src/expansions/stub/` is the canonical example — it shows every contribution type:
+
+| File | Purpose |
+|---|---|
+| `expansion.json` | Manifest: name, version, `ironswornCompat` range, `contributes` |
+| `data/moves.yaml` | Additional moves (same shape as `data/moves.yaml`) |
+| `data/oracles.yaml` | Additional oracle tables |
+| `data/assets.yaml` | Additional assets |
+| `server/index.ts` | `export function register(server, ctx)` — registers MCP tools |
+| `context/section.ts` | `export async function buildSection(campaignPath)` — injects GM context |
+
+The `ExpansionContext` type (exported from `loader.ts`) is the full API surface available to expansions. Expansion migrations use `ctx.runDbMigrations(conn, migrations, "your-name")` — a named namespace so version numbers never collide with core.
+
+Full design rationale: `docs/design/expansion-system.md`.
+
 ## Plugin versioning
 
 **Every PR must bump `plugins/ironsworn/.claude-plugin/plugin.json`** — the Stop hook blocks completion otherwise. Use semver: bump minor for new tools/features, patch for fixes. The hook compares against `origin/main` and also verifies the version actually increased.
