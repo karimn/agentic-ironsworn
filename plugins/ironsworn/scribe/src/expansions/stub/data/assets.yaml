@@ -1,0 +1,7 @@
+- name: Stub Asset
+  type: path
+  abilities:
+  - text: "Stub ability one."
+    default: true
+  - text: "Stub ability two."
+    default: false
