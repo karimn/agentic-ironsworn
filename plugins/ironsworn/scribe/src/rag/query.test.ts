@@ -26,27 +26,28 @@ async function ftsAvailable(): Promise<boolean> {
   return _ftsAvailable;
 }
 
-let _ollamaReady: boolean | null = null;
-async function ollamaAvailable(): Promise<boolean> {
-  if (_ollamaReady !== null) return _ollamaReady;
+let _nomicReady: boolean | null = null;
+async function nomicAvailable(): Promise<boolean> {
+  if (_nomicReady !== null) return _nomicReady;
   try {
-    const baseUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
-    const res = await fetch(`${baseUrl}/api/embed`, {
+    const apiKey = process.env["NOMIC_API_KEY"] ?? "";
+    if (!apiKey) { _nomicReady = false; return false; }
+    const res = await fetch("https://api-atlas.nomic.ai/v1/embedding/text", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "nomic-embed-text", input: "t" }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "nomic-embed-text-v1.5", texts: ["t"] }),
     });
-    _ollamaReady = res.ok;
+    _nomicReady = res.ok;
   } catch {
-    _ollamaReady = false;
+    _nomicReady = false;
   }
-  return _ollamaReady;
+  return _nomicReady;
 }
 
 describe("searchRules", () => {
   it("returns results for a rules query", async () => {
     if (!DB_EXISTS) return; // skip gracefully
-    if (!(await ollamaAvailable())) return; // skip when Ollama not running
+    if (!(await nomicAvailable())) return; // skip when Nomic Atlas not available
     if (!(await ftsAvailable())) return; // skip when fts extension unavailable
     const results = await searchRules("face danger move", { k: 3 });
     expect(results.length).toBeGreaterThan(0);
