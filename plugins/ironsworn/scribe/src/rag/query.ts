@@ -7,8 +7,8 @@ import { getMoves } from "../rules/ironsworn/moves.js";
 // Config
 // ---------------------------------------------------------------------------
 
-const OLLAMA_BASE_URL =
-  process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+const NOMIC_API_KEY = process.env["NOMIC_API_KEY"] ?? "";
+const NOMIC_ENDPOINT = "https://api-atlas.nomic.ai/v1/embedding/text";
 
 export function resolveDbPath(): string {
   const explicit = process.env["DB_PATH"];
@@ -90,24 +90,27 @@ function toNum(value: unknown): number {
 async function getEmbedding(query: string): Promise<number[]> {
   let response: Response;
   try {
-    response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+    response = await fetch(NOMIC_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "nomic-embed-text", input: query }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NOMIC_API_KEY}`,
+      },
+      body: JSON.stringify({ model: "nomic-embed-text-v1.5", texts: [query] }),
     });
   } catch (e) {
     const err = e as Error;
-    throw new Error(`Ollama unavailable at ${OLLAMA_BASE_URL}: ${err.message}`);
+    throw new Error(`Nomic Atlas unavailable: ${err.message}`);
   }
 
   if (!response.ok) {
-    throw new Error(`Ollama embed failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Nomic Atlas embed failed: ${response.status} ${response.statusText}`);
   }
 
   const data = (await response.json()) as { embeddings: number[][] };
 
   if (!data.embeddings || !Array.isArray(data.embeddings[0])) {
-    throw new Error("Unexpected Ollama response shape");
+    throw new Error("Unexpected Nomic Atlas response shape");
   }
 
   if (data.embeddings[0].length !== 768) {
@@ -115,7 +118,7 @@ async function getEmbedding(query: string): Promise<number[]> {
   }
 
   if (!data.embeddings[0].every((v) => typeof v === "number" && isFinite(v))) {
-    throw new Error("Invalid embedding values from Ollama");
+    throw new Error("Invalid embedding values from Nomic Atlas");
   }
 
   return data.embeddings[0];
