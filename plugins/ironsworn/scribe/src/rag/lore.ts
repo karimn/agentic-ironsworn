@@ -760,7 +760,8 @@ export async function replayProvenance(
     await conn.run(
       `INSERT INTO lore_provenance
          (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO NOTHING`,
       [
         entry.id,
         entry.subject_kind,

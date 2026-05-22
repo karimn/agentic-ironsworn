@@ -101,7 +101,7 @@ describe("export_campaign", () => {
 
     const raw = await readFile(outputPath, "utf-8");
     const data = JSON.parse(raw) as Record<string, unknown>;
-    expect(data["version"]).toBe(1);
+    expect(data["version"]).toBe(2);
     expect(typeof data["exported_at"]).toBe("string");
     expect(data["character"]).toMatchObject({ name: "Kara" });
     expect(Array.isArray(data["threads"])).toBe(true);

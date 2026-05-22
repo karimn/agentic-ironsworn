@@ -10,7 +10,7 @@ import { exportProximity, linkProximity, type ProximityDimension, type CompassPo
 import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
 
 interface CampaignExport {
-  version: 1;
+  version: 2;
   exported_at: string;
   character: unknown;
   threads: unknown[];
@@ -75,7 +75,7 @@ export function register(server: McpServer, campaignPath: string): void {
         ]);
 
         const payload: CampaignExport = {
-          version: 1,
+          version: 2,
           exported_at: new Date().toISOString(),
           character,
           threads,
@@ -126,14 +126,17 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ input_path }) => {
       try {
         const raw = await readFile(input_path, "utf-8");
-        const data = JSON.parse(raw) as CampaignExport;
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const exportVersion = parsed["version"] as number;
 
-        if (data.version !== 1) {
+        if (exportVersion !== 1 && exportVersion !== 2) {
           return {
-            content: [{ type: "text", text: `Unsupported export version: ${data.version}` }],
+            content: [{ type: "text", text: `Unsupported export version: ${exportVersion}` }],
             isError: true,
           };
         }
+
+        const data = parsed as unknown as CampaignExport;
 
         const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, lore_provenance: 0, scenes: 0 };
 
