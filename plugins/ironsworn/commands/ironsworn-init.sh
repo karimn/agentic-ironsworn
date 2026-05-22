@@ -6,6 +6,11 @@ set -euo pipefail
 CWD="$(pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 
+# Resolve plugin root from installed_plugins.json if CLAUDE_PLUGIN_ROOT is unset
+if [ -z "$PLUGIN_ROOT" ]; then
+  PLUGIN_ROOT=$(jq -r '(.plugins | to_entries[] | select(.key | startswith("ironsworn@")) | .value[0].installPath) // ""' ~/.claude/plugins/installed_plugins.json 2>/dev/null || true)
+fi
+
 created=()
 skipped=()
 
@@ -41,7 +46,7 @@ echo "────────────────────────�
 # The statusLine command uses \\033 (double-escaped) so ANSI codes survive JSON embedding.
 STATUS_LINE_JSON='{
     "type": "command",
-    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '"'"'.workspace.project_dir'"'"'); char=\"$cwd/campaigns/default/character.json\"; if [ ! -f \"$char\" ]; then exit 0; fi; name=$(jq -r '"'"'.name // \"Hero\"'"'"' \"$char\"); fe=$(jq -r '"'"'.stats.iron // \"?\"'"'"' \"$char\"); ed=$(jq -r '"'"'.stats.edge // \"?\"'"'"' \"$char\"); sh=$(jq -r '"'"'.stats.shadow // \"?\"'"'"' \"$char\"); ht=$(jq -r '"'"'.stats.heart // \"?\"'"'"' \"$char\"); wt=$(jq -r '"'"'.stats.wits // \"?\"'"'"' \"$char\"); hp=$(jq -r '"'"'.health'"'"' \"$char\"); sp=$(jq -r '"'"'.spirit'"'"' \"$char\"); su=$(jq -r '"'"'.supply'"'"' \"$char\"); mo=$(jq -r '"'"'.momentum'"'"' \"$char\"); xp=$(jq -r '"'"'.experience // 0'"'"' \"$char\"); pv=$(jq -r '"'"'.plugins[\"ironsworn@agentic-ironsworn\"][0].version // \"?\"'"'"' ~/.claude/plugins/installed_plugins.json 2>/dev/null || echo '"'"'?'"'"'); colorval(){ v=$1; if [ \"$v\" -le 1 ] 2>/dev/null; then printf '"'"'\\033[31m%s\\033[0m'"'"' \"$v\"; elif [ \"$v\" -le 3 ] 2>/dev/null; then printf '"'"'\\033[38;5;208m%s\\033[0m'"'"' \"$v\"; else printf '"'"'\\033[32m%s\\033[0m'"'"' \"$v\"; fi; }; echo \"$name | Fe:$fe Ed:$ed Sh:$sh Ht:$ht Wt:$wt | HP:$(colorval $hp) Sp:$(colorval $sp) Su:$(colorval $su) Mo:$mo XP:$xp | is:$pv\""
+    "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '"'"'.workspace.project_dir'"'"'); char=\"$cwd/campaigns/default/character.json\"; if [ ! -f \"$char\" ]; then exit 0; fi; name=$(jq -r '"'"'.name // \"Hero\"'"'"' \"$char\"); fe=$(jq -r '"'"'.stats.iron // \"?\"'"'"' \"$char\"); ed=$(jq -r '"'"'.stats.edge // \"?\"'"'"' \"$char\"); sh=$(jq -r '"'"'.stats.shadow // \"?\"'"'"' \"$char\"); ht=$(jq -r '"'"'.stats.heart // \"?\"'"'"' \"$char\"); wt=$(jq -r '"'"'.stats.wits // \"?\"'"'"' \"$char\"); hp=$(jq -r '"'"'.health'"'"' \"$char\"); sp=$(jq -r '"'"'.spirit'"'"' \"$char\"); su=$(jq -r '"'"'.supply'"'"' \"$char\"); mo=$(jq -r '"'"'.momentum'"'"' \"$char\"); xp=$(jq -r '"'"'.experience // 0'"'"' \"$char\"); pv=$(jq -r '"'"'(.plugins | to_entries[] | select(.key | startswith("ironsworn@")) | .value[0].version) // "?"'"'"' ~/.claude/plugins/installed_plugins.json 2>/dev/null || echo '"'"'?'"'"'); colorval(){ v=$1; if [ \"$v\" -le 1 ] 2>/dev/null; then printf '"'"'\\033[31m%s\\033[0m'"'"' \"$v\"; elif [ \"$v\" -le 3 ] 2>/dev/null; then printf '"'"'\\033[38;5;208m%s\\033[0m'"'"' \"$v\"; else printf '"'"'\\033[32m%s\\033[0m'"'"' \"$v\"; fi; }; echo \"$name | Fe:$fe Ed:$ed Sh:$sh Ht:$ht Wt:$wt | HP:$(colorval $hp) Sp:$(colorval $sp) Su:$(colorval $su) Mo:$mo XP:$xp | is:$pv\""
   }'
 # The old default (stats, no XP/version) — used to detect an un-customized statusLine on upsert.
 OLD_STATUS_LINE_JSON='{
@@ -142,10 +147,17 @@ fi
 # scribe node_modules
 if [ -n "$PLUGIN_ROOT" ] && [ -d "$PLUGIN_ROOT/scribe/node_modules" ]; then
   echo "✓ scribe dependencies installed"
+elif [ -n "$PLUGIN_ROOT" ] && [ -d "$PLUGIN_ROOT/scribe" ]; then
+  echo "  → running bun install in scribe..."
+  if bun install --cwd "$PLUGIN_ROOT/scribe" 2>&1; then
+    echo "✓ scribe dependencies installed"
+  else
+    echo "✗ bun install failed — run manually: cd \"$PLUGIN_ROOT/scribe\" && bun install"
+  fi
 elif [ -n "$PLUGIN_ROOT" ]; then
-  echo "✗ scribe dependencies missing — run: cd \"$PLUGIN_ROOT/scribe\" && bun install"
+  echo "✗ scribe directory not found at $PLUGIN_ROOT/scribe"
 else
-  echo "? scribe path unknown (CLAUDE_PLUGIN_ROOT not set)"
+  echo "? scribe path unknown (CLAUDE_PLUGIN_ROOT not set and plugin not found in installed_plugins.json)"
 fi
 
 # Ollama reachable
