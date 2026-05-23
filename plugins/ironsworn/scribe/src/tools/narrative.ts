@@ -6,6 +6,21 @@ import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore, upsertLore } from "../rag/lore.js";
 import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
 import { recordMutation } from "../checkpoint.js";
+import { BeatQueue } from "../rag/beat-queue.js";
+
+// ---------------------------------------------------------------------------
+// Per-campaign BeatQueue singletons
+// ---------------------------------------------------------------------------
+
+const _beatQueues = new Map<string, BeatQueue>();
+
+function getBeatQueue(campaignPath: string): BeatQueue {
+  const cached = _beatQueues.get(campaignPath);
+  if (cached !== undefined) return cached;
+  const q = new BeatQueue(campaignPath, recordBeat);
+  _beatQueues.set(campaignPath, q);
+  return q;
+}
 
 const BeatInputSchema = z.object({
   kind: z.enum(["narration", "dialogue", "move", "choice", "oracle"]).describe(
@@ -158,7 +173,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "record_beat",
-    "Append a single beat to an existing scene in real time, as events happen during play. Returns the 0-based index of the appended beat.",
+    "Append a single beat to an existing scene in real time, as events happen during play. Returns the 0-based index of the appended beat. By default enqueues immediately and returns; pass wait=true to block until persisted (e.g. before scene export).",
     {
       scene_id: z.string().describe("ID of the scene to append the beat to"),
       kind: z.enum(["dialogue", "narration", "move", "choice", "oracle"]).describe(
@@ -169,13 +184,21 @@ export function register(server: McpServer, campaignPath: string): void {
       metadata: z.record(z.string(), z.unknown()).optional().describe(
         "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
       ),
+      wait: z.boolean().optional().default(false).describe(
+        "When true, block until the beat is fully persisted. Defaults to false (fire-and-forget). Use true before scene export or closure."
+      ),
     },
-    async ({ scene_id, kind, text, speaker, metadata }) => {
+    async ({ scene_id, kind, text, speaker, metadata, wait }) => {
       try {
-        const beatIndex = await recordBeat(campaignPath, scene_id, { kind, text, speaker, metadata });
+        const queue = getBeatQueue(campaignPath);
+        const result = await queue.push(scene_id, { kind, text, speaker, metadata }, wait ?? false);
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ beat_index: beatIndex }) }],
+          content: [{ type: "text", text: JSON.stringify({
+            beat_index: result.beat_index,
+            queued: result.queued,
+            notices: result.notices,
+          }) }],
         };
       } catch (e) {
         return {
