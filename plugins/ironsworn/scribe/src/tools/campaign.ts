@@ -8,6 +8,7 @@ import { listNpcs, writeNpcRaw } from "../state/npcs.js";
 import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "../rag/lore.js";
 import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "../rag/proximity.js";
 import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
+import { shutdown as drainBeatQueue } from "../rag/beat-queue.js";
 
 interface CampaignExport {
   version: 2;
@@ -29,6 +30,8 @@ export function register(server: McpServer, campaignPath: string): void {
     {},
     async () => {
       try {
+        // Drain any queued beats before checkpointing so they're included
+        await drainBeatQueue(campaignPath);
         await Promise.all([
           checkpointLore(campaignPath),
           checkpointScenes(campaignPath),
@@ -54,6 +57,9 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ output_path, include_scenes }) => {
       try {
+        // Drain any queued beats before checkpointing so the export reflects
+        // all beats pushed during this session, regardless of wait=true/false.
+        await drainBeatQueue(campaignPath);
         // Flush WAL to the .duckdb files before reading so the export reflects
         // all in-memory writes. Without CHECKPOINT the tracked binaries stay
         // frozen and a clone / crash loses all session data.

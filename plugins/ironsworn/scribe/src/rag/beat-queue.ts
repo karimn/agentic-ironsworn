@@ -124,16 +124,20 @@ export function drainNotices(campaignPath: string): string[] {
 /**
  * Re-enqueue any beats recorded in `beat-failures.jsonl` from a previous
  * session. Call once on server startup before registering tools.
+ *
+ * Returns the enqueued entries so callers can await their settled promises
+ * deterministically (no setTimeout needed in tests or shutdown paths).
  */
-export async function replayFailures(campaignPath: string): Promise<void> {
+export async function replayFailures(campaignPath: string): Promise<BeatQueueEntry[]> {
   const sidecar = _sidecarPath(campaignPath);
-  if (!fs.existsSync(sidecar)) return;
+  if (!fs.existsSync(sidecar)) return [];
 
   let lines: string[];
   try {
     lines = fs.readFileSync(sidecar, "utf8").trim().split("\n").filter(Boolean);
-  } catch {
-    return;
+  } catch (e) {
+    process.stderr.write(`[scribe] beat-queue: could not read sidecar ${sidecar}: ${e}\n`);
+    return [];
   }
 
   const records: FailureRecord[] = [];
@@ -141,22 +145,24 @@ export async function replayFailures(campaignPath: string): Promise<void> {
     try {
       records.push(JSON.parse(line) as FailureRecord);
     } catch {
-      // malformed line — skip
+      process.stderr.write(`[scribe] beat-queue: skipping malformed failure record: ${JSON.stringify(line.slice(0, 200))}\n`);
     }
   }
 
   if (records.length === 0) {
     _removeSidecar(campaignPath);
-    return;
+    return [];
   }
 
   // Re-enqueue; remove the sidecar optimistically — if replay fails again,
   // the worker will write a fresh sidecar entry.
   _removeSidecar(campaignPath);
 
+  const entries: BeatQueueEntry[] = [];
   for (const record of records) {
-    await pushBeat(campaignPath, record.sceneId, record.beat);
+    entries.push(await pushBeat(campaignPath, record.sceneId, record.beat));
   }
+  return entries;
 }
 
 /**
@@ -184,7 +190,12 @@ export async function shutdown(campaignPath: string): Promise<void> {
 function _ensureWorker(campaignPath: string): void {
   if (_workerRunning.get(campaignPath)) return;
   _workerRunning.set(campaignPath, true);
-  void _runWorker(campaignPath);
+  _runWorker(campaignPath).catch((err: unknown) => {
+    // Defensive guard — _runWorker's while-loop already catches per-beat errors,
+    // so this only fires on truly unexpected failures (programming errors, OOM, etc.)
+    process.stderr.write(`[scribe] beat-queue: worker crashed unexpectedly for ${campaignPath}: ${err}\n`);
+    _workerRunning.set(campaignPath, false);
+  });
 }
 
 async function _runWorker(campaignPath: string): Promise<void> {
@@ -201,8 +212,11 @@ async function _runWorker(campaignPath: string): Promise<void> {
       entry._resolve();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      _appendSidecar(campaignPath, entry);
-      _queueNotice(campaignPath, `[scribe] beat write failed for scene ${entry.sceneId}: ${msg}. Beat saved to beat-failures.jsonl for replay on next startup.`);
+      const sidecarOk = _appendSidecar(campaignPath, entry);
+      const noticeDetail = sidecarOk
+        ? "Beat saved to beat-failures.jsonl for replay on next startup."
+        : "Sidecar write also failed — beat is permanently lost and will NOT be replayed.";
+      _queueNotice(campaignPath, `[scribe] beat write failed for scene ${entry.sceneId}: ${msg}. ${noticeDetail}`);
       process.stderr.write(`[scribe] beat-queue: failed to persist beat for scene ${entry.sceneId}: ${msg}\n`);
       entry._reject(e);
     }
@@ -231,7 +245,8 @@ function _sidecarPath(campaignPath: string): string {
   return path.join(campaignPath, "beat-failures.jsonl");
 }
 
-function _appendSidecar(campaignPath: string, entry: BeatQueueEntry): void {
+/** Returns true if the sidecar was written successfully, false on failure. */
+function _appendSidecar(campaignPath: string, entry: BeatQueueEntry): boolean {
   const record: FailureRecord = {
     sceneId: entry.sceneId,
     beat: entry.beat,
@@ -240,8 +255,10 @@ function _appendSidecar(campaignPath: string, entry: BeatQueueEntry): void {
   try {
     fs.mkdirSync(campaignPath, { recursive: true });
     fs.appendFileSync(_sidecarPath(campaignPath), JSON.stringify(record) + "\n", "utf8");
+    return true;
   } catch (e) {
-    process.stderr.write(`[scribe] beat-queue: could not write sidecar: ${e}\n`);
+    process.stderr.write(`[scribe] beat-queue: could not write sidecar — beat permanently lost: ${e}\n`);
+    return false;
   }
 }
 

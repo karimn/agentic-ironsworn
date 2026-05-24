@@ -192,11 +192,16 @@ export function register(server: McpServer, campaignPath: string): void {
         try {
           await entry.settled;
         } catch (e) {
+          // Drain notices accumulated from prior beats before returning error —
+          // include them in the response body so the agent sees them even on failure.
           const notices = drainNotices(campaignPath);
+          const body: Record<string, unknown> = {
+            error: e instanceof Error ? e.message : String(e),
+          };
+          if (notices.length > 0) body.notices = notices;
           return {
-            content: [{ type: "text", text: `Error: beat write failed: ${e instanceof Error ? e.message : String(e)}` }],
+            content: [{ type: "text", text: JSON.stringify(body) }],
             isError: true,
-            ...(notices.length > 0 ? { _notices: notices } : {}),
           };
         }
       }
@@ -210,8 +215,13 @@ export function register(server: McpServer, campaignPath: string): void {
         void server.sendLoggingMessage({ level: "warning", data: notice });
       }
 
+      // Omit beat_index when null (fire-and-forget path — worker hasn't run yet)
+      const responseBody: Record<string, unknown> = { queued: true };
+      if (entry.beatIndex !== null) responseBody.beat_index = entry.beatIndex;
+      if (notices.length > 0) responseBody.notices = notices;
+
       return {
-        content: [{ type: "text", text: JSON.stringify({ queued: true, beat_index: entry.beatIndex, ...(notices.length > 0 ? { notices } : {}) }) }],
+        content: [{ type: "text", text: JSON.stringify(responseBody) }],
       };
     },
   );

@@ -39,6 +39,29 @@ describe("BeatQueue", () => {
     _resetRecordBeatFn();
   });
 
+  describe("worker error recovery", () => {
+    it("can process new beats after a prior catastrophic worker crash", async () => {
+      // Simulate a worker that throws *outside* the per-beat try/catch by
+      // making the first call throw synchronously before returning a number.
+      let callCount = 0;
+      mockRecordBeat.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) throw new Error("catastrophic-crash");
+        return callCount - 2; // beat index for subsequent calls
+      });
+
+      // First beat — will fail; worker catches it and moves on
+      const e1 = await pushBeat(campaignPath, "scene-1", { kind: "narration", text: "bad" });
+      await e1.settled.catch(() => {}); // swallow the expected rejection
+
+      // Queue should still function — a second push must complete successfully
+      const e2 = await pushBeat(campaignPath, "scene-1", { kind: "narration", text: "good" });
+      await e2.settled;
+
+      expect(mockRecordBeat).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe("pushBeat", () => {
     it("returns an entry with a settled promise immediately", async () => {
       const entry = await pushBeat(campaignPath, "scene-1", { kind: "narration", text: "The fire crackles." });
@@ -158,6 +181,23 @@ describe("BeatQueue", () => {
       expect(notices[0]).toContain("beat");
     });
 
+    it("notice indicates permanent loss when sidecar write also fails", async () => {
+      // Make the recordBeat fail AND the sidecar write fail (read-only campaign dir)
+      mockRecordBeat.mockImplementation(async () => { throw new Error("db error"); });
+
+      // Use a campaign path that is a file (not a dir) so mkdirSync fails
+      const filePath = path.join(campaignPath, "not-a-dir");
+      fs.writeFileSync(filePath, "i am a file");
+
+      const entry = await pushBeat(filePath, "scene-1", { kind: "narration", text: "x" });
+      await entry.settled.catch(() => {});
+
+      const notices = drainNotices(filePath);
+      expect(notices.length).toBeGreaterThan(0);
+      // When the sidecar can't be written, the notice must warn the beat is permanently lost
+      expect(notices[0]).toContain("permanently lost");
+    });
+
     it("drainNotices clears the notice queue", async () => {
       mockRecordBeat.mockImplementation(async () => { throw new Error("fail"); });
       const entry = await pushBeat(campaignPath, "scene-1", { kind: "narration", text: "x" });
@@ -166,6 +206,36 @@ describe("BeatQueue", () => {
       drainNotices(campaignPath); // first drain
       const second = drainNotices(campaignPath);
       expect(second).toHaveLength(0);
+    });
+  });
+
+  describe("fire-and-forget response shape", () => {
+    it("beat_index is null before the worker processes the beat", async () => {
+      let resolveRecord!: (n: number) => void;
+      mockRecordBeat.mockImplementation(
+        () => new Promise<number>((res) => { resolveRecord = res; }),
+      );
+
+      const entry = await pushBeat(campaignPath, "scene-1", { kind: "narration", text: "pending" });
+      // beatIndex must be null before the worker completes (fire-and-forget semantics)
+      expect(entry.beatIndex).toBeNull();
+
+      // Resolve and wait — beatIndex is now set
+      resolveRecord(7);
+      await entry.settled;
+      expect(entry.beatIndex).toBe(7);
+    });
+
+    it("notices from prior failed beats surface on the next push call", async () => {
+      // First push fails, queuing a notice
+      mockRecordBeat.mockImplementationOnce(async () => { throw new Error("fail"); });
+      const e1 = await pushBeat(campaignPath, "scene-1", { kind: "narration", text: "a" });
+      await e1.settled.catch(() => {});
+
+      // drainNotices now returns the notice from the failed beat
+      const notices = drainNotices(campaignPath);
+      expect(notices.length).toBeGreaterThan(0);
+      expect(notices[0]).toContain("beat write failed");
     });
   });
 
@@ -180,10 +250,8 @@ describe("BeatQueue", () => {
       });
       fs.writeFileSync(sidecar, record + "\n");
 
-      await replayFailures(campaignPath);
-
-      // Give the worker time to run
-      await new Promise((r) => setTimeout(r, 50));
+      const entries = await replayFailures(campaignPath);
+      await Promise.allSettled(entries.map((e) => e.settled));
 
       expect(mockRecordBeat).toHaveBeenCalledWith(
         campaignPath,
@@ -201,15 +269,48 @@ describe("BeatQueue", () => {
       });
       fs.writeFileSync(sidecar, record + "\n");
 
-      await replayFailures(campaignPath);
-      await new Promise((r) => setTimeout(r, 50));
+      const entries = await replayFailures(campaignPath);
+      await Promise.allSettled(entries.map((e) => e.settled));
 
       expect(fs.existsSync(sidecar)).toBe(false);
     });
 
     it("does nothing when no sidecar file exists", async () => {
-      await replayFailures(campaignPath); // should not throw
+      const entries = await replayFailures(campaignPath); // should not throw
+      expect(entries).toHaveLength(0);
       expect(mockRecordBeat).not.toHaveBeenCalled();
+    });
+
+    it("returns entries that settle without relying on a timer", async () => {
+      // This test replaces the flaky setTimeout(50) pattern — replay entries must
+      // be directly awaitable so tests are deterministic on slow CI.
+      const sidecar = path.join(campaignPath, "beat-failures.jsonl");
+      const lines = [
+        JSON.stringify({ sceneId: "s1", beat: { kind: "narration", text: "beat-A" }, failedAt: new Date().toISOString() }),
+        JSON.stringify({ sceneId: "s2", beat: { kind: "narration", text: "beat-B" }, failedAt: new Date().toISOString() }),
+      ];
+      fs.writeFileSync(sidecar, lines.join("\n") + "\n");
+
+      const entries = await replayFailures(campaignPath);
+      expect(entries).toHaveLength(2);
+
+      // Await all settled promises — no timer needed
+      await Promise.allSettled(entries.map((e) => e.settled));
+
+      expect(mockRecordBeat).toHaveBeenCalledTimes(2);
+    });
+
+    it("skips malformed JSONL lines and still replays valid ones", async () => {
+      const sidecar = path.join(campaignPath, "beat-failures.jsonl");
+      const valid = JSON.stringify({ sceneId: "s1", beat: { kind: "narration", text: "good" }, failedAt: new Date().toISOString() });
+      fs.writeFileSync(sidecar, `not-valid-json\n${valid}\n{truncated`);
+
+      const entries = await replayFailures(campaignPath);
+      await Promise.allSettled(entries.map((e) => e.settled));
+
+      // Only the valid record was replayed
+      expect(mockRecordBeat).toHaveBeenCalledTimes(1);
+      expect(mockRecordBeat).toHaveBeenCalledWith(campaignPath, "s1", { kind: "narration", text: "good" });
     });
   });
 });

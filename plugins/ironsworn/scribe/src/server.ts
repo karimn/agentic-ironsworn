@@ -10,6 +10,7 @@ import { loadExpansions } from "./expansions/loader.js";
 import { checkpointLore } from "./rag/lore.js";
 import { checkpointScenes } from "./rag/scenes.js";
 import { startPeriodicCheckpoint } from "./checkpoint.js";
+import { replayFailures, shutdown as drainBeatQueue } from "./rag/beat-queue.js";
 
 const CAMPAIGN_PATH = process.env.SCRIBE_CAMPAIGN ?? "campaigns/default";
 
@@ -27,6 +28,11 @@ campaignTools.register(server, CAMPAIGN_PATH);
 
 await loadExpansions(server, CAMPAIGN_PATH);
 
+// Replay any beats that failed to persist in a previous session
+await replayFailures(CAMPAIGN_PATH).catch((e: unknown) => {
+  process.stderr.write(`[scribe] beat replay failed: ${e}\n`);
+});
+
 // ---------------------------------------------------------------------------
 // Graceful shutdown — flush WAL before the process exits
 // ---------------------------------------------------------------------------
@@ -38,7 +44,10 @@ await loadExpansions(server, CAMPAIGN_PATH);
 // loses all campaign data.
 
 async function shutdown(signal: string): Promise<void> {
-  process.stderr.write(`[scribe] ${signal} received — checkpointing DuckDB…\n`);
+  process.stderr.write(`[scribe] ${signal} received — draining beat queue and checkpointing DuckDB…\n`);
+  await drainBeatQueue(CAMPAIGN_PATH).catch((e: unknown) => {
+    process.stderr.write(`[scribe] beat queue drain failed: ${e}\n`);
+  });
   await Promise.all([
     checkpointLore(CAMPAIGN_PATH).catch((e: unknown) => {
       process.stderr.write(`[scribe] lore checkpoint failed: ${e}\n`);
