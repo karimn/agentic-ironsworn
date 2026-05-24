@@ -6,6 +6,7 @@ import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore, upsertLore } from "../rag/lore.js";
 import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
 import { recordMutation } from "../checkpoint.js";
+import { pushBeat, drainNotices } from "../rag/beat-queue.js";
 
 const BeatInputSchema = z.object({
   kind: z.enum(["narration", "dialogue", "move", "choice", "oracle"]).describe(
@@ -158,7 +159,9 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "record_beat",
-    "Append a single beat to an existing scene in real time, as events happen during play. Returns the 0-based index of the appended beat.",
+    "Append a single beat to an existing scene in real time, as events happen during play. " +
+    "Returns immediately by default (fire-and-forget); the embedding and DB write happen in the background. " +
+    "Pass wait=true only when you need the beat fully persisted before continuing (e.g. before export_campaign or close_scene).",
     {
       scene_id: z.string().describe("ID of the scene to append the beat to"),
       kind: z.enum(["dialogue", "narration", "move", "choice", "oracle"]).describe(
@@ -169,20 +172,57 @@ export function register(server: McpServer, campaignPath: string): void {
       metadata: z.record(z.string(), z.unknown()).optional().describe(
         "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
       ),
+      wait: z.boolean().optional().describe(
+        "If true, block until the beat is fully persisted before returning. Default: false (fire-and-forget)."
+      ),
     },
-    async ({ scene_id, kind, text, speaker, metadata }) => {
-      try {
-        const beatIndex = await recordBeat(campaignPath, scene_id, { kind, text, speaker, metadata });
-        recordMutation(campaignPath);
+    async ({ scene_id, kind, text, speaker, metadata, wait }) => {
+      // Validate scene exists synchronously — cheap read, surfaces errors immediately
+      const existing = await getScene(campaignPath, scene_id);
+      if (existing === null) {
         return {
-          content: [{ type: "text", text: JSON.stringify({ beat_index: beatIndex }) }],
-        };
-      } catch (e) {
-        return {
-          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          content: [{ type: "text", text: `Error: Scene not found: ${scene_id}` }],
           isError: true,
         };
       }
+
+      const entry = await pushBeat(campaignPath, scene_id, { kind, text, speaker, metadata });
+
+      if (wait) {
+        try {
+          await entry.settled;
+        } catch (e) {
+          // Drain notices accumulated from prior beats before returning error —
+          // include them in the response body so the agent sees them even on failure.
+          const notices = drainNotices(campaignPath);
+          const body: Record<string, unknown> = {
+            error: e instanceof Error ? e.message : String(e),
+          };
+          if (notices.length > 0) body.notices = notices;
+          return {
+            content: [{ type: "text", text: JSON.stringify(body) }],
+            isError: true,
+          };
+        }
+      }
+
+      recordMutation(campaignPath);
+
+      // Drain any notices from prior failed beats and surface them to the agent
+      const notices = drainNotices(campaignPath);
+      // Best-effort MCP log notification (may or may not surface in agent context)
+      for (const notice of notices) {
+        void server.sendLoggingMessage({ level: "warning", data: notice });
+      }
+
+      // Omit beat_index when null (fire-and-forget path — worker hasn't run yet)
+      const responseBody: Record<string, unknown> = { queued: true };
+      if (entry.beatIndex !== null) responseBody.beat_index = entry.beatIndex;
+      if (notices.length > 0) responseBody.notices = notices;
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(responseBody) }],
+      };
     },
   );
 

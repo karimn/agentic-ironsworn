@@ -161,7 +161,7 @@ describe("record_beat tool", () => {
     await client.connect(clientTransport);
   });
 
-  it("happy path: appends a beat and returns correct beat_index", async () => {
+  it("happy path: queues a beat and returns queued:true (fire-and-forget)", async () => {
     if (!(await ollamaAvailable())) return;
     const sceneId = await recordScene(campaignDir, "An ambush at the forest edge.", "combat");
 
@@ -171,15 +171,28 @@ describe("record_beat tool", () => {
     });
     expect(result.isError).not.toBe(true);
     const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.queued).toBe(true);
+  });
+
+  it("wait=true blocks until beat is persisted and returns the real beat_index", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "An ambush at the forest edge.", "combat");
+
+    const result = await client.callTool({
+      name: "record_beat",
+      arguments: { scene_id: sceneId, kind: "narration", text: "Arrows fly from the shadows.", wait: true },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
     expect(parsed.beat_index).toBe(0);
   });
 
-  it("sequential calls return incrementing indices", async () => {
+  it("sequential wait=true calls return incrementing indices", async () => {
     if (!(await ollamaAvailable())) return;
     const sceneId = await recordScene(campaignDir, "A social encounter.", "social");
 
-    const r1 = await client.callTool({ name: "record_beat", arguments: { scene_id: sceneId, kind: "narration", text: "The fire crackles." } });
-    const r2 = await client.callTool({ name: "record_beat", arguments: { scene_id: sceneId, kind: "dialogue", speaker: "Kira", text: "You came back." } });
+    const r1 = await client.callTool({ name: "record_beat", arguments: { scene_id: sceneId, kind: "narration", text: "The fire crackles.", wait: true } });
+    const r2 = await client.callTool({ name: "record_beat", arguments: { scene_id: sceneId, kind: "dialogue", speaker: "Kira", text: "You came back.", wait: true } });
 
     expect(r1.isError).not.toBe(true);
     expect(r2.isError).not.toBe(true);
@@ -189,13 +202,13 @@ describe("record_beat tool", () => {
     expect(p2.beat_index).toBe(1);
   });
 
-  it("beat is persisted — subsequent getScene shows the beat", async () => {
+  it("beat is persisted — wait=true then getScene shows the beat", async () => {
     if (!(await ollamaAvailable())) return;
     const sceneId = await recordScene(campaignDir, "A brief exploration.", "exploration");
 
     await client.callTool({
       name: "record_beat",
-      arguments: { scene_id: sceneId, kind: "oracle", text: "The oracle whispers: fire and shadow." },
+      arguments: { scene_id: sceneId, kind: "oracle", text: "The oracle whispers: fire and shadow.", wait: true },
     });
 
     const scene = await getScene(campaignDir, sceneId, { include_beats: true });
