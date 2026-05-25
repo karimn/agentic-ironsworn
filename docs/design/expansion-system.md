@@ -168,16 +168,18 @@ never ships code that belongs in the public repo.
 
 ### 3. DB migrations — namespacing
 
-`runDbMigrations(conn, migrations)` tracks a single integer in
-`_schema_migrations`. Expansions need their own version line so their
-`version: 1` doesn't collide with a future core `version: 1`.
+**Implemented.** Core migrations track applied versions in `_schema_migrations`
+(single `version INTEGER PRIMARY KEY`). Expansion migrations use a parallel
+`_schema_migrations_ns (namespace TEXT, version INTEGER, PRIMARY KEY(namespace,
+version))` table so their `version: 1` never collides with a core `version: 1`
+or with another expansion's `version: 1`.
 
-Proposal: add an optional `namespace` param; track `(namespace, version)`.
-Core namespace = `""`. This requires one **core** lore/scenes migration
-(v1) that adds a `namespace TEXT NOT NULL DEFAULT ''` column (or a parallel
-`_schema_migrations_ns` table) — additive, append-only, honors the
-"never edit existing entries" rule in CLAUDE.md. Expansion migration arrays
-are passed through the same runner under their manifest `name`.
+The internal `runDbMigrations(conn, migrations, namespace)` dispatcher routes
+to the correct table based on whether `namespace` is empty (core) or non-empty
+(expansion). `ExpansionContext.runDbMigrations` is a bound closure that
+automatically passes the expansion's manifest `name` as the namespace — expansion
+authors call `ctx.runDbMigrations(conn, myMigrations)` and never need to know
+their own name. The binding is constructed in `loadExpansions()` in `loader.ts`.
 
 
 ### 4. Character state

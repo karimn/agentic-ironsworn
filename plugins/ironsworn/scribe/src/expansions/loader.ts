@@ -185,7 +185,10 @@ export async function loadExpansions(
         appendJournal,
         roll,
         getLoreDb,
-        runDbMigrations: runDbMigrations as ExpansionContext["runDbMigrations"],
+        // conn is typed as `unknown` on ExpansionContext so expansions don't
+        // need to import DuckDB types. Cast it here for the internal runner.
+        runDbMigrations: (conn, migrations) =>
+          runDbMigrations(conn as Parameters<typeof runDbMigrations>[0], migrations, expansion.name),
         runCharacterMigrations,
       };
       await mod.register(server, ctx);

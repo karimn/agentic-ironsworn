@@ -131,7 +131,7 @@ The stub at `scribe/src/expansions/stub/` is the canonical example — it shows 
 | `server/index.ts` | `export function register(server, ctx)` — registers MCP tools |
 | `context/section.ts` | `export async function buildSection(campaignPath)` — injects GM context |
 
-The `ExpansionContext` type (exported from `loader.ts`) is the full API surface available to expansions. Expansion migrations use `ctx.runDbMigrations(conn, migrations, "your-name")` — a named namespace so version numbers never collide with core.
+The `ExpansionContext` type (exported from `loader.ts`) is the full API surface available to expansions. Expansion migrations use `ctx.runDbMigrations(conn, migrations)` — the loader automatically binds the expansion's manifest name as the namespace, so version numbers never collide with core or with other expansions.
 
 Full design rationale: `docs/design/expansion-system.md`.
 
