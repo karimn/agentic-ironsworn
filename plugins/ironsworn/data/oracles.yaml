@@ -1102,6 +1102,135 @@
   - min: 100
     max: 100
     outcome: Ironsworn
+- name: Character Disposition
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 4
+    outcome: Openly hostile — reads you as a threat or a mark
+  - min: 5
+    max: 9
+    outcome: Suspicious — watching for the angle, not yet committed
+  - min: 10
+    max: 14
+    outcome: Wary — will deal, but keeps an exit in reach
+  - min: 15
+    max: 19
+    outcome: Indifferent — you are neither threat nor opportunity yet
+  - min: 20
+    max: 24
+    outcome: Preoccupied — present in body, elsewhere in mind
+  - min: 25
+    max: 29
+    outcome: Cautiously curious — interested, but won't show it plainly
+  - min: 30
+    max: 34
+    outcome: Guarded respect — knows your reputation, not yet sure what to make of it
+  - min: 35
+    max: 39
+    outcome: Transactional — this is business; do not make it personal
+  - min: 40
+    max: 44
+    outcome: Desperate — needs something badly enough to overlook their usual caution
+  - min: 45
+    max: 49
+    outcome: Deferential — treats you as authority, at least for now
+  - min: 50
+    max: 54
+    outcome: Warily open — willing to talk, slow to trust
+  - min: 55
+    max: 59
+    outcome: Hopeful — wants to believe you're what they need
+  - min: 60
+    max: 64
+    outcome: Grateful — owes a debt, real or perceived
+  - min: 65
+    max: 69
+    outcome: Cautiously warm — likes you more than they're comfortable admitting
+  - min: 70
+    max: 74
+    outcome: Protective — will shield what they care about, including from you if needed
+  - min: 75
+    max: 79
+    outcome: Candidly friendly — no agenda; genuinely at ease with you
+  - min: 80
+    max: 84
+    outcome: Admiring — sees something in you worth emulating or following
+  - min: 85
+    max: 89
+    outcome: Grieving — not fully present; carrying something heavy
+  - min: 90
+    max: 94
+    outcome: Resigned — has accepted something they did not want to accept
+  - min: 95
+    max: 98
+    outcome: Conflicted — pulled in two directions; needs a reason to choose
+  - min: 99
+    max: 100
+    outcome: Roll twice — holds two contradictory stances at once
+- name: Character Wound
+  dice: 1d100
+  rolls:
+  - min: 1
+    max: 5
+    outcome: Failed to protect someone who depended on them
+  - min: 6
+    max: 10
+    outcome: Swore an oath they later broke or could not keep
+  - min: 11
+    max: 15
+    outcome: Was cast out by a community they gave everything to
+  - min: 16
+    max: 20
+    outcome: Watched something they built be destroyed
+  - min: 21
+    max: 25
+    outcome: Survived something others didn't — and can't stop asking why
+  - min: 26
+    max: 30
+    outcome: Was betrayed by someone they trusted completely
+  - min: 31
+    max: 36
+    outcome: Lost a child, a sibling, or a bond-companion
+  - min: 37
+    max: 41
+    outcome: Chose safety over the right thing once — still carrying it
+  - min: 42
+    max: 46
+    outcome: Had power and lost it, or refused it when offered
+  - min: 47
+    max: 51
+    outcome: Was wrong about something that cost others dearly
+  - min: 52
+    max: 56
+    outcome: Gave up on someone who still needed them
+  - min: 57
+    max: 61
+    outcome: Was responsible for a death they could not have prevented — but believe they could have
+  - min: 62
+    max: 66
+    outcome: Carried out an order they knew was wrong
+  - min: 67
+    max: 71
+    outcome: Was used as a weapon by someone they loved
+  - min: 72
+    max: 76
+    outcome: Had their name — or their past — taken from them
+  - min: 77
+    max: 81
+    outcome: Was the only one who knew the truth, and stayed silent
+  - min: 82
+    max: 86
+    outcome: Tried to save something and made it worse
+  - min: 87
+    max: 91
+    outcome: Was not there when it mattered most
+  - min: 92
+    max: 96
+    outcome: Chose one person over many — and has to live with the math
+  - min: 97
+    max: 100
+    outcome: Does not know what the wound is — only that something is missing
 - name: Endure Harm
   dice: 1d100
   rolls:

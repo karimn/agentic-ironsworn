@@ -74,6 +74,8 @@ Roll both `Action` and `Theme`. You get two abstract words. The interpretation i
 | `Character Role` | Who is this person, structurally? (Warrior, Outcast, Scholar, etc.) |
 | `Character Goal` | What do they want? |
 | `Character Descriptor` | Single trait — "stoic," "vengeful," "frail" |
+| `Character Disposition` | Emotional/relational stance toward the player — how they enter the scene |
+| `Character Wound` | Formative event or loss that shaped who they became — their carried weight |
 | `Major Plot Twist` | When the campaign feels stable — invite chaos |
 | `Mystic Backlash` | When a ritual or supernatural action goes sideways |
 | `Pay the Price` | Last resort for miss consequences (see references/pay-the-price.md) |

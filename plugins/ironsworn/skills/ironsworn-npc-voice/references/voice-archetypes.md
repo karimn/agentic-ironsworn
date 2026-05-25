@@ -8,6 +8,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 1. The Hinterlander Clan-Warrior
 
+- **When to reach for this**: Warrior or Mercenary role + Guarded Respect or Transactional disposition — someone who measures you by what you've earned, not what you say.
 - **Vocabulary**: oaths, kin-words, weapon-names, weather. Avoids: abstractions ("perhaps", "concept", "frankly").
 - **Rhythm**: short, declarative. Verbs first. Pauses where a softer speaker would qualify.
 - **Negative space**: will not name a coward; will not explain a debt of blood; will not speak the dead's name lightly.
@@ -18,6 +19,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 2. The Deep Wilds Elder
 
+- **When to reach for this**: Mystic, Priest, or Forester role + Preoccupied or Resignd disposition — someone whose attention is divided between this world and something older.
 - **Vocabulary**: river, root, season, breath, the old word for things. Avoids: clock-time, coin-words, "I think".
 - **Rhythm**: long, looping. Ends questions you didn't ask. Trails into silence and lets you fill it.
 - **Negative space**: will not give a straight yes; will not name the spirits casually; will not confirm what you already know.
