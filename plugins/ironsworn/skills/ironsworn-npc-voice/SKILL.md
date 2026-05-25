@@ -46,13 +46,32 @@ Defer bond increments and the social-move outcome tables (Compel, Sojourn, Forge
 
 ## Fiction Grounding Protocol (#103) — Mandatory Before Speech
 
-Before generating any line, body-language beat, or reaction:
+Before generating any line, body-language beat, or reaction, determine whether this NPC has a record:
+
+### Returning NPC (record exists)
 
 1. `get_npc(name)` — disposition, drives, impressions, bonds.
 2. `search_lore_global(query)` for the NPC's faction, community, related entities, recent scenes.
 3. If a fact is missing (accent, opinion of player, secret), `roll_oracle` first, then `upsert_npc` so the answer is durable.
 
 **Voice must match what is recorded.** A returning NPC who was "warily curious" last scene cannot suddenly be effusive without an in-fiction reason. If the recorded fact contradicts the moment you want, either play the recorded fact or have the NPC visibly change — and `upsert_npc` to capture the shift.
+
+### New NPC (no record exists) — Introduction Protocol
+
+When a named NPC appears for the first time with no existing record, run this protocol **before writing any line or reaction**. If `ironsworn-npc-backstory` has already been invoked for this NPC, skip to step 5 — the backstory record is authoritative.
+
+1. `roll_oracle("Character Role")` — structural identity (who they are in the world).
+2. `roll_oracle("Character Descriptor")` — single dominant trait.
+3. `roll_oracle("Character Goal")` — what they want right now.
+4. `roll_oracle("Character Disposition")` — emotional/relational stance toward the player.
+5. `search_lore_global(name + " " + role)` — filter through campaign texture before writing anything. Does this role contradict or rhyme with established factions? Are there prior references?
+6. Synthesize: let Role + Descriptor + Goal + Disposition combine into a voice. Don't describe each roll — the NPC arrives as a person.
+7. `upsert_npc` immediately with:
+   - `disposition` tags from the Disposition result
+   - `drives` seeded from Goal (and Wound/Silent Vow if backstory was run)
+   - A first `impression` line that captures how they come across in this moment
+
+The oracle results are raw material, not a costume. A "Transactional" disposition on a "Pilgrim" with a "Cure an ill" goal is not a merchant — it's someone who's learned the only way to get help is to offer something in return.
 
 ---
 

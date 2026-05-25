@@ -55,6 +55,11 @@ For NPC voice and reactions, defer to `ironsworn-npc-voice`. For vow milestones 
 
 Before narrating any non-trivial social beat, call `search_lore_global` (and `get_npc` / `get_community` when the entity is named). Pull what is already established — disposition, debts, prior bonds, community truths — and let those facts shape the scene. **Never invent a new fact about a known NPC or community without checking first.** If a fact is missing, `roll_oracle` and then `upsert_npc` / `upsert_lore` so it is durable.
 
+**Silent Vow and the Line (from `ironsworn-npc-backstory`).** Before Compel or Forge a Bond, check the NPC's record for a recorded Silent Vow and a Line. If present:
+- The **ask must be framed** in terms of the Silent Vow — lean into it if the ask aligns, acknowledge the tension if it pulls against it. A Compel that happens to align with an NPC's Silent Vow should feel different than one that cuts across it.
+- A **miss costs something the Line protects**. If the miss consequence would require the NPC to cross their Line, they refuse at any cost — no amount of leverage moves them past it. This is not a mechanic failure; it is the NPC being fully real. The miss consequence shifts to something they *can* pay but will resent.
+- A **weak hit's demand echoes the Silent Vow** — what they ask for in return is shaped by what they swore to themselves, not a random favor.
+
 ---
 
 ## The Six Moves

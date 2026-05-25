@@ -8,6 +8,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 1. The Hinterlander Clan-Warrior
 
+- **When to reach for this**: Warrior or Mercenary role + Guarded Respect or Transactional disposition — someone who measures you by what you've earned, not what you say.
 - **Vocabulary**: oaths, kin-words, weapon-names, weather. Avoids: abstractions ("perhaps", "concept", "frankly").
 - **Rhythm**: short, declarative. Verbs first. Pauses where a softer speaker would qualify.
 - **Negative space**: will not name a coward; will not explain a debt of blood; will not speak the dead's name lightly.
@@ -18,6 +19,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 2. The Deep Wilds Elder
 
+- **When to reach for this**: Mystic, Priest, or Forester role + Preoccupied or Resigned disposition — someone whose attention is divided between this world and something older.
 - **Vocabulary**: river, root, season, breath, the old word for things. Avoids: clock-time, coin-words, "I think".
 - **Rhythm**: long, looping. Ends questions you didn't ask. Trails into silence and lets you fill it.
 - **Negative space**: will not give a straight yes; will not name the spirits casually; will not confirm what you already know.
@@ -28,6 +30,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 3. The Iron-Town Magistrate
 
+- **When to reach for this**: Leader or Guard role + Transactional or Guarded Respect disposition — someone who treats every exchange as a matter of record and expects you to do the same.
 - **Vocabulary**: oath, levy, custom, precedent, the law, the records. Avoids: "maybe", endearments, first names without title.
 - **Rhythm**: balanced clauses, weight on the second half. Refers to itself in the third person under pressure.
 - **Negative space**: will not contradict the written record in public; will not concede a favor; will not bend on a sworn matter even if the law is wrong.
@@ -38,6 +41,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 4. The Smuggler-Captain
 
+- **When to reach for this**: Trader, Sailor, or Criminal role + Wary or Transactional disposition — someone who makes their living on the margins and stays alive by keeping their options open.
 - **Vocabulary**: tide, weight, share, the run, *friend* (used as warning). Avoids: oaths, formal titles, the names of authorities.
 - **Rhythm**: fast on the safe topics, slow and exact on numbers. Smiles in the wrong places.
 - **Negative space**: will not name the buyer; will not say "no" — will say "not for that price"; will not ever say "always".
@@ -48,6 +52,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 5. The Cleric of the Old Gods
 
+- **When to reach for this**: Healer or Seer role + Grieving or Resigned disposition — someone who has made their peace with costs the player has not yet had to pay.
 - **Vocabulary**: wound, vigil, ash, the long road, the cost. Avoids: trivial pleasantries, modern names, anything quick.
 - **Rhythm**: liturgical. Speaks in pairs. Repeats your own words back at you.
 - **Negative space**: will not absolve without weight; will not lie in the temple; will not name the god they fear.
@@ -58,6 +63,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 6. The Frostborn Diplomat
 
+- **When to reach for this**: Leader or Emissary role + Transactional or Suspicious disposition — someone who came prepared, has studied you, and will not be hurried into anything.
 - **Vocabulary**: courtesy, distance, the long view, *kin* (used coldly). Avoids: contractions, slang, anger-words.
 - **Rhythm**: even, glacial. Always one beat slower than the room expects.
 - **Negative space**: will not raise voice; will not threaten directly — implies; will not break form even when struck.
@@ -68,6 +74,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 7. The Broken Veteran
 
+- **When to reach for this**: Warrior or Protector role + Resigned or Conflicted disposition — someone whose wound is survival itself, and who speaks around the thing they cannot say directly.
 - **Vocabulary**: weight, the cold, *that one*, *the boy*, names not spoken. Avoids: grand words, present tense for old things.
 - **Rhythm**: jagged. Starts strong, dies mid-sentence, restarts somewhere else.
 - **Negative space**: will not look directly at certain objects; will not say the place-name; will not ask for help in plain words.
@@ -78,6 +85,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 8. The Trickster Stranger
 
+- **When to reach for this**: Outcast or Wanderer role + Cautiously curious or Candidly friendly disposition — someone whose agenda you cannot quite locate, and who prefers it that way.
 - **Vocabulary**: questions, riddles, your own name said too often, fragments of three other dialects. Avoids: clarity.
 - **Rhythm**: unpredictable. Answers a different question than the one asked. Repeats with a twist.
 - **Negative space**: will not give a true name; will not stand still in a doorway; will not confirm what they did yesterday.

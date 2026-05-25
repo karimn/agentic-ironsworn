@@ -64,6 +64,8 @@ Roll both `Action` and `Theme`. You get two abstract words. The interpretation i
 
 ## Specific Table Cheat Sheet
 
+### Canonical tables (from the Ironsworn rulebook)
+
 | Table | Use when |
 |---|---|
 | `Action` + `Theme` | Open-ended "what happens?", "what's their angle?", "what's the twist?" |
@@ -78,6 +80,13 @@ Roll both `Action` and `Theme`. You get two abstract words. The interpretation i
 | `Mystic Backlash` | When a ritual or supernatural action goes sideways |
 | `Pay the Price` | Last resort for miss consequences (see references/pay-the-price.md) |
 | `Endure Harm` / `Endure Stress` | Mortal harm / Desolation table — handled by `ironsworn-suffer`; cross-link |
+
+### Plugin-original tables (not in the rulebook — invented for this plugin)
+
+| Table | Use when |
+|---|---|
+| `Character Disposition` | Emotional/relational stance toward the player — how they enter the scene. Roll at NPC introduction if no record exists. |
+| `Character Wound` | Formative event or loss that shaped who they became — their carried weight. Roll during `ironsworn-npc-backstory` scaffolding. |
 
 After every roll on a specific table, call `search_lore_global` so the result lands in the campaign's themes rather than generic fantasy.
 
