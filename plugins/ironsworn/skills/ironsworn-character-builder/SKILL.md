@@ -220,6 +220,8 @@ If yes: note the people/communities with `upsert_npc` for significant individual
 The bonds counter itself advances through `Forge a Bond` during play — don't increment it here for
 background bonds unless you're using the variant rule that grants 1 starting bond.
 
+**For bond NPCs the player wants real depth on** — a mentor with a complicated history, a sibling the character left behind, someone who shaped who they are — invoke `ironsworn-npc-backstory` (Quick or Full scaffolding) before the session begins. This gives those NPCs a Wound, a Silent Vow, and a Line, which means when they appear in play their reactions will already be grounded rather than improvised. The player does not need to know the NPC's wound; it informs how the GM plays them, not what the player is told.
+
 ---
 
 ## Finishing Up
