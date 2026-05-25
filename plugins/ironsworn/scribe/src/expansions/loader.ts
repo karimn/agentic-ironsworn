@@ -96,13 +96,79 @@ function satisfiesCompat(running: string, range: string | undefined): boolean {
   return cmp >= 0;
 }
 
-export async function discoverExpansions(): Promise<LoadedExpansion[]> {
-  const enabled = new Set(
+function readCampaignExpansionsFile(campaignPath: string | undefined): {
+  fileEnabled: Set<string>;
+  fileDisabled: Set<string>;
+} {
+  const empty = { fileEnabled: new Set<string>(), fileDisabled: new Set<string>() };
+  if (!campaignPath) return empty;
+
+  const filePath = join(campaignPath, "expansions.json");
+  if (!existsSync(filePath)) return empty;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(filePath, "utf-8"));
+  } catch {
+    process.stderr.write(`[scribe] expansions.json at ${filePath} is malformed JSON — falling back to env-only\n`);
+    return empty;
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    process.stderr.write(`[scribe] expansions.json at ${filePath} is not an object — falling back to env-only\n`);
+    return empty;
+  }
+
+  const record = parsed as Record<string, unknown>;
+
+  let fileEnabled = new Set<string>();
+  if ("enabled" in record) {
+    if (!Array.isArray(record["enabled"])) {
+      process.stderr.write(`[scribe] expansions.json "enabled" is not an array — treating as empty\n`);
+    } else {
+      fileEnabled = new Set(
+        (record["enabled"] as unknown[])
+          .filter((x): x is string => typeof x === "string")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+    }
+  }
+
+  let fileDisabled = new Set<string>();
+  if ("disabled" in record) {
+    if (!Array.isArray(record["disabled"])) {
+      process.stderr.write(`[scribe] expansions.json "disabled" is not an array — treating as empty\n`);
+    } else {
+      fileDisabled = new Set(
+        (record["disabled"] as unknown[])
+          .filter((x): x is string => typeof x === "string")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+    }
+  }
+
+  return { fileEnabled, fileDisabled };
+}
+
+export async function discoverExpansions(campaignPath?: string): Promise<LoadedExpansion[]> {
+  const envEnabled = new Set(
     (process.env["SCRIBE_EXPANSIONS"] ?? "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
   );
+
+  const resolvedCampaignPath = campaignPath ?? process.env["SCRIBE_CAMPAIGN"];
+  const { fileEnabled, fileDisabled } = readCampaignExpansionsFile(resolvedCampaignPath);
+
+  // union of env + file enabled, minus file disabled
+  const enabled = new Set([...envEnabled, ...fileEnabled]);
+  for (const name of fileDisabled) {
+    enabled.delete(name);
+  }
+
   if (enabled.size === 0) return [];
 
   const jsonPath = installedPluginsPath();
@@ -166,7 +232,7 @@ export async function loadExpansions(
   server: McpServer,
   campaignPath: string,
 ): Promise<LoadedExpansion[]> {
-  const expansions = await discoverExpansions();
+  const expansions = await discoverExpansions(campaignPath);
   _active = expansions;
 
   for (const expansion of expansions) {
