@@ -1102,6 +1102,11 @@
   - min: 100
     max: 100
     outcome: Ironsworn
+
+# ── Plugin-original tables (not in the Ironsworn rulebook) ──────────────────
+# Character Disposition and Character Wound were created for this plugin.
+# Do not present them to players as canonical Ironsworn content.
+
 - name: Character Disposition
   dice: 1d100
   rolls:
@@ -1168,7 +1173,7 @@
   - min: 99
     max: 100
     outcome: Roll twice — holds two contradictory stances at once
-- name: Character Wound
+- name: Character Wound  # plugin-original
   dice: 1d100
   rolls:
   - min: 1
