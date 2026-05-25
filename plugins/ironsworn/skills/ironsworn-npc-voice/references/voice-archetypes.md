@@ -52,7 +52,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 5. The Cleric of the Old Gods
 
-- **When to reach for this**: Priest, Mystic, or Healer role + Resigned or Grieving disposition — someone who has made their peace with costs the player has not yet had to pay.
+- **When to reach for this**: Healer or Seer role + Quietly Ashamed or Resigned disposition — someone who has made their peace with costs the player has not yet had to pay.
 - **Vocabulary**: wound, vigil, ash, the long road, the cost. Avoids: trivial pleasantries, modern names, anything quick.
 - **Rhythm**: liturgical. Speaks in pairs. Repeats your own words back at you.
 - **Negative space**: will not absolve without weight; will not lie in the temple; will not name the god they fear.
@@ -63,7 +63,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 6. The Frostborn Diplomat
 
-- **When to reach for this**: Leader or Pilgrim role + Deferential or Cautiously curious disposition — someone who came prepared, has studied you, and will not be hurried into anything.
+- **When to reach for this**: Leader or Emissary role + Transactional or Suspicious of Your Motives disposition — someone who came prepared, has studied you, and will not be hurried into anything.
 - **Vocabulary**: courtesy, distance, the long view, *kin* (used coldly). Avoids: contractions, slang, anger-words.
 - **Rhythm**: even, glacial. Always one beat slower than the room expects.
 - **Negative space**: will not raise voice; will not threaten directly — implies; will not break form even when struck.
@@ -74,7 +74,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 7. The Broken Veteran
 
-- **When to reach for this**: Warrior, Mercenary, or Raider role + Grieving or Resigned disposition — someone whose wound is survival itself, and who speaks around the thing they cannot say directly.
+- **When to reach for this**: Warrior or Protector role + Exhausted Past Caring or Frightened and Hiding It disposition — someone whose wound is survival itself, and who speaks around the thing they cannot say directly.
 - **Vocabulary**: weight, the cold, *that one*, *the boy*, names not spoken. Avoids: grand words, present tense for old things.
 - **Rhythm**: jagged. Starts strong, dies mid-sentence, restarts somewhere else.
 - **Negative space**: will not look directly at certain objects; will not say the place-name; will not ask for help in plain words.
@@ -85,7 +85,7 @@ For each archetype: **vocabulary** (words they reach for; words they avoid), **r
 
 ## 8. The Trickster Stranger
 
-- **When to reach for this**: Vagrant, Outcast, or Pilgrim role + Suspicious or Warily open disposition — someone whose agenda you cannot quite locate, and who prefers it that way.
+- **When to reach for this**: Outcast or Wanderer role + Amused (Watching How This Plays Out) or Openly Eager (Almost Too Much) disposition — someone whose agenda you cannot quite locate, and who prefers it that way.
 - **Vocabulary**: questions, riddles, your own name said too often, fragments of three other dialects. Avoids: clarity.
 - **Rhythm**: unpredictable. Answers a different question than the one asked. Repeats with a twist.
 - **Negative space**: will not give a true name; will not stand still in a doorway; will not confirm what they did yesterday.
