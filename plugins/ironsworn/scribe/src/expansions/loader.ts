@@ -3,9 +3,9 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { loadCharacter, saveCharacter, appendJournal, type Character } from "../state/character.js";
-import { roll } from "../rules/dice.js";
-import { getLoreDb } from "../rag/lore-db.js";
-import { runDbMigrations, runCharacterMigrations, type DbMigration, type CharacterMigration } from "../migrations/index.js";
+import { roll } from "@agentic-rpg/core";
+import { getLoreDb } from "@agentic-rpg/core";
+import { runDbMigrations, runCharacterMigrations, type DbMigration, type CharacterMigration } from "@agentic-rpg/core";
 
 export type { DbMigration, CharacterMigration };
 

@@ -1,12 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "../rag/scenes.js";
+import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "@agentic-rpg/core";
 import { openThread, closeThread } from "../state/threads.js";
-import { upsertNpc, getNpc } from "../state/npcs.js";
-import { getLore, upsertLore } from "../rag/lore.js";
+import { upsertNpc, getNpc } from "@agentic-rpg/core";
+import { getLore, upsertLore } from "@agentic-rpg/core";
 import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
-import { recordMutation } from "../checkpoint.js";
-import { pushBeat, drainNotices } from "../rag/beat-queue.js";
+import { recordMutation } from "@agentic-rpg/core";
+import { pushBeat, drainNotices } from "@agentic-rpg/core";
 
 const BeatInputSchema = z.object({
   kind: z.enum(["narration", "dialogue", "move", "choice", "oracle"]).describe(

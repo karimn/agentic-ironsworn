@@ -1,4 +1,4 @@
-import { roll } from "../dice.js";
+import { roll } from "@agentic-rpg/core";
 import { ProgressTrack } from "../../state/character.js";
 
 export const TICKS_PER_MARK: Record<ProgressTrack["rank"], number> = {

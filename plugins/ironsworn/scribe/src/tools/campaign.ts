@@ -4,11 +4,11 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { loadCharacter, saveCharacter } from "../state/character.js";
 import { loadThreads, saveThreads } from "../state/threads.js";
-import { listNpcs, writeNpcRaw } from "../state/npcs.js";
-import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "../rag/lore.js";
-import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "../rag/proximity.js";
-import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
-import { shutdown as drainBeatQueue } from "../rag/beat-queue.js";
+import { listNpcs, writeNpcRaw } from "@agentic-rpg/core";
+import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "@agentic-rpg/core";
+import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "@agentic-rpg/core";
+import { exportScenes, importScene, checkpointScenes, type BeatExport } from "@agentic-rpg/core";
+import { shutdown as drainBeatQueue } from "@agentic-rpg/core";
 
 interface CampaignExport {
   version: 2;

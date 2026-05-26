@@ -28,7 +28,7 @@ import { burnMomentum } from "../rules/ironsworn/momentum.js";
 import { tickProgress, vowXp, TICKS_PER_MARK, STRESS_BY_RANK, RANK_LADDER } from "../rules/ironsworn/progress.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { recordMutation } from "../checkpoint.js";
+import { recordMutation } from "@agentic-rpg/core";
 import { openThread, closeThread, loadThreads } from "../state/threads.js";
 
 function characterDigest(char: Character) {

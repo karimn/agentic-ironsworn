@@ -1,6 +1,6 @@
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { join } from "node:path";
-import { runCharacterMigrations, type CharacterMigration } from "../migrations/index.js";
+import { runCharacterMigrations, type CharacterMigration } from "@agentic-rpg/core";
 
 // ---------------------------------------------------------------------------
 // Types

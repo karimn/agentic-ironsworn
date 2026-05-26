@@ -8,17 +8,17 @@ import {
   getLoreGraph,
   LORE_TYPES,
   type LoreType,
-} from "../rag/lore.js";
+} from "@agentic-rpg/core";
 import {
   recomputeCommunities,
   listCommunities,
   getCommunity,
   searchCommunities,
-} from "../rag/communities.js";
+} from "@agentic-rpg/core";
 import {
   extractLoreFromScene,
   extractUnprocessedScenes,
-} from "../rag/extraction.js";
+} from "@agentic-rpg/core";
 import {
   linkProximity,
   proximityDistance,
@@ -26,8 +26,8 @@ import {
   PROXIMITY_DIMENSIONS,
   COMPASS_POINTS,
   type ProximityDimension,
-} from "../rag/proximity.js";
-import { recordMutation } from "../checkpoint.js";
+} from "@agentic-rpg/core";
+import { recordMutation } from "@agentic-rpg/core";
 
 export function register(server: McpServer, campaignPath: string): void {
   const provenanceSchema = z

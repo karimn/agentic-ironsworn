@@ -17,7 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { register } from "./lore.js";
-import { getLoreDb, openLoreWriteConn } from "../rag/lore-db.js";
+import { getLoreDb, openLoreWriteConn } from "@agentic-rpg/core";
 
 let campaignDir: string;
 let server: McpServer;

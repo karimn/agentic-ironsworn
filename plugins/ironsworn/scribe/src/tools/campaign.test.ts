@@ -330,7 +330,7 @@ describe("import_campaign", () => {
     }
     if (!ollamaReady) return;
 
-    const { upsertLore, exportLore } = await import("../rag/lore.js");
+    const { upsertLore, exportLore } = await import("@agentic-rpg/core");
 
     // Create a lore entity
     const beforeTimestamp = new Date().toISOString();
@@ -409,7 +409,7 @@ describe("import_campaign", () => {
     }
     if (!ollamaReady) return;
 
-    const { upsertLore, listProvenance } = await import("../rag/lore.js");
+    const { upsertLore, listProvenance } = await import("@agentic-rpg/core");
 
     // Create a lore entity with provenance
     const { id: entityId } = await upsertLore(campaignDir, {
@@ -453,7 +453,7 @@ describe("import_campaign", () => {
       expect(importResult.isError).not.toBe(true);
 
       // Check provenance is preserved in the imported campaign
-      const { listProvenance: importListProvenance } = await import("../rag/lore.js");
+      const { listProvenance: importListProvenance } = await import("@agentic-rpg/core");
       const importedProv = await importListProvenance(importDir, "entity", entityId);
       expect(importedProv.length).toBe(1);
       expect(importedProv[0].source_kind).toBe("document");
@@ -480,7 +480,7 @@ describe("import_campaign", () => {
     }
     if (!ollamaReady) return;
 
-    const { upsertLore, listProvenance } = await import("../rag/lore.js");
+    const { upsertLore, listProvenance } = await import("@agentic-rpg/core");
 
     // Create entities with provenance
     const { id: entityId1 } = await upsertLore(campaignDir, {

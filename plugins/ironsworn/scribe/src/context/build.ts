@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { loadCharacter } from "../state/character.js";
-import { searchScenes } from "../rag/scenes.js";
+import { searchScenes } from "@agentic-rpg/core";
 import { listThreads } from "../state/threads.js";
 import { getActiveExpansions, type LoadedExpansion } from "../expansions/loader.js";
 
