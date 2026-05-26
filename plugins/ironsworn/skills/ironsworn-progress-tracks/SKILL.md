@@ -99,6 +99,17 @@ The **background vow** (created at character creation) does not require a Swear 
 
 **Never use `tick_progress` for vow advancement.** Use `reach_milestone`.
 
+**After every `reach_milestone` call, you MUST render the updated track state using the glyph format (see Display Format below). Never report just a raw tick count.** Structure the response like this:
+
+```
+Milestone reached — <Vow Name>:
+
+◕ ○ ○ ○ ○ ○ ○ ○ ○ ○
+3 / 40 ticks — epic vow
+```
+
+Use the `ticks` value in the returned `track` object and the formula in the Display Format section to produce the glyph row.
+
 **What does NOT count:**
 - A minor success or easy obstacle. Milestones cost something.
 - A success unrelated to any vow. Tick nothing.
@@ -205,14 +216,39 @@ Resolve via `roll_progress` on the progress track.
 
 ---
 
-## Display Format
+## Display Format — MANDATORY
 
-For glyph rendering of any progress track, see `references/display.md`. It contains the glyph table (`○ ◔ ◑ ◕ ●`), the box-mapping formula, and worked examples.
+**Rule: whenever any progress track state is communicated to the player — after a milestone, a tick, a progress roll, on request, or in any summary — you MUST render it using the glyph box format. Reporting raw tick counts alone (e.g. `"3/40 ticks"`) without the glyph row is never acceptable.**
+
+Use the five glyphs: `○ ◔ ◑ ◕ ●`
+
+| Ticks in box | Glyph |
+|---|---|
+| 0 | ○ |
+| 1 | ◔ |
+| 2 | ◑ |
+| 3 | ◕ |
+| 4 | ● |
+
+**Formula** (for a track with `total_ticks` 0–40):
+1. `full_boxes = floor(total_ticks / 4)` → render that many `●`
+2. `partial_ticks = total_ticks % 4` → if > 0, render the partial-box glyph for that count
+3. `empty_boxes = 10 − full_boxes − (1 if partial_ticks > 0 else 0)` → render that many `○`
+
+Always pair the glyph row with the tick count and rank on the next line:
+
+```
+◕ ○ ○ ○ ○ ○ ○ ○ ○ ○
+3 / 40 ticks — epic vow
+```
+
+For full worked examples see `references/display.md`.
 
 ---
 
 ## Common Mistakes
 
+- **Never report track state as raw ticks alone** — always render the glyph row first (see Display Format). Saying "The vow is now at 3/40 ticks" without the `◕ ○ ○ ○ ○ ○ ○ ○ ○ ○` line above it is wrong.
 - **Never use `tick_progress` for a vow milestone — use `reach_milestone`.**
 - **Fulfill Your Vow is a progress roll, not an action roll** — use `roll_progress`, not `resolve_move`.
 - **Miss on Fulfill: ASK the player recommit vs forsake; do not auto-decide.**
