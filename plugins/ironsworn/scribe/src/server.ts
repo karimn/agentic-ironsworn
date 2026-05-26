@@ -7,10 +7,7 @@ import * as narrativeTools from "./tools/narrative.js";
 import * as loreTools from "./tools/lore.js";
 import * as campaignTools from "./tools/campaign.js";
 import { loadExpansions } from "./expansions/loader.js";
-import { checkpointLore } from "./rag/lore.js";
-import { checkpointScenes } from "./rag/scenes.js";
-import { startPeriodicCheckpoint } from "./checkpoint.js";
-import { replayFailures, shutdown as drainBeatQueue } from "./rag/beat-queue.js";
+import { checkpointLore, checkpointScenes, startPeriodicCheckpoint, replayFailures, shutdown as drainBeatQueue } from "@agentic-rpg/core";
 
 const CAMPAIGN_PATH = process.env.SCRIBE_CAMPAIGN ?? "campaigns/default";
 

@@ -6,10 +6,6 @@ import {
   peekLoreDb,
 } from "./lore-db.js";
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 export const LORE_TYPES = [
   "material",
   "faction",
@@ -56,7 +52,6 @@ export interface LoreEntity {
   summary: string;
   content: Record<string, unknown>;
   metadata: Record<string, unknown>;
-  /** Leaf community id from metadata.community when set by recompute_communities. */
   community_id: string | null;
   relations: LoreRelation[];
 }
@@ -68,9 +63,7 @@ export interface LinkLoreInput {
   notes?: string;
   metadata?: Record<string, unknown>;
   provenance?: ProvenanceInput;
-  /** @internal Used during import replay to preserve original created_at. */
   _created_at?: string;
-  /** @internal Used during import replay to skip automatic provenance recording. */
   _skipRecordingProvenance?: boolean;
 }
 
@@ -83,9 +76,7 @@ export interface UpsertLoreInput {
   metadata?: Record<string, unknown>;
   aliases?: string[];
   provenance?: ProvenanceInput;
-  /** @internal Used during import replay to preserve original created_at. */
   _created_at?: string;
-  /** @internal Used during import replay to skip automatic provenance recording. */
   _skipRecordingProvenance?: boolean;
 }
 
@@ -96,10 +87,6 @@ export interface UpsertLoreResult {
   updated: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Slug
-// ---------------------------------------------------------------------------
-
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -108,10 +95,6 @@ export function slugify(text: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 }
-
-// ---------------------------------------------------------------------------
-// Row mapping helpers
-// ---------------------------------------------------------------------------
 
 function parseJsonObject(raw: unknown): Record<string, unknown> {
   if (typeof raw !== "string" || raw.length === 0) return {};
@@ -133,7 +116,6 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
   const community_id = typeof communityRaw === "string" && communityRaw.length > 0
     ? communityRaw
     : null;
-
   return {
     id: String(row["id"] ?? ""),
     canonical: String(row["canonical"] ?? ""),
@@ -143,13 +125,9 @@ function rowToEntity(row: Record<string, unknown>): LoreEntity {
     content: parseJsonObject(row["content"]),
     metadata,
     community_id,
-    relations: [],  // populated by getLore after this; non-optional in the interface
+    relations: [],
   };
 }
-
-// ---------------------------------------------------------------------------
-// Provenance helper
-// ---------------------------------------------------------------------------
 
 export async function recordProvenance(
   conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
@@ -165,22 +143,9 @@ export async function recordProvenance(
     `INSERT INTO lore_provenance
        (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      subjectKind,
-      subjectId,
-      effective.source_kind,
-      effective.source_id ?? null,
-      effective.excerpt ?? null,
-      effective.confidence ?? null,
-      now,
-    ],
+    [id, subjectKind, subjectId, effective.source_kind, effective.source_id ?? null, effective.excerpt ?? null, effective.confidence ?? null, now],
   );
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export async function upsertLore(
   campaignPath: string,
@@ -190,16 +155,13 @@ export async function upsertLore(
   if (id.length === 0) {
     throw new Error("Cannot derive lore ID from empty canonical name");
   }
-
   const [embedding, instance] = await Promise.all([
     getLoreEmbedding(input.summary),
     getLoreDb(campaignPath),
   ]);
-
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
   const now = input._created_at ?? new Date().toISOString();
   const contentJson = JSON.stringify(input.content ?? {});
-
   const conn = await openLoreWriteConn(instance);
   try {
     const existingResult = await conn.runAndReadAll(
@@ -208,19 +170,16 @@ export async function upsertLore(
     );
     const existingRows = existingResult.getRowObjectsJS() as Record<string, unknown>[];
     const existing = existingRows[0];
-
     const incomingAliases = input.aliases ?? [];
     let mergedAliases: string[];
     let metadataJson: string;
     let updated = false;
-
     if (existing) {
       updated = true;
       const oldCanonical = String(existing["canonical"] ?? "");
       const oldAliases = Array.isArray(existing["aliases"])
         ? (existing["aliases"] as unknown[]).map(String)
         : [];
-
       const seen = new Set<string>();
       const acc: string[] = [];
       const push = (name: string) => {
@@ -232,22 +191,15 @@ export async function upsertLore(
         acc.push(name);
       };
       for (const a of oldAliases) push(a);
-      if (
-        oldCanonical.length > 0 &&
-        oldCanonical.toLowerCase() !== input.canonical.toLowerCase()
-      ) {
+      if (oldCanonical.length > 0 && oldCanonical.toLowerCase() !== input.canonical.toLowerCase()) {
         push(oldCanonical);
       }
       for (const a of incomingAliases) push(a);
       mergedAliases = acc;
-
-      // Metadata: incoming wins if provided; otherwise preserve existing.
       if (input.metadata !== undefined) {
         metadataJson = JSON.stringify(input.metadata);
       } else {
-        metadataJson = typeof existing["metadata"] === "string"
-          ? (existing["metadata"] as string)
-          : "{}";
+        metadataJson = typeof existing["metadata"] === "string" ? (existing["metadata"] as string) : "{}";
       }
     } else {
       const seen = new Set<string>();
@@ -261,15 +213,11 @@ export async function upsertLore(
       }
       metadataJson = JSON.stringify(input.metadata ?? {});
     }
-
     const aliasesLiteral = `[${mergedAliases.map((a) => `'${a.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
-
     if (existing) {
       await conn.run(
-        `UPDATE lore_entities
-         SET canonical = ?, aliases = ${aliasesLiteral}, type = ?, summary = ?,
-             content = ?, metadata = ?, embedding = ${embeddingLiteral}, updated_at = ?
-         WHERE id = ?`,
+        `UPDATE lore_entities SET canonical = ?, aliases = ${aliasesLiteral}, type = ?, summary = ?,
+           content = ?, metadata = ?, embedding = ${embeddingLiteral}, updated_at = ? WHERE id = ?`,
         [input.canonical, input.type, input.summary, contentJson, metadataJson, now, id],
       );
     } else {
@@ -280,11 +228,9 @@ export async function upsertLore(
         [id, input.canonical, input.type, input.summary, contentJson, metadataJson, now, now],
       );
     }
-
     if (!input._skipRecordingProvenance) {
       await recordProvenance(conn, "entity", id, input.provenance, now);
     }
-
     return { id, canonical: input.canonical, aliases: mergedAliases, updated };
   } finally {
     conn.closeSync();
@@ -309,39 +255,26 @@ export async function searchLore(
     getLoreEmbedding(query),
     getLoreDb(campaignPath),
   ]);
-
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
-
   const conn = await instance.connect();
   try {
     const sql = type
       ? `SELECT id, canonical, type, summary,
                 array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
-         FROM lore_entities
-         WHERE type = ?
-         ORDER BY score DESC
-         LIMIT ?`
+         FROM lore_entities WHERE type = ? ORDER BY score DESC LIMIT ?`
       : `SELECT id, canonical, type, summary,
                 array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
-         FROM lore_entities
-         ORDER BY score DESC
-         LIMIT ?`;
-
+         FROM lore_entities ORDER BY score DESC LIMIT ?`;
     const params = type ? [type, k] : [k];
     const result = await conn.runAndReadAll(sql, params);
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
-
     return rows.map((row) => ({
       id: String(row["id"] ?? ""),
       canonical: String(row["canonical"] ?? ""),
       type: String(row["type"] ?? "concept") as LoreType,
       summary: String(row["summary"] ?? ""),
-      score:
-        typeof row["score"] === "number"
-          ? row["score"]
-          : typeof row["score"] === "bigint"
-            ? Number(row["score"])
-            : Number.NaN,
+      score: typeof row["score"] === "number" ? row["score"]
+        : typeof row["score"] === "bigint" ? Number(row["score"]) : Number.NaN,
     }));
   } finally {
     conn.closeSync();
@@ -355,14 +288,9 @@ async function resolveId(
   const needle = identifier.toLowerCase();
   const result = await conn.runAndReadAll(
     `SELECT id FROM lore_entities
-     WHERE lower(id) = ?
-        OR lower(canonical) = ?
-        OR EXISTS (
-             SELECT 1 FROM unnest(aliases) AS t(alias)
-             WHERE lower(alias) = ?
-           )
-     ORDER BY id
-     LIMIT 1`,
+     WHERE lower(id) = ? OR lower(canonical) = ?
+        OR EXISTS (SELECT 1 FROM unnest(aliases) AS t(alias) WHERE lower(alias) = ?)
+     ORDER BY id LIMIT 1`,
     [needle, needle, needle],
   );
   const rows = result.getRowObjectsJS() as Record<string, unknown>[];
@@ -384,13 +312,9 @@ export async function linkLore(
     const now = input._created_at ?? new Date().toISOString();
     const overwriteMetadata = input.metadata !== undefined;
     const metadataJson = JSON.stringify(input.metadata ?? {});
-
-    // Symmetric with upsertLore: when caller omits metadata, preserve existing
-    // on conflict. When caller supplies metadata (even {}), overwrite.
     const metadataConflictClause = overwriteMetadata
       ? "metadata = EXCLUDED.metadata"
       : "metadata = lore_relations.metadata";
-
     await conn.run(
       `INSERT INTO lore_relations (from_id, to_id, relation, notes, metadata, created_at)
        VALUES (?, ?, ?, ?, ?, ?)
@@ -399,22 +323,9 @@ export async function linkLore(
          ${metadataConflictClause}`,
       [fromId, toId, input.relation, input.notes ?? null, metadataJson, now],
     );
-
-    // Provenance is treated as a history log: every linkLore call records
-    // an entry, including no-op re-links where neither notes nor metadata
-    // changed. listProvenance returns this full history. If a future
-    // consumer needs only "facts that meaningfully changed", we can add a
-    // dedup pass at the recordProvenance layer; for now, history wins.
     if (!input._skipRecordingProvenance) {
-      await recordProvenance(
-        conn,
-        "relation",
-        `${fromId}|${toId}|${input.relation}`,
-        input.provenance,
-        now,
-      );
+      await recordProvenance(conn, "relation", `${fromId}|${toId}|${input.relation}`, input.provenance, now);
     }
-
     return { from_id: fromId, to_id: toId, relation: input.relation };
   } finally {
     conn.closeSync();
@@ -423,12 +334,6 @@ export async function linkLore(
 
 export interface LoreGraph {
   root: LoreEntity;
-  /**
-   * All entities reachable within `depth` hops, including the root.
-   * Note: `relations` on each node is always `[]` — use the `edges` array
-   * for connectivity. To get a node's full relations, call `getLore` on it
-   * separately.
-   */
   nodes: LoreEntity[];
   edges: Array<{
     from_id: string;
@@ -439,91 +344,52 @@ export interface LoreGraph {
   }>;
 }
 
-/**
- * BFS expansion of edges from a root entity to a configurable depth.
- *
- * @param campaignPath  Per-campaign DB directory.
- * @param identifier    Root entity (id, canonical, or alias).
- * @param depth         Number of hops to traverse from the root. Default 1.
- * @returns The graph with root, all reachable nodes (relations field
- *          empty — see `LoreGraph.nodes`), and deduplicated edges.
- *          Returns null if the root cannot be resolved.
- * @throws  If `depth < 1`.
- */
 export async function getLoreGraph(
   campaignPath: string,
   identifier: string,
   depth = 1,
 ): Promise<LoreGraph | null> {
-  if (depth < 1) {
-    throw new Error("getLoreGraph depth must be >= 1");
-  }
-
+  if (depth < 1) throw new Error("getLoreGraph depth must be >= 1");
   const root = await getLore(campaignPath, identifier);
   if (root === null) return null;
-
   const instance = await getLoreDb(campaignPath);
   const conn = await instance.connect();
   try {
     const visited = new Set<string>([root.id]);
     let frontier = new Set<string>([root.id]);
     const edges: LoreGraph["edges"] = [];
-
     for (let hop = 0; hop < depth; hop++) {
       if (frontier.size === 0) break;
-
       const placeholders = Array.from(frontier).map(() => "?").join(",");
       const params = Array.from(frontier);
-
       const result = await conn.runAndReadAll(
         `SELECT from_id, to_id, relation, notes, metadata
-         FROM lore_relations
-         WHERE from_id IN (${placeholders}) OR to_id IN (${placeholders})`,
+         FROM lore_relations WHERE from_id IN (${placeholders}) OR to_id IN (${placeholders})`,
         [...params, ...params],
       );
-
       const next = new Set<string>();
       for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
         const fromId = String(row["from_id"]);
         const toId = String(row["to_id"]);
         const relation = String(row["relation"]);
         const notes = row["notes"] ? String(row["notes"]) : undefined;
-
         const edgeKey = `${fromId}|${toId}|${relation}`;
         if (!edges.some((e) => `${e.from_id}|${e.to_id}|${e.relation}` === edgeKey)) {
-          edges.push({
-            from_id: fromId,
-            to_id: toId,
-            relation,
-            notes,
-            metadata: parseJsonObject(row["metadata"]),
-          });
+          edges.push({ from_id: fromId, to_id: toId, relation, notes, metadata: parseJsonObject(row["metadata"]) });
         }
-
         for (const id of [fromId, toId]) {
-          if (!visited.has(id)) {
-            visited.add(id);
-            next.add(id);
-          }
+          if (!visited.has(id)) { visited.add(id); next.add(id); }
         }
       }
-
       frontier = next;
     }
-
-    // Fetch all visited entities (without their relations to keep payload small)
     const allIds = Array.from(visited);
     const placeholders = allIds.map(() => "?").join(",");
     const nodesResult = await conn.runAndReadAll(
-      `SELECT id, canonical, aliases, type, summary, content, metadata
-       FROM lore_entities
-       WHERE id IN (${placeholders})`,
+      `SELECT id, canonical, aliases, type, summary, content, metadata FROM lore_entities WHERE id IN (${placeholders})`,
       allIds,
     );
-    const nodes = (nodesResult.getRowObjectsJS() as Record<string, unknown>[]).map(
-      rowToEntity,
-    );
-
+    const nodes = (nodesResult.getRowObjectsJS() as Record<string, unknown>[]).map(rowToEntity);
     return { root, nodes, edges };
   } finally {
     conn.closeSync();
@@ -536,58 +402,37 @@ export async function getLore(
 ): Promise<LoreEntity | null> {
   const instance = await getLoreDb(campaignPath);
   const needle = identifier.toLowerCase();
-
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
       `SELECT id, canonical, aliases, type, summary, content, metadata
        FROM lore_entities
-       WHERE lower(id) = ?
-          OR lower(canonical) = ?
-          OR EXISTS (
-               SELECT 1 FROM unnest(aliases) AS t(alias)
-               WHERE lower(alias) = ?
-             )
-       ORDER BY id
-       LIMIT 1`,
+       WHERE lower(id) = ? OR lower(canonical) = ?
+          OR EXISTS (SELECT 1 FROM unnest(aliases) AS t(alias) WHERE lower(alias) = ?)
+       ORDER BY id LIMIT 1`,
       [needle, needle, needle],
     );
-
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     if (rows.length === 0) return null;
-
     const entity = rowToEntity(rows[0]);
-
-    // Outgoing
     const outgoing = await conn.runAndReadAll(
       `SELECT r.relation, r.notes, r.metadata,
               e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
-       FROM lore_relations r
-       JOIN lore_entities e ON e.id = r.to_id
-       WHERE r.from_id = ?`,
+       FROM lore_relations r JOIN lore_entities e ON e.id = r.to_id WHERE r.from_id = ?`,
       [entity.id],
     );
-
-    // Incoming
     const incoming = await conn.runAndReadAll(
       `SELECT r.relation, r.notes, r.metadata,
               e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
-       FROM lore_relations r
-       JOIN lore_entities e ON e.id = r.from_id
-       WHERE r.to_id = ?`,
+       FROM lore_relations r JOIN lore_entities e ON e.id = r.from_id WHERE r.to_id = ?`,
       [entity.id],
     );
-
     const relations: LoreRelation[] = [];
     for (const row of outgoing.getRowObjectsJS() as Record<string, unknown>[]) {
       relations.push({
         direction: "from",
         relation: String(row["relation"]),
-        entity: {
-          id: String(row["other_id"]),
-          canonical: String(row["other_canonical"]),
-          type: String(row["other_type"]) as LoreType,
-        },
+        entity: { id: String(row["other_id"]), canonical: String(row["other_canonical"]), type: String(row["other_type"]) as LoreType },
         notes: row["notes"] ? String(row["notes"]) : undefined,
         metadata: parseJsonObject(row["metadata"]),
       });
@@ -596,16 +441,11 @@ export async function getLore(
       relations.push({
         direction: "to",
         relation: String(row["relation"]),
-        entity: {
-          id: String(row["other_id"]),
-          canonical: String(row["other_canonical"]),
-          type: String(row["other_type"]) as LoreType,
-        },
+        entity: { id: String(row["other_id"]), canonical: String(row["other_canonical"]), type: String(row["other_type"]) as LoreType },
         notes: row["notes"] ? String(row["notes"]) : undefined,
         metadata: parseJsonObject(row["metadata"]),
       });
     }
-
     entity.relations = relations;
     return entity;
   } finally {
@@ -622,14 +462,10 @@ export async function listProvenance(
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
-      `SELECT id, subject_kind, subject_id, source_kind, source_id,
-              excerpt, confidence, created_at
-       FROM lore_provenance
-       WHERE subject_kind = ? AND subject_id = ?
-       ORDER BY created_at ASC`,
+      `SELECT id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at
+       FROM lore_provenance WHERE subject_kind = ? AND subject_id = ? ORDER BY created_at ASC`,
       [subjectKind, subjectId],
     );
-
     return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => ({
       id: String(row["id"]),
       subject_kind: String(row["subject_kind"]) as "entity" | "relation",
@@ -637,22 +473,14 @@ export async function listProvenance(
       source_kind: String(row["source_kind"]),
       source_id: row["source_id"] ? String(row["source_id"]) : null,
       excerpt: row["excerpt"] ? String(row["excerpt"]) : null,
-      confidence:
-        typeof row["confidence"] === "number"
-          ? row["confidence"]
-          : typeof row["confidence"] === "bigint"
-            ? Number(row["confidence"])
-            : null,
+      confidence: typeof row["confidence"] === "number" ? row["confidence"]
+        : typeof row["confidence"] === "bigint" ? Number(row["confidence"]) : null,
       created_at: String(row["created_at"]),
     }));
   } finally {
     conn.closeSync();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Export / Import helpers
-// ---------------------------------------------------------------------------
 
 export interface LoreEntityExport {
   id: string;
@@ -681,42 +509,33 @@ export async function exportLore(
   const instance = await getLoreDb(campaignPath);
   const conn = await instance.connect();
   try {
-    const entRows = (
-      await conn.runAndReadAll(
-        `SELECT id, canonical, aliases, type, summary, content, metadata, created_at, updated_at
-         FROM lore_entities ORDER BY created_at`,
-      )
-    ).getRowObjectsJS() as Record<string, unknown>[];
-
-    const relRows = (
-      await conn.runAndReadAll(
-        `SELECT from_id, to_id, relation, notes, metadata, created_at
-         FROM lore_relations ORDER BY created_at`,
-      )
-    ).getRowObjectsJS() as Record<string, unknown>[];
-
-    const entities: LoreEntityExport[] = entRows.map((r) => ({
-      id: String(r["id"]),
-      canonical: String(r["canonical"]),
-      aliases: Array.isArray(r["aliases"]) ? (r["aliases"] as unknown[]).map(String) : [],
-      type: String(r["type"]),
-      summary: String(r["summary"]),
-      content: JSON.parse(typeof r["content"] === "string" ? r["content"] : "{}") as Record<string, unknown>,
-      metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
-      created_at: String(r["created_at"]),
-      updated_at: String(r["updated_at"]),
-    }));
-
-    const relations: LoreRelationExport[] = relRows.map((r) => ({
-      from_id: String(r["from_id"]),
-      to_id: String(r["to_id"]),
-      relation: String(r["relation"]),
-      notes: r["notes"] != null ? String(r["notes"]) : undefined,
-      metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
-      created_at: String(r["created_at"]),
-    }));
-
-    return { entities, relations };
+    const entRows = (await conn.runAndReadAll(
+      `SELECT id, canonical, aliases, type, summary, content, metadata, created_at, updated_at FROM lore_entities ORDER BY created_at`,
+    )).getRowObjectsJS() as Record<string, unknown>[];
+    const relRows = (await conn.runAndReadAll(
+      `SELECT from_id, to_id, relation, notes, metadata, created_at FROM lore_relations ORDER BY created_at`,
+    )).getRowObjectsJS() as Record<string, unknown>[];
+    return {
+      entities: entRows.map((r) => ({
+        id: String(r["id"]),
+        canonical: String(r["canonical"]),
+        aliases: Array.isArray(r["aliases"]) ? (r["aliases"] as unknown[]).map(String) : [],
+        type: String(r["type"]),
+        summary: String(r["summary"]),
+        content: JSON.parse(typeof r["content"] === "string" ? r["content"] : "{}") as Record<string, unknown>,
+        metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
+        created_at: String(r["created_at"]),
+        updated_at: String(r["updated_at"]),
+      })),
+      relations: relRows.map((r) => ({
+        from_id: String(r["from_id"]),
+        to_id: String(r["to_id"]),
+        relation: String(r["relation"]),
+        notes: r["notes"] != null ? String(r["notes"]) : undefined,
+        metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
+        created_at: String(r["created_at"]),
+      })),
+    };
   } finally {
     conn.closeSync();
   }
@@ -728,13 +547,9 @@ export async function exportProvenance(
   const instance = await getLoreDb(campaignPath);
   const conn = await instance.connect();
   try {
-    const rows = (
-      await conn.runAndReadAll(
-        `SELECT id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at
-         FROM lore_provenance ORDER BY created_at`,
-      )
-    ).getRowObjectsJS() as Record<string, unknown>[];
-
+    const rows = (await conn.runAndReadAll(
+      `SELECT id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at FROM lore_provenance ORDER BY created_at`,
+    )).getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((r) => ({
       id: String(r["id"]),
       subject_kind: String(r["subject_kind"]) as "entity" | "relation" | "proximity",
@@ -758,53 +573,22 @@ export async function replayProvenance(
   const conn = await openLoreWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO lore_provenance
-         (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        entry.id,
-        entry.subject_kind,
-        entry.subject_id,
-        entry.source_kind,
-        entry.source_id,
-        entry.excerpt,
-        entry.confidence,
-        entry.created_at,
-      ],
+      `INSERT INTO lore_provenance (id, subject_kind, subject_id, source_kind, source_id, excerpt, confidence, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
+      [entry.id, entry.subject_kind, entry.subject_id, entry.source_kind, entry.source_id, entry.excerpt, entry.confidence, entry.created_at],
     );
   } finally {
     conn.closeSync();
   }
 }
 
-// ---------------------------------------------------------------------------
-// Checkpoint
-// ---------------------------------------------------------------------------
-
-/**
- * Flush the WAL to the main database file.
- *
- * DuckDB uses a write-ahead log (WAL) for durability. Without an explicit
- * CHECKPOINT the WAL can grow unbounded and the tracked `.duckdb` binary
- * stays frozen at its initial state — losing all writes on a new clone.
- * This must be called with the vss extension loaded because the HNSW index
- * on lore_entities will be replayed during the checkpoint.
- *
- * Safe to call at any time; no-op if the DB has not been opened yet.
- */
 export async function checkpointLore(campaignPath: string): Promise<void> {
   const cached = peekLoreDb(campaignPath);
   if (cached === undefined) return;
-
   const instance = await cached;
   const conn = await instance.connect();
   try {
-    try {
-      await conn.run("LOAD vss;");
-    } catch {
-      // vss not pre-installed; checkpoint without HNSW
-    }
+    try { await conn.run("LOAD vss;"); } catch { /* vss not pre-installed */ }
     await conn.run("CHECKPOINT;");
   } finally {
     conn.closeSync();

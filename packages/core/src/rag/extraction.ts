@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { type AnthropicLike } from "./communities.js";
+import type { AnthropicLike } from "./communities.js";
 import {
   upsertLore,
   searchLore,
@@ -11,10 +11,6 @@ import {
 } from "./lore.js";
 import { getLoreDb, openLoreWriteConn } from "./lore-db.js";
 import { getScene, exportScenes } from "./scenes.js";
-
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
 
 export interface ExtractedEntity {
   canonical: string;
@@ -66,15 +62,7 @@ export type Extractor = (
   existingEntities: LoreSearchHit[],
 ) => Promise<ExtractionResult>;
 
-// ---------------------------------------------------------------------------
-// Dedup threshold
-// ---------------------------------------------------------------------------
-
 const DEDUP_SIMILARITY_THRESHOLD = 0.92;
-
-// ---------------------------------------------------------------------------
-// Scene text builder (beats > summary fallback)
-// ---------------------------------------------------------------------------
 
 function buildSceneText(scene: Awaited<ReturnType<typeof getScene>>): string {
   if (!scene) return "";
@@ -88,10 +76,6 @@ function buildSceneText(scene: Awaited<ReturnType<typeof getScene>>): string {
   }
   return scene.text;
 }
-
-// ---------------------------------------------------------------------------
-// Log helpers
-// ---------------------------------------------------------------------------
 
 async function writeExtractionLog(
   campaignPath: string,
@@ -137,10 +121,6 @@ async function getLoggedSceneIds(campaignPath: string): Promise<Set<string>> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Core extraction
-// ---------------------------------------------------------------------------
-
 export async function extractLoreFromScene(
   campaignPath: string,
   sceneId: string,
@@ -166,7 +146,6 @@ export async function extractLoreFromScene(
     skipped: 0,
   };
 
-  // Process entities
   for (const entity of result.entities) {
     if (!LORE_TYPES.includes(entity.type)) {
       report.skipped++;
@@ -204,7 +183,6 @@ export async function extractLoreFromScene(
     }
   }
 
-  // Process relations
   for (const rel of result.relations) {
     if (rel.confidence < threshold) {
       report.skipped++;
@@ -273,15 +251,11 @@ export async function extractUnprocessedScenes(
   return batch;
 }
 
-// ---------------------------------------------------------------------------
-// Default extractor (Anthropic Claude)
-// ---------------------------------------------------------------------------
-
 const DEFAULT_EXTRACTION_MODEL =
   process.env["SCRIBE_SUMMARY_MODEL"] ?? "claude-haiku-4-5-20251001";
 
 const EXTRACTION_SYSTEM_PROMPT =
-  "You are extracting lore from a solo Ironsworn campaign scene. " +
+  "You are extracting lore from a solo RPG campaign scene. " +
   "Return ONLY valid JSON matching the requested schema. No prose, no markdown fences.";
 
 export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
@@ -299,7 +273,7 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
       `Extract entities and relations newly revealed or changed in this scene.\n` +
       `Entity types allowed: ${LORE_TYPES.join(", ")}.\n` +
       `Preferred relation labels (use these or a close variant): ` +
-      `allied_with, enemy_of, member_of, leads, guards, located_in, created_by, corrupts, bound_to, sworn_on, seeks, opposes.\n` +
+      `allied_with, enemy_of, member_of, leads, guards, located_in, created_by, corrupts, bound_to, seeks, opposes.\n` +
       `For each item, provide the exact excerpt supporting it and a confidence 0.0–1.0.\n` +
       `Confidence reflects how clearly the scene establishes this fact.\n\n` +
       `Return ONLY this JSON object:\n` +
@@ -331,7 +305,6 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
     }
 
     const parsed = JSON.parse(text) as ExtractionResult;
-    // Coerce types to valid LoreType, drop unknown types
     parsed.entities = parsed.entities.filter((e) =>
       LORE_TYPES.includes(e.type),
     );

@@ -1,6 +1,6 @@
 import { parse } from "yaml";
 import { readFileSync, existsSync } from "node:fs";
-import { roll } from "../dice.js";
+import { roll } from "@agentic-rpg/core";
 import { dataSources } from "../../data/sources.js";
 
 // ---------------------------------------------------------------------------

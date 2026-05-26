@@ -17,9 +17,9 @@ async function flush(reason: string, campaignPath: string): Promise<void> {
       checkpointScenes(campaignPath),
     ]);
     writesSinceCheckpoint = 0;
-    process.stderr.write(`[scribe] checkpoint complete (${reason})\n`);
+    process.stderr.write(`[core] checkpoint complete (${reason})\n`);
   } catch (e) {
-    process.stderr.write(`[scribe] checkpoint failed (${reason}): ${e}\n`);
+    process.stderr.write(`[core] checkpoint failed (${reason}): ${e}\n`);
   } finally {
     flushing = false;
   }

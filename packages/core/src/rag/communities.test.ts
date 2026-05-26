@@ -465,7 +465,7 @@ describe("_makeDefaultSummarizer", () => {
     expect(out).toBe("first half.\nsecond half.");
     expect(calls).toHaveLength(1);
     expect(calls[0].max_tokens).toBe(400);
-    expect(calls[0].system).toMatch(/Ironsworn/);
+    expect(calls[0].system).toMatch(/solo RPG campaign/);
     expect(calls[0].messages).toHaveLength(1);
     expect(calls[0].messages[0].role).toBe("user");
     const prompt = calls[0].messages[0].content;

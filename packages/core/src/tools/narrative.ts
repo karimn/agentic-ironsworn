@@ -1,12 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "@agentic-rpg/core";
+import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
-import { upsertNpc, getNpc } from "@agentic-rpg/core";
-import { getLore, upsertLore } from "@agentic-rpg/core";
-import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
-import { recordMutation } from "@agentic-rpg/core";
-import { pushBeat, drainNotices } from "@agentic-rpg/core";
+import { upsertNpc, getNpc } from "../state/npcs.js";
+import { getLore, upsertLore } from "../rag/lore.js";
+import { recordMutation } from "../checkpoint.js";
+import { pushBeat, drainNotices } from "../rag/beat-queue.js";
 
 const BeatInputSchema = z.object({
   kind: z.enum(["narration", "dialogue", "move", "choice", "oracle"]).describe(
@@ -18,10 +17,6 @@ const BeatInputSchema = z.object({
     "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
   ),
 });
-
-// ---------------------------------------------------------------------------
-// Warning helpers (exported for testing)
-// ---------------------------------------------------------------------------
 
 export interface SceneReferenceResult {
   warnings: string[];
@@ -47,7 +42,6 @@ export async function buildSceneWarnings(
     for (const name of npcs) {
       const found = await getNpc(campaignPath, name);
       if (found === null) {
-        // Auto-stub: create a minimal NPC record so the scene reference is linked
         await upsertNpc(campaignPath, name);
         stubbed.npcs.push(name);
       }
@@ -58,7 +52,6 @@ export async function buildSceneWarnings(
     for (const id of loreIds) {
       const found = await getLore(campaignPath, id);
       if (found === null) {
-        // Auto-stub: attempt to create a minimal lore entry (requires Ollama for embedding)
         try {
           await upsertLore(campaignPath, {
             id,
@@ -68,7 +61,6 @@ export async function buildSceneWarnings(
           });
           stubbed.lore.push(id);
         } catch {
-          // Ollama unavailable or other embedding failure — fall back to warning
           warnings.push(`Lore entity not recorded: "${id}". Call upsert_lore to record this entity.`);
         }
       }
@@ -77,6 +69,8 @@ export async function buildSceneWarnings(
 
   return { warnings, stubbed };
 }
+
+const THREAD_KINDS = ["goal", "threat", "debt", "other"] as const;
 
 export function register(server: McpServer, campaignPath: string): void {
   server.tool(
@@ -177,7 +171,6 @@ export function register(server: McpServer, campaignPath: string): void {
       ),
     },
     async ({ scene_id, kind, text, speaker, metadata, wait }) => {
-      // Validate scene exists synchronously — cheap read, surfaces errors immediately
       const existing = await getScene(campaignPath, scene_id);
       if (existing === null) {
         return {
@@ -192,8 +185,6 @@ export function register(server: McpServer, campaignPath: string): void {
         try {
           await entry.settled;
         } catch (e) {
-          // Drain notices accumulated from prior beats before returning error —
-          // include them in the response body so the agent sees them even on failure.
           const notices = drainNotices(campaignPath);
           const body: Record<string, unknown> = {
             error: e instanceof Error ? e.message : String(e),
@@ -208,14 +199,11 @@ export function register(server: McpServer, campaignPath: string): void {
 
       recordMutation(campaignPath);
 
-      // Drain any notices from prior failed beats and surface them to the agent
       const notices = drainNotices(campaignPath);
-      // Best-effort MCP log notification (may or may not surface in agent context)
       for (const notice of notices) {
         void server.sendLoggingMessage({ level: "warning", data: notice });
       }
 
-      // Omit beat_index when null (fire-and-forget path — worker hasn't run yet)
       const responseBody: Record<string, unknown> = { queued: true };
       if (entry.beatIndex !== null) responseBody.beat_index = entry.beatIndex;
       if (notices.length > 0) responseBody.notices = notices;
@@ -257,32 +245,18 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "open_thread",
-    "Open a new narrative thread. When kind is 'vow', provide a rank to automatically create a matching progress track on the character.",
+    "Open a new narrative thread.",
     {
       title: z.string().describe("Title of the thread"),
-      kind: z.enum(["vow", "threat", "debt", "other"]).describe("Kind of thread"),
+      kind: z.enum(THREAD_KINDS).describe("Kind of thread"),
       notes: z.string().optional().describe("Optional notes about the thread"),
-      rank: z
-        .enum(["troublesome", "dangerous", "formidable", "extreme", "epic"])
-        .optional()
-        .describe("Difficulty rank (required for vow kind to auto-create a matching progress track)"),
     },
-    async ({ title, kind, notes, rank }) => {
+    async ({ title, kind, notes }) => {
       try {
         const thread = await openThread(campaignPath, title, kind, notes);
-
-        // Issue #2: auto-create a matching progress track for vow threads
-        let track: ProgressTrack | undefined;
-        if (kind === "vow" && rank !== undefined) {
-          const character = await loadCharacter(campaignPath);
-          track = { name: title, rank: rank as ProgressTrack["rank"], kind: "vow", ticks: 0, status: "active" };
-          character.progressTracks.push(track);
-          await saveCharacter(campaignPath, character);
-        }
-
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrack: track ?? null }) }],
+          content: [{ type: "text", text: JSON.stringify(thread) }],
         };
       } catch (e) {
         return {
@@ -295,7 +269,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "close_thread",
-    "Close an existing narrative thread with a resolution. If the thread is a vow, also marks the matching progress track as fulfilled (case-insensitive name match).",
+    "Close an existing narrative thread with a resolution.",
     {
       title: z.string().describe("Title of the thread to close (case-insensitive)"),
       resolution: z.string().describe("How the thread was resolved"),
@@ -303,24 +277,9 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ title, resolution }) => {
       try {
         const thread = await closeThread(campaignPath, title, resolution);
-
-        // Issue #3: mark matching progress track fulfilled when closing a vow
-        let trackUpdated = false;
-        if (thread.kind === "vow") {
-          const character = await loadCharacter(campaignPath);
-          const idx = character.progressTracks.findIndex(
-            (t) => t.name.toLowerCase() === title.toLowerCase(),
-          );
-          if (idx !== -1) {
-            character.progressTracks[idx]!.status = "fulfilled";
-            await saveCharacter(campaignPath, character);
-            trackUpdated = true;
-          }
-        }
-
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrackCompleted: trackUpdated }) }],
+          content: [{ type: "text", text: JSON.stringify(thread) }],
         };
       } catch (e) {
         return {
@@ -354,5 +313,4 @@ export function register(server: McpServer, campaignPath: string): void {
       }
     },
   );
-
 }

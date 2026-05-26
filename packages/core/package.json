@@ -1,14 +1,13 @@
 {
-  "name": "scribe",
-  "version": "0.0.1",
+  "name": "@agentic-rpg/core",
+  "version": "0.1.0",
   "type": "module",
+  "main": "src/index.ts",
   "scripts": {
-    "start": "bun run src/server.ts",
-    "sheet": "bun run ../scripts/sheet.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
-    "@agentic-rpg/core": "workspace:*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@duckdb/node-api": "1.5.2-r.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
@@ -19,10 +18,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "typescript": "^5.8.0",
-    "@types/node": "^22.0.0",
-    "@types/bun": "^1.2.0",
     "@types/seedrandom": "^3.0.8",
-    "graphology-types": "^0.24.8"
+    "typescript": "^5.8.0"
   }
 }

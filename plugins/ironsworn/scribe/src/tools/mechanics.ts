@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { roll } from "../rules/dice.js";
+import { roll } from "@agentic-rpg/core";
 import { resolveMove, applyMomentumBurn } from "../rules/ironsworn/moves.js";
 import { rollProgress, rollEpilogue } from "../rules/ironsworn/progress.js";
 import { rollOracle, rollYesNo } from "../rules/ironsworn/oracles.js";

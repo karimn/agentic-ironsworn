@@ -8,17 +8,17 @@ import {
   getLoreGraph,
   LORE_TYPES,
   type LoreType,
-} from "@agentic-rpg/core";
+} from "../rag/lore.js";
 import {
   recomputeCommunities,
   listCommunities,
   getCommunity,
   searchCommunities,
-} from "@agentic-rpg/core";
+} from "../rag/communities.js";
 import {
   extractLoreFromScene,
   extractUnprocessedScenes,
-} from "@agentic-rpg/core";
+} from "../rag/extraction.js";
 import {
   linkProximity,
   proximityDistance,
@@ -26,8 +26,8 @@ import {
   PROXIMITY_DIMENSIONS,
   COMPASS_POINTS,
   type ProximityDimension,
-} from "@agentic-rpg/core";
-import { recordMutation } from "@agentic-rpg/core";
+} from "../rag/proximity.js";
+import { recordMutation } from "../checkpoint.js";
 
 export function register(server: McpServer, campaignPath: string): void {
   const provenanceSchema = z
@@ -96,8 +96,6 @@ export function register(server: McpServer, campaignPath: string): void {
     {
       query: z.string().describe("Search query"),
       type: z.enum(LORE_TYPES).optional().describe("Optional type filter"),
-      // Coerce: MCP transports occasionally deliver numerics as strings.
-      // Coerce-then-validate keeps the int/positive guarantees while accepting both.
       k: z.coerce.number().int().positive().optional().describe("Number of results (default 5)"),
     },
     async ({ query, type, k }) => {
@@ -144,7 +142,7 @@ export function register(server: McpServer, campaignPath: string): void {
     {
       from: z.string().describe("Source entity (id, canonical, or alias)"),
       to: z.string().describe("Target entity (id, canonical, or alias)"),
-      relation: z.string().describe("Relationship type (free-form, e.g. 'sworn_on', 'corrupts')"),
+      relation: z.string().describe("Relationship type (free-form, e.g. 'allied_with', 'located_in')"),
       notes: z.string().optional().describe("Optional prose context"),
       metadata: z.record(z.string(), z.unknown()).optional().describe("GraphRAG metadata: edge weight, extraction scores, etc."),
       provenance: provenanceSchema.optional(),
@@ -168,7 +166,6 @@ export function register(server: McpServer, campaignPath: string): void {
     "Get a lore entity and its connected entities up to N hops away. Returns { root, nodes, edges } where root has full incoming/outgoing relations populated, but nodes[*].relations is always empty (use the edges array for connectivity, or call get_lore on a specific node id to get that node's full relations). Each node also exposes `community_id` (the leaf community from recompute_communities, or null if unset).",
     {
       identifier: z.string().describe("Root entity (id, canonical, or alias)"),
-      // Same MCP transport quirk as search_lore.k — accept numeric or stringified number.
       depth: z.coerce.number().int().positive().optional().describe("Number of hops to traverse (default 1)"),
     },
     async ({ identifier, depth }) => {

@@ -1,14 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
-import { loadCharacter, saveCharacter } from "../state/character.js";
+import { dirname, join } from "node:path";
 import { loadThreads, saveThreads } from "../state/threads.js";
-import { listNpcs, writeNpcRaw } from "@agentic-rpg/core";
-import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "@agentic-rpg/core";
-import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "@agentic-rpg/core";
-import { exportScenes, importScene, checkpointScenes, type BeatExport } from "@agentic-rpg/core";
-import { shutdown as drainBeatQueue } from "@agentic-rpg/core";
+import { listNpcs, writeNpcRaw } from "../state/npcs.js";
+import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "../rag/lore.js";
+import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "../rag/proximity.js";
+import { exportScenes, importScene, checkpointScenes, type BeatExport } from "../rag/scenes.js";
+import { shutdown as drainBeatQueue } from "../rag/beat-queue.js";
 
 interface CampaignExport {
   version: 2;
@@ -23,6 +22,21 @@ interface CampaignExport {
   scenes: unknown[];
 }
 
+async function _loadCharacterData(campaignPath: string): Promise<unknown> {
+  try {
+    const raw = await readFile(join(campaignPath, "character.json"), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function _saveCharacterData(campaignPath: string, data: unknown): Promise<void> {
+  const filePath = join(campaignPath, "character.json");
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+}
+
 export function register(server: McpServer, campaignPath: string): void {
   server.tool(
     "checkpoint_now",
@@ -30,7 +44,6 @@ export function register(server: McpServer, campaignPath: string): void {
     {},
     async () => {
       try {
-        // Drain any queued beats before checkpointing so they're included
         await drainBeatQueue(campaignPath);
         await Promise.all([
           checkpointLore(campaignPath),
@@ -57,19 +70,14 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ output_path, include_scenes }) => {
       try {
-        // Drain any queued beats before checkpointing so the export reflects
-        // all beats pushed during this session, regardless of wait=true/false.
         await drainBeatQueue(campaignPath);
-        // Flush WAL to the .duckdb files before reading so the export reflects
-        // all in-memory writes. Without CHECKPOINT the tracked binaries stay
-        // frozen and a clone / crash loses all session data.
         await Promise.all([
           checkpointLore(campaignPath).catch(() => undefined),
           checkpointScenes(campaignPath).catch(() => undefined),
         ]);
 
         const [character, threads, npcs, { entities, relations }, proximity, provenance, scenes] = await Promise.all([
-          loadCharacter(campaignPath).catch(() => null),
+          _loadCharacterData(campaignPath),
           loadThreads(campaignPath),
           listNpcs(campaignPath),
           exportLore(campaignPath).catch(() => ({ entities: [], relations: [] })),
@@ -147,7 +155,7 @@ export function register(server: McpServer, campaignPath: string): void {
         const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, lore_provenance: 0, scenes: 0 };
 
         if (data.character) {
-          await saveCharacter(campaignPath, data.character as Parameters<typeof saveCharacter>[1]);
+          await _saveCharacterData(campaignPath, data.character);
           counts.character = 1;
         }
 
@@ -250,8 +258,9 @@ export function register(server: McpServer, campaignPath: string): void {
               String(s["text"]),
               String(s["timestamp"]),
               String(s["kind"] ?? "scene"),
-              s["complication_theme"] != null ? String(s["complication_theme"]) : undefined,
-              Array.isArray(s["beats"]) ? (s["beats"] as BeatExport[]) : undefined,
+          s["complication_theme"] != null ? String(s["complication_theme"]) : undefined,
+          Array.isArray(s["beats"]) ? (s["beats"] as BeatExport[]) : undefined,
+          s["quality_notes"] != null ? String(s["quality_notes"]) : undefined,
             );
             if (inserted) counts.scenes++;
           }

@@ -2,9 +2,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadCharacter } from "../state/character.js";
 import { listThreads } from "../state/threads.js";
-import { getNpc, listNpcs, getNpcLastUpdated, findStaleNpcs } from "../state/npcs.js";
+import { getNpc, listNpcs, getNpcLastUpdated, findStaleNpcs } from "@agentic-rpg/core";
 import { searchRules, lookupMove } from "../rag/query.js";
-import { searchScenes, getRecentComplications, getRecentScenesChronological, getScene, searchBeats, countScenesMentioningNpc } from "../rag/scenes.js";
+import { searchScenes, getRecentComplications, getRecentScenesChronological, getScene, searchBeats, countScenesMentioningNpc } from "@agentic-rpg/core";
 import { lookupAsset } from "../rules/ironsworn/assets.js";
 
 function characterDigest(char: Awaited<ReturnType<typeof loadCharacter>>) {

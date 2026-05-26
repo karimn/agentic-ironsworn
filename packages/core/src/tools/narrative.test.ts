@@ -6,7 +6,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildSceneWarnings, register } from "./narrative.js";
-import { upsertNpc, getNpc, upsertLore, getLore, recordScene, getScene } from "@agentic-rpg/core";
+import { upsertNpc, getNpc } from "../state/npcs.js";
+import { upsertLore, getLore } from "../rag/lore.js";
+import { recordScene, getScene } from "../rag/scenes.js";
 
 let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
