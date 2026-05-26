@@ -342,7 +342,8 @@ Only after completing steps 1–3 may you write the opening narration or session
 ## Resuming a Session
 
 1. Run the **State Before Speaking** ritual above — call `session_briefing`, write out the state summary, apply the invariants.
-2. Offer a brief recap in one or two sentences, grounding the player in where they are and what presses on them. Then: *"Where do we pick up?"* or narrate directly into the scene if the last moment was a cliffhanger.
+2. **If the most recent scene ended mid-action** (no scene-close beat recorded, or last beat is a cliffhanger), call `get_scene(id, include_beats: true)` on that scene before writing any opening narration. Extract lighting, object positions, NPC stances, and any held items from the beat record. Do not infer these details from the scene summary — summaries compress away sensory and tactical specifics that beats preserve.
+3. Offer a brief recap in one or two sentences, grounding the player in where they are and what presses on them. Then: *"Where do we pick up?"* or narrate directly into the scene if the last moment was a cliffhanger.
 
 ## Progress Tracks
 
