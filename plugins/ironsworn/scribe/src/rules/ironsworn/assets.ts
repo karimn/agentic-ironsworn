@@ -30,7 +30,7 @@ let _assets: AssetDefinition[] | null = null;
 
 function loadAssets(): AssetDefinition[] {
   const paths = dataSources("assets");
-  const seen = new Map<string, string>(); // name → source path
+  const seen = new Map<string, number>(); // name → index in all[]
   const all: AssetDefinition[] = [];
 
   for (const filePath of paths) {
@@ -41,12 +41,14 @@ function loadAssets(): AssetDefinition[] {
     for (const entry of parsed as AssetDefinition[]) {
       const key = entry.name?.toLowerCase() ?? "";
       if (seen.has(key)) {
-        throw new Error(
-          `[scribe] asset name collision: "${entry.name}" appears in both "${seen.get(key)}" and "${filePath}"`,
-        );
+        // Expansion definitions take precedence over earlier (base) definitions.
+        // Data sources are ordered: core first, then expansions in load order.
+        // Last writer wins, so expansions can override base assets.
+        all[seen.get(key)!] = entry;
+      } else {
+        seen.set(key, all.length);
+        all.push(entry);
       }
-      seen.set(key, filePath);
-      all.push(entry);
     }
   }
   return all;
