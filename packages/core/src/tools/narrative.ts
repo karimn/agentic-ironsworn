@@ -1,0 +1,316 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "../rag/scenes.js";
+import { openThread, closeThread } from "../state/threads.js";
+import { upsertNpc, getNpc } from "../state/npcs.js";
+import { getLore, upsertLore } from "../rag/lore.js";
+import { recordMutation } from "../checkpoint.js";
+import { pushBeat, drainNotices } from "../rag/beat-queue.js";
+
+const BeatInputSchema = z.object({
+  kind: z.enum(["narration", "dialogue", "move", "choice", "oracle"]).describe(
+    "Type of beat: narration (descriptive prose), dialogue (NPC/player speech), move (mechanical resolution), choice (player decision point), oracle (oracle roll + interpretation)"
+  ),
+  speaker: z.string().optional().describe("Speaker name for dialogue beats"),
+  text: z.string().describe("Full text of the beat"),
+  metadata: z.record(z.string(), z.unknown()).optional().describe(
+    "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
+  ),
+});
+
+export interface SceneReferenceResult {
+  warnings: string[];
+  stubbed: { npcs: string[]; lore: string[] };
+}
+
+export async function buildSceneWarnings(
+  campaignPath: string,
+  npcs: string[] | undefined,
+  loreIds: string[] | undefined,
+): Promise<SceneReferenceResult> {
+  const warnings: string[] = [];
+  const stubbed: { npcs: string[]; lore: string[] } = { npcs: [], lore: [] };
+
+  if (npcs === undefined && loreIds === undefined) {
+    warnings.push(
+      "Reminder: Have you recorded all NPCs and lore entities introduced in this scene? Call upsert_npc and upsert_lore if needed.",
+    );
+    return { warnings, stubbed };
+  }
+
+  if (npcs !== undefined) {
+    for (const name of npcs) {
+      const found = await getNpc(campaignPath, name);
+      if (found === null) {
+        await upsertNpc(campaignPath, name);
+        stubbed.npcs.push(name);
+      }
+    }
+  }
+
+  if (loreIds !== undefined) {
+    for (const id of loreIds) {
+      const found = await getLore(campaignPath, id);
+      if (found === null) {
+        try {
+          await upsertLore(campaignPath, {
+            id,
+            canonical: id,
+            type: "concept",
+            summary: id,
+          });
+          stubbed.lore.push(id);
+        } catch {
+          warnings.push(`Lore entity not recorded: "${id}". Call upsert_lore to record this entity.`);
+        }
+      }
+    }
+  }
+
+  return { warnings, stubbed };
+}
+
+const THREAD_KINDS = ["goal", "threat", "debt", "other"] as const;
+
+export function register(server: McpServer, campaignPath: string): void {
+  server.tool(
+    "record_scene",
+    "Record a scene summary into the scene journal. Optionally include beats — ordered narrative units capturing the full texture of the scene.",
+    {
+      summary: z.string().describe("Scene summary text to record"),
+      kind: z.string().optional().describe("Kind of scene (e.g. 'combat', 'exploration', 'social')"),
+      npcs: z.array(z.string()).optional().describe("NPC names introduced in this scene to verify are recorded"),
+      lore_ids: z.array(z.string()).optional().describe("Lore entity IDs or canonical names introduced in this scene to verify are recorded"),
+      complication_theme: z.string().optional().describe(
+        "Freeform thematic category of the complication (e.g. 'weather', 'beasts', 'fungal-network', 'physical-hazard'). Set only when the scene involves a miss/complication."
+      ),
+      beats: z.array(BeatInputSchema).optional().describe(
+        "Optional ordered narrative beats for the scene. When omitted, only the summary is stored (backward-compatible)."
+      ),
+      quality_notes: z.string().optional().describe(
+        "Optional fiction/RP quality feedback for this scene (e.g. 'Combat felt dangerous — layered pressure worked well', 'Complication theme was repetitive'). Captured for GM improvement and included in semantic search."
+      ),
+    },
+    async ({ summary, kind, npcs, lore_ids, complication_theme, beats, quality_notes }) => {
+      try {
+        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined, quality_notes);
+        recordMutation(campaignPath);
+        const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "update_scene",
+    "Update an existing scene record. Only provided fields are changed. Use append_beats to add new beats without replacing existing ones.",
+    {
+      id: z.string().describe("ID of the scene to update"),
+      summary: z.string().optional().describe("New summary text (replaces existing)"),
+      kind: z.string().optional().describe("New kind of scene"),
+      npcs: z.array(z.string()).optional().describe("NPC names to verify are recorded"),
+      lore_ids: z.array(z.string()).optional().describe("Lore entity IDs to verify are recorded"),
+      append_beats: z.array(BeatInputSchema).optional().describe(
+        "New beats to append to the scene's existing beats array (does not replace existing beats)"
+      ),
+      quality_notes: z.string().optional().describe(
+        "Fiction/RP quality feedback to set or replace on this scene"
+      ),
+    },
+    async ({ id, summary, kind, npcs, lore_ids, append_beats, quality_notes }) => {
+      try {
+        const existing = await getScene(campaignPath, id);
+        if (existing === null) {
+          return {
+            content: [{ type: "text", text: `Error: Scene not found: ${id}` }],
+            isError: true,
+          };
+        }
+        await updateScene(campaignPath, id, { summary, kind, quality_notes });
+        if (append_beats && append_beats.length > 0) {
+          await recordBeats(campaignPath, id, append_beats as BeatInput[]);
+        }
+        recordMutation(campaignPath);
+        const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "record_beat",
+    "Append a single beat to an existing scene in real time, as events happen during play. " +
+    "Returns immediately by default (fire-and-forget); the embedding and DB write happen in the background. " +
+    "Pass wait=true only when you need the beat fully persisted before continuing (e.g. before export_campaign or close_scene).",
+    {
+      scene_id: z.string().describe("ID of the scene to append the beat to"),
+      kind: z.enum(["dialogue", "narration", "move", "choice", "oracle"]).describe(
+        "Type of beat: dialogue (NPC/player speech), narration (descriptive prose), move (mechanical resolution), choice (player decision point), oracle (oracle roll + interpretation)"
+      ),
+      text: z.string().describe("Full text of the beat"),
+      speaker: z.string().optional().describe("Speaker name for dialogue beats"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe(
+        "Structured data for move beats (e.g. {move: 'Face Danger', stat: 'edge', outcome: 'weak_hit'})"
+      ),
+      wait: z.boolean().optional().describe(
+        "If true, block until the beat is fully persisted before returning. Default: false (fire-and-forget)."
+      ),
+    },
+    async ({ scene_id, kind, text, speaker, metadata, wait }) => {
+      const existing = await getScene(campaignPath, scene_id);
+      if (existing === null) {
+        return {
+          content: [{ type: "text", text: `Error: Scene not found: ${scene_id}` }],
+          isError: true,
+        };
+      }
+
+      const entry = await pushBeat(campaignPath, scene_id, { kind, text, speaker, metadata });
+
+      if (wait) {
+        try {
+          await entry.settled;
+        } catch (e) {
+          const notices = drainNotices(campaignPath);
+          const body: Record<string, unknown> = {
+            error: e instanceof Error ? e.message : String(e),
+          };
+          if (notices.length > 0) body.notices = notices;
+          return {
+            content: [{ type: "text", text: JSON.stringify(body) }],
+            isError: true,
+          };
+        }
+      }
+
+      recordMutation(campaignPath);
+
+      const notices = drainNotices(campaignPath);
+      for (const notice of notices) {
+        void server.sendLoggingMessage({ level: "warning", data: notice });
+      }
+
+      const responseBody: Record<string, unknown> = { queued: true };
+      if (entry.beatIndex !== null) responseBody.beat_index = entry.beatIndex;
+      if (notices.length > 0) responseBody.notices = notices;
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(responseBody) }],
+      };
+    },
+  );
+
+  server.tool(
+    "delete_scene",
+    "Delete a scene record by ID",
+    {
+      id: z.string().describe("ID of the scene to delete"),
+    },
+    async ({ id }) => {
+      try {
+        const existing = await getScene(campaignPath, id);
+        if (existing === null) {
+          return {
+            content: [{ type: "text", text: `Error: Scene not found: ${id}` }],
+            isError: true,
+          };
+        }
+        await deleteScene(campaignPath, id);
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "open_thread",
+    "Open a new narrative thread.",
+    {
+      title: z.string().describe("Title of the thread"),
+      kind: z.enum(THREAD_KINDS).describe("Kind of thread"),
+      notes: z.string().optional().describe("Optional notes about the thread"),
+    },
+    async ({ title, kind, notes }) => {
+      try {
+        const thread = await openThread(campaignPath, title, kind, notes);
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify(thread) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "close_thread",
+    "Close an existing narrative thread with a resolution.",
+    {
+      title: z.string().describe("Title of the thread to close (case-insensitive)"),
+      resolution: z.string().describe("How the thread was resolved"),
+    },
+    async ({ title, resolution }) => {
+      try {
+        const thread = await closeThread(campaignPath, title, resolution);
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify(thread) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "upsert_npc",
+    "Create or update an NPC entry",
+    {
+      name: z.string().describe("Name of the NPC"),
+      description: z.string().optional().describe("Description of the NPC"),
+      impression: z.string().optional().describe("Impression or notes about the NPC"),
+    },
+    async ({ name, description, impression }) => {
+      try {
+        await upsertNpc(campaignPath, name, description, impression);
+        recordMutation(campaignPath);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+}
