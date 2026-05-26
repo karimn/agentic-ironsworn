@@ -43,12 +43,12 @@ describe("dataSources", () => {
   });
 });
 
-describe("name collision detection", () => {
+describe("expansion override", () => {
   let tmpDir: string;
   const savedEnv: Record<string, string | undefined> = {};
 
   beforeEach(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), "scribe-collision-"));
+    tmpDir = await mkdtemp(join(tmpdir(), "scribe-override-"));
     savedEnv["SCRIBE_PLUGIN_ROOT"] = process.env["SCRIBE_PLUGIN_ROOT"];
   });
 
@@ -60,38 +60,26 @@ describe("name collision detection", () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("getMoves throws when two sources contain the same move name", async () => {
-    // Two expansion dirs each containing a move named "Duplicate Move".
-    const dirA = join(tmpDir, "exp-a");
-    const dirB = join(tmpDir, "exp-b");
+  it("expansion move overrides base move with same name", async () => {
+    const dirA = join(tmpDir, "core");
+    const dirB = join(tmpDir, "expansion");
     await mkdir(join(dirA, "data"), { recursive: true });
     await mkdir(join(dirB, "data"), { recursive: true });
 
-    const moveYaml = (name: string) =>
-      `- name: ${name}\n  trigger: test\n  stat_options: [edge]\n  stat_hint: ''\n  roll_type: action\n  outcomes:\n    strong_hit: s\n    weak_hit: w\n    miss: m\n`;
+    const baseMoveYaml =
+      `- name: Strike\n  trigger: base\n  stat_options: [iron]\n  stat_hint: ''\n  roll_type: action\n  outcomes:\n    strong_hit: base strong\n    weak_hit: base weak\n    miss: base miss\n`;
+    const expansionMoveYaml =
+      `- name: Strike\n  trigger: expanded\n  stat_options: [iron]\n  stat_hint: ''\n  roll_type: action\n  outcomes:\n    strong_hit: expansion strong\n    weak_hit: expansion weak\n    miss: expansion miss\n`;
 
-    await writeFile(join(dirA, "data", "moves.yaml"), moveYaml("Duplicate Move"));
-    await writeFile(join(dirB, "data", "moves.yaml"), moveYaml("Duplicate Move"));
+    await writeFile(join(dirA, "data", "moves.yaml"), baseMoveYaml);
+    await writeFile(join(dirB, "data", "moves.yaml"), expansionMoveYaml);
 
-    // Point SCRIBE_PLUGIN_ROOT at dirA so it acts as the "core".
-    // dirB is the "expansion". Both define "Duplicate Move" → collision.
     process.env["SCRIBE_PLUGIN_ROOT"] = dirA;
 
-    const { getMoves, resetMovesCache } = await import(`../rules/ironsworn/moves.ts?t=${Date.now()}`);
-    const { dataSourcesFromExpansions } = await import(`./sources.ts?t=${Date.now()}`);
-
-    // Inject dirB as an active expansion by monkey-patching loader state.
-    const loaderMod = await import(`../expansions/loader.ts?t=${Date.now()}`);
-    // Call discoverExpansions-equivalent by manipulating getActiveExpansions via loadExpansions stub.
-    // Simpler: use dataSourcesFromExpansions to get both paths, then verify getMoves throws.
-    // Since getMoves() calls dataSources() which calls getActiveExpansions() (returns [] in test),
-    // we can't inject paths through getMoves directly. Instead, verify the collision error
-    // is thrown by calling loadMoves equivalent through dataSources + loader directly.
-
-    // Use the pure dataSourcesFromExpansions to construct the path list, then
-    // manually invoke the same loading loop getMoves uses.
     const { parse } = await import("yaml");
     const { readFileSync, existsSync: fsExists } = await import("node:fs");
+    const { dataSourcesFromExpansions } = await import(`./sources.ts?t=${Date.now()}`);
+
     const fakeExpansion = {
       name: "exp-b",
       manifest: { name: "exp-b", version: "1.0.0", contributes: { data: ["moves" as const] } },
@@ -100,23 +88,79 @@ describe("name collision detection", () => {
     const paths = dataSourcesFromExpansions("moves", [fakeExpansion]);
     expect(paths).toHaveLength(2);
 
-    const seen = new Map<string, string>();
-    let caught: Error | null = null;
-    try {
-      for (const filePath of paths) {
-        if (!fsExists(filePath)) continue;
-        const entries = parse(readFileSync(filePath, "utf-8")) as Array<{ name: string }>;
-        if (!Array.isArray(entries)) continue;
-        for (const entry of entries) {
-          const key = entry.name?.toLowerCase() ?? "";
-          if (seen.has(key)) throw new Error(`[scribe] move name collision: "${entry.name}" appears in both "${seen.get(key)}" and "${filePath}"`);
-          seen.set(key, filePath);
+    // Replicate the override loader semantics (mirrors loadMoves / loadAssets / loadOracles)
+    const seen = new Map<string, number>();
+    const all: Array<{ name: string; outcomes?: Record<string, string> }> = [];
+    for (const filePath of paths) {
+      if (!fsExists(filePath)) continue;
+      const entries = parse(readFileSync(filePath, "utf-8")) as Array<{
+        name: string;
+        outcomes?: Record<string, string>;
+      }>;
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        const key = entry.name?.toLowerCase() ?? "";
+        if (seen.has(key)) {
+          all[seen.get(key)!] = entry; // expansion overrides base
+        } else {
+          seen.set(key, all.length);
+          all.push(entry);
         }
       }
-    } catch (e) { caught = e as Error; }
+    }
 
-    expect(caught).not.toBeNull();
-    expect(caught?.message).toContain("move name collision");
-    expect(caught?.message).toContain("Duplicate Move");
+    expect(all).toHaveLength(1); // deduplicated: only one "Strike"
+    expect(all[0]?.outcomes?.["strong_hit"]).toBe("expansion strong"); // expansion wins
+  });
+
+  it("last expansion wins when multiple expansions define the same name", async () => {
+    const dirCore = join(tmpDir, "core");
+    const dirExpA = join(tmpDir, "exp-a");
+    const dirExpB = join(tmpDir, "exp-b");
+    await mkdir(join(dirCore, "data"), { recursive: true });
+    await mkdir(join(dirExpA, "data"), { recursive: true });
+    await mkdir(join(dirExpB, "data"), { recursive: true });
+
+    const makeYaml = (label: string) =>
+      `- name: Oracle\n  dice: d100\n  rolls: []\n  _label: ${label}\n`;
+
+    await writeFile(join(dirCore, "data", "moves.yaml"), ""); // empty core
+    await writeFile(join(dirExpA, "data", "moves.yaml"), makeYaml("from-exp-a"));
+    await writeFile(join(dirExpB, "data", "moves.yaml"), makeYaml("from-exp-b"));
+
+    process.env["SCRIBE_PLUGIN_ROOT"] = dirCore;
+
+    const { parse } = await import("yaml");
+    const { readFileSync, existsSync: fsExists } = await import("node:fs");
+    const { dataSourcesFromExpansions } = await import(`./sources.ts?t=${Date.now()}`);
+
+    const expansions = [
+      { name: "exp-a", manifest: { name: "exp-a", version: "1.0.0", contributes: { data: ["moves" as const] } }, installPath: dirExpA },
+      { name: "exp-b", manifest: { name: "exp-b", version: "1.0.0", contributes: { data: ["moves" as const] } }, installPath: dirExpB },
+    ];
+    const paths = dataSourcesFromExpansions("moves", expansions);
+    expect(paths).toHaveLength(3);
+
+    const seen = new Map<string, number>();
+    const all: Array<{ name: string; _label?: string }> = [];
+    for (const filePath of paths) {
+      if (!fsExists(filePath)) continue;
+      const raw = readFileSync(filePath, "utf-8");
+      if (!raw.trim()) continue;
+      const entries = parse(raw) as Array<{ name: string; _label?: string }>;
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        const key = entry.name?.toLowerCase() ?? "";
+        if (seen.has(key)) {
+          all[seen.get(key)!] = entry;
+        } else {
+          seen.set(key, all.length);
+          all.push(entry);
+        }
+      }
+    }
+
+    expect(all).toHaveLength(1);
+    expect(all[0]?.["_label"]).toBe("from-exp-b"); // last expansion wins
   });
 });

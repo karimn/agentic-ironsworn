@@ -47,7 +47,7 @@ let _oracles: OracleTable[] | null = null;
 
 function loadOracles(): OracleTable[] {
   const paths = dataSources("oracles");
-  const seen = new Map<string, string>(); // name → source path
+  const seen = new Map<string, number>(); // name → index in all[]
   const all: OracleTable[] = [];
 
   for (const filePath of paths) {
@@ -58,12 +58,14 @@ function loadOracles(): OracleTable[] {
     for (const entry of parsed as OracleTable[]) {
       const key = entry.name?.toLowerCase() ?? "";
       if (seen.has(key)) {
-        throw new Error(
-          `[scribe] oracle table name collision: "${entry.name}" appears in both "${seen.get(key)}" and "${filePath}"`,
-        );
+        // Expansion definitions take precedence over earlier (base) definitions.
+        // Data sources are ordered: core first, then expansions in load order.
+        // Last writer wins, so expansions can override base oracle tables.
+        all[seen.get(key)!] = entry;
+      } else {
+        seen.set(key, all.length);
+        all.push(entry);
       }
-      seen.set(key, filePath);
-      all.push(entry);
     }
   }
   return all;
