@@ -456,6 +456,257 @@ doesn't need retrieval; it needs to be loaded fresh and modified atomically
 every turn. Putting it in the KG would pay the cost of graph storage for
 a 2KB document that's read in full every turn anyway.
 
+## User journey and version management
+
+This section walks the lifecycle — cold install through long-running
+play, package updates, expansion activation, and world publishing —
+naming what gets pinned where, what's free to change, and what
+triggers migration. It exists because if versioning isn't designed
+end-to-end, the modularity story collapses at the first patch update.
+
+### Stage 0 — cold install
+
+The minimum viable install is four CC plugins for a basic Ironsworn setup:
+
+```
+/plugin install karimn/agentic-rpg-core
+/plugin install karimn/agentic-rpg-system-ironsworn
+/plugin install karimn/agentic-rpg-setting-ironlands   # optional but recommended
+/plugin install karimn/agentic-rpg-craft-default
+```
+
+Four commands is real friction. Two mitigations:
+
+1. **Starter meta-plugins.** A thin CC plugin that declares dependencies
+   on a recommended set: `agentic-rpg-starter-ironsworn` pulls the four
+   above. Player runs one command. Paid bundles
+   (`agentic-rpg-starter-starforged-forge`) do the same for licensed
+   combos. The meta-plugin owns no content; it's a manifest pointing at
+   the others.
+
+2. **Setup wizard.** A slash command `/agentic-rpg-setup` that detects
+   what's missing, prompts choices, and invokes `/plugin install` on
+   the user's behalf. First-time UX: "Pick a game system" → "Pick a
+   setting" → "Install recommended craft?" → done.
+
+Each install records the plugin in `~/.claude/plugins/installed_plugins.json`
+with absolute install path and version. The core loader reads this file at
+server startup to discover what's available (carries forward from v0.x).
+
+### Stage 1 — world creation
+
+```
+cd ~/rpg/my-zura-world
+claude-code
+/agentic-rpg-init-world
+```
+
+The command prompts for system, setting, and world name. It writes
+`world.json` with version *ranges*, not exact pins:
+
+```jsonc
+{
+  "name":    "my-zura-world",
+  "core":    "^1.0.0",
+  "system":  { "name": "ironsworn",     "compat": "^1.0.0" },
+  "setting": { "name": "ironlands",     "compat": "^1.0.0" },
+  "craft":   { "name": "craft-default", "compat": "^1.0.0" },
+  "expansions": [],
+  "embedding": { "model": "nomic-embed-text", "version": "v1.5", "dim": 768 },
+  "kgPath":  "B",
+  "schemaVersion": 1
+}
+```
+
+Caret ranges are deliberate: patches and minors should land
+transparently; majors should require explicit migration. The exact
+installed version at init is recorded in a parallel `world.lock.json`
+for reproducibility (`package-lock.json` analog).
+
+Then: create `world.db` (file in Path B, container in Path A), run the
+setting's canon-seed merge, stamp the active embedding model into
+world.json. The first campaign folder is created on demand by
+`/agentic-rpg-init-campaign`.
+
+### Stage 2 — first session and mid-campaign play
+
+Sessions write to the world DB, character.json, and state-journal.jsonl.
+Plugin versions in CC may drift forward over time as `/plugin update`
+runs or auto-updates land. The core's load-time behavior:
+
+- Read world.json's compat ranges
+- For each module, find the highest installed version satisfying the range
+- If any range is *violated* (e.g., only 2.x is installed but world pins
+  `^1.0.0`), refuse to load and surface a migration prompt
+- If all ranges are satisfied, proceed; use the highest compatible
+  installed versions; update `world.lock.json` to record what was
+  actually loaded
+
+This is the same model package managers use. It's load-bearing: without
+it, a routine plugin update can silently change how the world behaves
+between sessions.
+
+### Stage 3 — package updates arrive
+
+| Update kind | Semver shape | Effect on existing world | User action |
+|---|---|---|---|
+| Patch | 1.0.0 → 1.0.1 | Used transparently on next load | None |
+| Minor | 1.0.x → 1.1.0 | Used transparently; new features available | None (optional: canonize anything new the setting added) |
+| Major | 1.x → 2.0.0 | Core refuses to load until migration | Run `/agentic-rpg-migrate-world` |
+| Pre-release | 1.0.0 → 2.0.0-beta.1 | Not picked up by caret range | None; explicit opt-in only |
+
+**Compat contract:** every module declares which other modules' versions
+it tolerates. System declares `coreCompat`; setting declares
+`systemCompat` (potentially multiple systems); expansion declares
+`extends` plus version range; craft declares `coreCompat`. The loader
+cross-checks all of these at world load. A consistent solution exists
+or the load fails fast with a clear error naming which constraint
+broke.
+
+### Stage 4 — activating an expansion mid-world
+
+```
+/plugin install karimn/agentic-rpg-expansion-ironsworn-delve
+/agentic-rpg-activate-expansion delve
+```
+
+Activation steps, in order:
+
+1. **Compat check.** Verify `extends: "ironsworn"` matches world.json's
+   system; verify version range is satisfied.
+2. **Canon merge.** If the expansion ships a canon seed, merge it into
+   the world DB as `campaign_id IS NULL`, tagged with provenance
+   (`source: "expansion:delve@1.0.0"`). The tag lets a future
+   deactivation distinguish expansion-merged canon from organically
+   grown world canon.
+3. **Migrations.** Run the expansion's namespaced migrations (per
+   existing expansion-system design).
+4. **Tool registration.** Register the expansion's MCP tools, context
+   sections, and skills into the running scribe namespace.
+5. **Manifest update.** Append to world.json:
+   ```jsonc
+   "expansions": [
+     { "name": "delve", "compat": "^1.0.0", "activatedAt": "2026-05-27T..." }
+   ]
+   ```
+
+Deactivation reverses 4 and 5. **Canon merged from the expansion stays
+in the world by default** — the player has played with it, they own it.
+A `--purge` flag also strips canon tagged with that expansion's
+provenance, for a fully clean removal.
+
+### Stage 5 — major-version migration
+
+A system or core major bump arrives. The world refuses to load.
+
+```
+/agentic-rpg-migrate-world
+```
+
+What runs:
+
+- Core inspects each affected module's `migrations/` directory. Each
+  migration declares `fromVersion`, `toVersion`, and an `apply()` that
+  the runner invokes.
+- Migrations cover: character.json shape, KG schema (within the
+  module's namespace), seed-canon shape interpretation, expansion compat
+  ranges.
+- The runner walks from currently-loaded versions through to the latest
+  installed versions, applying every migration in order.
+- After success, `world.json` compat ranges are widened to the new
+  major; `world.lock.json` is rewritten.
+- On failure, the world is rolled back to its pre-migration state. The
+  KG bundle is snapshotted before any destructive operation; rollback
+  restores the snapshot atomically.
+
+**Migration discipline:** module authors MUST ship migrations for every
+major bump. Append-only — never edit or reorder existing migrations.
+The migration runner is the same one used in v0.x and carries forward
+unchanged. This is the contract that lets schemas evolve without
+breaking long-running worlds.
+
+### Stage 6 — publishing a world as a setting
+
+```
+/agentic-rpg-export-as-setting zura ./packages/setting-zura
+```
+
+What gets stripped:
+
+- All scenes
+- All entities and relations with `campaign_id != NULL`
+- All character.json data and state journals
+- Overlay relations (discovery state, "PC has met X", etc.)
+
+What gets kept:
+
+- All `campaign_id IS NULL` entities and relations
+- Community summaries that reference only canon entities
+- Proximity edges between canon places
+
+The output is a CC plugin scaffold ready to commit:
+
+```
+packages/setting-zura/
+  .claude-plugin/plugin.json
+  manifest.json                    # kind: "setting", systemCompat
+  seed/canon.json
+  README.md
+```
+
+The player commits and publishes. Others install
+`agentic-rpg-setting-zura` and init worlds seeded from it.
+
+### Cross-cutting: embedding model versioning
+
+This is the subtle one that breaks silently if not designed in.
+
+Embeddings are computed at write time and used for vector retrieval at
+read time. If the embedding model changes between those two moments —
+the player updated Ollama, the system default shifted, a new model was
+installed — vector search silently returns garbage. The cosine similarity
+space is now inconsistent.
+
+Resolution:
+
+- `world.json` pins the embedding model name, version, and dimension at
+  init
+- On every world load, core checks the active embedding model against
+  the pin
+- Mismatch is a hard refuse-to-load with two offered remediations:
+  1. **Restore the original model** — player switches Ollama back, or
+     installs the original model alongside the new one
+  2. **Re-embed** — recompute all entity and scene embeddings with the
+     new model; expensive but one-shot; on success, update the pin
+
+A re-embed is a migration; same migration runner; same snapshot-and-
+rollback discipline.
+
+### Cross-cutting: KG path migration
+
+Moving a world between Path A (Graphiti + FalkorDB) and Path B
+(SQLite + sqlite-vec) is **not supported in v1.0**. Worlds are bound to
+their `kgPath` at init. To switch:
+
+1. Export the world as a bundle (`/agentic-rpg-export-world bundle.tar`)
+2. Init a fresh world on the desired path with the same system + setting
+3. Import the bundle (`/agentic-rpg-import-world bundle.tar`)
+
+The bundle format is path-agnostic JSON. Round-trip is lossy on
+backend-specific features (e.g., Graphiti's bi-temporal edges
+flatten to point-in-time on a Path B import). Probably fine; revisit if
+it becomes a real use case.
+
+### Summary — what's pinned where
+
+| Pinned in | What | Why |
+|---|---|---|
+| `world.json` | core, system, setting, craft compat ranges; embedding model; kgPath | The world's identity. Drives load-time compat checks. |
+| `world.lock.json` | exact versions actually loaded last session | Reproducibility, debugging. |
+| `world.json.expansions[]` | each active expansion's compat range | Same as system pinning, per-expansion. |
+| `campaign.json` | system + character schema version at campaign-init | Campaigns within a world can drift if created on different system minors; this records which. |
+| Module manifests | `coreCompat`, `systemCompat`, `extends` | The module's tolerance surface; the loader enforces it. |
+
 ## Expansion system (carried forward)
 
 Expansions extend a game system. They contribute moves, oracles,
@@ -787,6 +1038,21 @@ Tracked separately. Major pieces:
 - **D14** A world is bound to its system + setting at init.
   Mid-life system or setting swaps are not supported. Worlds are cheap;
   start a new world if you want to switch.
+- **D15** `world.json` pins compat ranges (caret semver), not exact
+  versions. `world.lock.json` records the exact versions actually
+  loaded. Patches and minors land transparently; majors require
+  explicit `/agentic-rpg-migrate-world`. This is the same model package
+  managers use.
+- **D16** Embedding model is pinned in `world.json` (name + version +
+  dim). Mismatch on load is a hard refuse with a re-embed migration
+  offered. Vector retrieval is silently wrong otherwise; this can't be
+  left implicit.
+- **D17** Expansion canon merged into a world stays after deactivation
+  by default (player owns it). `--purge` flag removes only canon tagged
+  with that expansion's provenance.
+- **D18** A meta-plugin pattern (`agentic-rpg-starter-*`) is the v1.0
+  answer to multi-plugin install friction. Plus a `/agentic-rpg-setup`
+  wizard for first-time UX.
 
 ## Open questions
 
@@ -812,6 +1078,21 @@ Tracked separately. Major pieces:
   to, or just a counter the module polls? Pub/sub is more elegant but
   adds runtime complexity; polling is simpler. Default to polling for
   v1.0; revisit if a module wants reactive tick handling.
+- **OQ8** Does CC's plugin manager support cross-plugin dependency
+  declarations strong enough for the starter meta-plugin pattern? If
+  not, the wizard becomes the only viable mitigation for first-install
+  friction. Verify against CC docs during implementation.
+- **OQ9** What's the right rollback granularity for failed migrations?
+  Per-step rollback is safest but doubles complexity (every migration
+  needs a `down()`). Snapshot-and-restore is simpler but expensive on
+  large worlds. Default to snapshot-and-restore for v1.0; revisit if
+  migration runtimes become a UX problem.
+- **OQ10** How do we surface "your installed plugins are inconsistent
+  with this world" in the GM agent's responses, vs. just at world-load
+  time? Probably both: hard fail at load, but if a session was already
+  running when a plugin auto-updated incompatibly, surface as a
+  user-visible warning that ends the session cleanly rather than
+  letting state drift.
 
 ## Why this is v1.0
 
