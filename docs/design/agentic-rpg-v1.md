@@ -301,6 +301,142 @@ craft, not mechanics; it lives with skills, not the rules engine.
 The KG holds the setting and the narrative record of what happened in
 it. Everything else is elsewhere by design.
 
+## Future-proofing — designing for play-style variance
+
+A hex crawl, a megadungeon, a city sandbox, a West Marches campaign,
+and Ironsworn's story-driven solo all run on the same agent loop and
+the same KG. They vary on:
+
+- **Spatial structure** — none / pointcrawl / hex grid / square grid /
+  topological / freeform map
+- **Temporal granularity** — scene-paced / turn-paced / day-paced
+- **Procedural generation** — none / per-region / per-encounter
+- **State tracked** — vows / clocks / hex-discovery / clues / resources
+- **Encounter triggering** — oracle / table / clock / spatial
+
+v1.0 doesn't ship most of these. The design constraint is that v1.0
+**must not preclude** them: adding a hex-crawl module later should be a
+module-and-data exercise, not a fork of the core.
+
+### What's invariant (stays in core)
+
+- Entities + relations + scenes as the universal data model
+- Campaign-as-tag partition and the visibility filter
+- The canonize ritual
+- The fiction-grounding protocol
+- `recall`'s shape (query + filters + limit)
+- The GM agent's role and prompt structure
+- Per-tool retrieval budgets
+
+### What varies (lives in the game-system module)
+
+| Axis | Examples | Where it lives |
+|---|---|---|
+| Spatial model | hex / grid / pointcrawl | Entity `metadata.coordinates` + module-owned tools |
+| Time model | turn / day / encumbrance round | `tick()` primitive + character state fields |
+| Procgen | encounter tables / region content | Module's `procgen` contribution |
+| State tracked | vows, clocks, rations, light | Character schema + entity overlay relations |
+| Encounter triggering | per-hex / per-day / scripted | Module logic, surfacing through MCP tools |
+
+The pattern: variance lives in the module. The core provides primitives;
+the module composes them.
+
+### Extension points v1.0 must lock in now
+
+These are cheap to ship as scaffolding in v1.0 and expensive to retrofit
+later. Each is a small concession to future flexibility, not a feature.
+
+1. **Coordinates as a metadata convention.** Entities of `type='place'`
+   may carry `metadata.coordinates: { x, y, system: 'hex' | 'square' | 'geo', ... }`.
+   The core stores coordinates as opaque JSON; it does not interpret
+   them. Modules that care about spatial play use them. A hex-crawl
+   module's distance function reads them; Ironsworn ignores them.
+
+2. **Per-campaign overlay state as relations.** Discovery state, faction
+   disposition shift, "PC has met this NPC," "party has explored this
+   hex" — all expressed as relations from the PC entity (or a synthetic
+   `party` entity) to the target, with `campaign_id = current`. The
+   visibility filter naturally scopes them. No `entity_campaign_state`
+   side table needed; the existing schema absorbs it.
+
+3. **Bulk operations.** `upsert_entities(batch)` and `link_batch(batch)`
+   ship in v1.0 even though Ironsworn's per-scene drip doesn't need
+   them. A hex-crawl module pre-seeding 10,000 hex placeholders does.
+   The bulk path means batched embedding calls too — important at
+   scale.
+
+4. **Spatial queries in `recall`.** The `near` parameter accepts either
+   `{ entity: <id> }` (graph proximity, what we ship in v1.0) or
+   `{ coordinates: { x, y }, radius, metric }` (spatial proximity,
+   future). The type union is defined from day one; only the first
+   branch is implemented in v1.0. Adding the second is purely additive.
+
+5. **Procgen contribution type.** The module manifest gains an optional
+   `procgen` block:
+
+   ```jsonc
+   "procgen": {
+     "region": "./procgen/region.ts",     // generate content for a place
+     "encounter": "./procgen/encounter.ts" // generate an encounter on demand
+   }
+   ```
+
+   v1.0 ships the manifest type and dispatcher; Ironsworn doesn't use
+   it. A hex-crawl module would generate hex content lazily on first
+   visit, calling `upsert_entity` / `link` to persist results.
+
+6. **Time primitive.** `tick(amount, unit)` is a core MCP tool that
+   advances either `world.time` or `campaign.time` (depending on
+   caller). Modules choose unit and frequency. Ironsworn ticks rarely
+   (per-session); hex-crawl ticks per-hex-of-travel; a clock-driven
+   sandbox ticks per real-time day. Core just keeps the counter and
+   emits a `tick` event modules can subscribe to.
+
+### Worked example: a hex-crawl module without core changes
+
+What it would take to ship `game-system-hexcrawl`:
+
+1. **Manifest** declares `spatial: { kind: 'hex', size: '6mi', wrap: false }`
+   in a module-defined `contributes.config` block (core preserves it
+   without interpretation).
+2. **Tools** registered: `travel_to_hex(hex_id)`, `explore_hex(hex_id)`,
+   `roll_encounter(hex_id)`, `mark_discovered(hex_id)`.
+3. **Procgen** generates hex content on first reference — terrain,
+   features, encounter tables — and writes to the KG with appropriate
+   `campaign_id` (the hex map skeleton is world-canon; specific
+   encounter outcomes are campaign-scoped).
+4. **Character schema** adds `rations`, `light_remaining`, `mount`,
+   `pace`.
+5. **Context section** outputs the current hex's coordinates, terrain,
+   neighbors, and any party-visible features.
+6. **Encounter-triggering** logic lives in the module: `travel_to_hex`
+   internally calls `tick(8, 'hours')`, then rolls encounters using
+   the module's tables, then calls `record_scene` if an encounter
+   fires.
+7. **No core changes.**
+
+The core never learns what a hex is. It stores coordinates as opaque
+metadata, traverses relations the module wrote, runs `recall` against
+the entities the module created, and ticks a counter on request. The
+module is the spatial authority; the KG is the persistence and
+retrieval substrate.
+
+The same exercise works for a city-sandbox module (no spatial, but
+heavy faction state), a megadungeon module (room-graph with
+procedural extension), or a West Marches setup (multiple campaigns
+in one world, with shared world canon).
+
+### What this section explicitly excludes
+
+- v1.0 does not ship hex-crawl, megadungeon, city-sandbox, or West
+  Marches modules.
+- v1.0 does not implement spatial-coordinate queries in `recall` — only
+  reserves the parameter shape.
+- We are not building a generic RPG engine. The core stays minimal;
+  variance lives in modules. The extension points above are the
+  *complete* set we commit to in v1.0; anything beyond them is a
+  future RFC.
+
 ## Migration from v0.x
 
 Tracked separately. Major pieces:
@@ -316,6 +452,10 @@ Tracked separately. Major pieces:
    split
 7. Add per-tool retrieval budgets; tune
 8. Implement the canonize slash command; integrate with `extract_session_lore`
+9. Implement the future-proofing extension points (coordinates convention,
+   bulk ops, `near` parameter union, `procgen` manifest type, `tick`
+   primitive). Each is small individually; together they make v1.0 the
+   architecture-stable target.
 
 ## Decisions (settled)
 
@@ -335,6 +475,16 @@ Tracked separately. Major pieces:
   KG.
 - **D8** Path A (Graphiti + FalkorDB) vs Path B (SQLite + sqlite-vec)
   decided by spike, not by argument. Default lean: Path A.
+- **D9** Spatial coordinates are an entity-metadata convention, not a
+  first-class column. Core stores them; modules interpret them.
+- **D10** Per-campaign overlay state (discovery, faction disposition,
+  PC-met-this-NPC) lives as relations with `campaign_id = current`, not
+  in a side table. The existing schema absorbs it; the visibility filter
+  naturally scopes it.
+- **D11** Bulk operations (`upsert_entities`, `link_batch`), spatial
+  `near` parameter shape, `procgen` manifest type, and `tick` primitive
+  ship in v1.0 as extension scaffolding even though Ironsworn doesn't
+  use them. Cheap now, expensive to retrofit.
 
 ## Open questions
 
@@ -352,6 +502,14 @@ Tracked separately. Major pieces:
 - **OQ5** A canonize ritual UX: slash command, end-of-session prompt,
   or implicit on high-confidence extraction. Probably explicit slash
   command. Settle when implementing.
+- **OQ6** Should overlay-state relations anchor on the PC entity or on
+  a synthetic `party` entity? PC is simpler; `party` generalizes to
+  multi-PC parties (OQ4). Default to PC; revisit if/when OQ4 is
+  pursued.
+- **OQ7** Should `tick` events be a true pub/sub the module subscribes
+  to, or just a counter the module polls? Pub/sub is more elegant but
+  adds runtime complexity; polling is simpler. Default to polling for
+  v1.0; revisit if a module wants reactive tick handling.
 
 ## Why this is v1.0
 
