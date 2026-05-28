@@ -24,6 +24,9 @@ engine), and reliable craft (skills + protocols).
   campaign boundaries (#166)
 - **Game-system-agnostic core.** Ironsworn ships first; the architecture
   permits Cairn, Mausritter, Mythic GME, homebrew, etc.
+- **UI-agnostic runtime.** The CC plugin is one frontend. The runtime
+  (Bun/TS, npm packages) is the actual product; alternate frontends
+  (web app, desktop app) are anticipated as future work.
 - Coherent fiction: every retrieval the GM agent makes is grounded in
   recorded canon, never invented
 - Portability: a world can be exported, shared, and resumed elsewhere
@@ -31,10 +34,16 @@ engine), and reliable craft (skills + protocols).
 ## Non-goals
 
 - Multiplayer / synchronous play
-- VTT integration, maps, tactical positioning
+- VTT integration, maps, tactical positioning (out of scope, not
+  precluded by the architecture)
 - Asset generation (images, audio)
 - Closed-form replay of pre-written modules
 - Mixing game systems within a single world
+- **Alternate UI in v1.0.** The runtime is built to allow it; we
+  ship via the CC plugin only.
+- **Per-module CC plugins or per-module CC plugin discovery.** Modules
+  are npm packages; Bun handles dependency resolution. See "Distribution"
+  below.
 
 ## The central insight from v0.x
 
@@ -117,150 +126,229 @@ This is the central modularity shape:
   partitioned by `campaign_id`. World canon survives campaign
   boundaries.
 
-A world declares both its system and its setting at init:
+A world declares its system and setting by adding them as dependencies
+in `package.json` at world-init:
 
 ```jsonc
+// worlds/zura/package.json
 {
-  "name": "Zura",
-  "system":  "ironsworn@1.0.0",
-  "setting": "ironlands@1.0.0",    // or "homebrew-zura@0.3.0", or null
-  "schemaVersion": 1
+  "name": "zura-world",
+  "dependencies": {
+    "@agentic-rpg/core":            "^1.0.0",
+    "@agentic-rpg/system-ironsworn": "^1.0.0",
+    "@agentic-rpg/setting-ironlands": "^1.0.0",
+    "@agentic-rpg/craft-default":   "^1.0.0"
+  }
 }
 ```
 
-`setting: null` is a valid choice — a fully emergent world with no
-canon seed. Everything grows from play.
+Omitting a setting dependency is a valid choice — a fully emergent
+world with no canon seed. Everything grows from play.
+
+(See "Distribution" below for why this lives in `package.json` rather
+than a custom manifest file.)
 
 ## Architecture
 
+Two layers, cleanly separated:
+
 ```
-core/                            # game-system-agnostic
-  scribe-server/                 # MCP server, agent runtime, expansion loader
-  kg/                            # knowledge graph integration
-  state/                         # character state shell, journal, migrations
-  agent/                         # GM agent prompt, fiction-grounding protocol
-
-modules/
-  game-system-ironsworn/         # rules only — no setting
-  game-system-starforged/        # (future, paid)
-  game-system-trophy-gold/       # (future)
-
-  setting-ironlands/             # the official Ironsworn setting, ships with Ironsworn
-  setting-forge/                 # (future, paid) — for Starforged
-  setting-zura/                  # (example) a player-published homebrew
-
-  craft-default/                 # default fiction-crafting skills (system-agnostic)
-  craft-ironsworn/               # (optional) Ironsworn-flavored craft tweaks
-
-expansions/
-  ironsworn-delve/               # extends a game system (Ironsworn here)
+┌─────────────────────────────────────────────────────┐
+│ Frontend                                            │
+│   - CC plugin (v1.0)                                │
+│   - Future: web app, desktop app, mobile app        │
+│   Responsibility: user I/O, agent loop, UI surface  │
+└─────────────────────────────────────────────────────┘
+                          │
+                MCP protocol + npm imports
+                          ▼
+┌─────────────────────────────────────────────────────┐
+│ Runtime (npm packages, Bun)                         │
+│                                                     │
+│   @agentic-rpg/core           scribe MCP server,    │
+│                               KG, state, migrations │
+│   @agentic-rpg/system-*       game-system rules     │
+│   @agentic-rpg/setting-*      setting canon seeds   │
+│   @agentic-rpg/craft-*        craft skills          │
+│   @publisher/expansion-*      expansions            │
+└─────────────────────────────────────────────────────┘
 ```
 
-The core knows about MCP, the agent, the KG, and the campaign state
-shell. It does not know what system or setting is in play; the
-respective modules declare that. A world picks one system + zero-or-one
-setting at init.
+The runtime is the product. It's pure Bun/TS, distributed as npm
+packages, and is what every frontend consumes. The CC plugin is the
+v1.0 frontend; it provides the user-visible chat surface, runs the
+agent loop, and starts the scribe MCP server from the runtime. It
+contains no business logic of its own.
 
-## Distribution and packaging mechanics
+A world picks one system + zero-or-one setting at init. The runtime
+loads whatever modules the world's `package.json` declares (Bun
+resolves the actual versions and writes `bun.lock`).
 
-The four conceptual modularity levels (system, setting, world, campaign)
-are independent from the three distribution mechanisms used to ship
-them. The mechanisms compose orthogonally — a single shippable
-piece of content is described by *which conceptual level it sits at*
-**and** *how each of the three mechanisms is used for it*.
+## Runtime vs frontend
 
-### Three distribution mechanisms
+The frontend's job is small: render the conversation, dispatch user
+input to the agent loop, surface skills the agent might use, and host
+the MCP server connection. Today this is CC. Tomorrow it could be a
+custom client.
 
-**TS / Bun packages.** Each conceptual module is one TS package. Some
-ship code (the game system has TS rules + MCP tools), some ship data
-only (a setting is a JSON canon seed with no code), some ship a mix
-(an expansion has both). The public monorepo (this repo) uses Bun
-workspaces to bundle several packages in one tree. Private packages
-live in their own repos and consume the core's public types via npm or
-direct path reference.
+The runtime's job is everything else: the GM agent prompt, the rules
+engines, the KG, the migrations, the canonize ritual, the fiction-
+grounding protocol, the tool implementations. None of it knows what
+frontend is calling it.
 
-**Repos.** Where the source lives. The public repo holds the core, the
-default game system (Ironsworn — CC-BY), the default setting (Ironlands
-— CC-BY), and the default craft module. Anything paid or otherwise
-proprietary lives in its own private repo: paid game systems, paid
-settings, paid expansions, paid craft modules. Player-published worlds
-become their own repos (or downloadable bundles) at publish time.
+This separation is what makes the architecture future-proof. If a
+custom UI is built later, **no runtime code changes** — the new
+frontend imports the same npm packages, starts the same MCP server,
+runs the same agent loop. The CC plugin is, structurally, the
+*first reference frontend*; it is not the platform.
 
-**Claude Code plugins.** What CC sees and installs. Every shippable
-module is its own CC plugin with its own `.claude-plugin/plugin.json`,
-its own version, its own install/update lifecycle. Discovery follows
-the existing v0.x pattern: the core scribe server reads
-`~/.claude/plugins/installed_plugins.json`, finds plugins matching
-`agentic-rpg-{system|setting|expansion|craft}-*`, and loads each via
-its manifest. Naming convention:
+Three constraints follow:
 
-| Conceptual level | CC plugin name pattern |
+1. **No CC-specific assumptions in the runtime.** No reading from CC's
+   installed_plugins.json, no calling CC commands, no relying on CC's
+   skill-activation heuristics for correctness. All discovery of modules
+   goes through Bun's package resolution (the world's `node_modules`).
+2. **Skills are content, not behavior.** They're markdown documents
+   any frontend can render or surface. CC happens to activate them on
+   trigger phrases; another frontend could surface them as a sidebar
+   help menu. The runtime never assumes skills will be activated.
+3. **Slash commands are frontend ergonomics.** The runtime exports
+   *actions* (init world, activate expansion, canonize, migrate). CC
+   maps `/agentic-rpg-init-world` to one of those actions; a custom
+   UI might use a button. The runtime exports the action surface, not
+   the slash command names.
+
+## Distribution — one CC plugin, many npm packages
+
+The CC plugin and Bun/npm are good at different things. v0.x tried to
+make CC plugins coordinate dependency graphs and produced fragility;
+v1.0 splits the responsibility so each handles what it's good at.
+
+| Layer | Job | Mechanism |
+|---|---|---|
+| Frontend distribution | "Install the runtime" | One CC plugin: `agentic-rpg` |
+| Content distribution | "Install a game system, setting, craft, expansion" | npm packages, resolved by Bun |
+| Licensing boundary | "This content is paid; this is open" | Public vs. private npm registries |
+
+### One CC plugin
+
+The `agentic-rpg` CC plugin ships the frontend. It contains:
+
+- The MCP server wiring (a `.mcp.json` that starts the scribe server)
+- The default GM agent prompt
+- The default skill set (markdown only)
+- Slash commands that wrap runtime actions
+- No business logic; no rules; no content
+
+That plugin versions and updates through CC's normal lifecycle. Players
+install it once.
+
+### Many npm packages
+
+All content — game systems, settings, craft, expansions — ships as npm
+packages under the `@agentic-rpg/*` scope (or a publisher's own scope
+for paid content). Conventional package names:
+
+| Conceptual level | npm package name |
 |---|---|
-| Game system | `agentic-rpg-system-<name>` (e.g., `agentic-rpg-system-ironsworn`) |
-| Setting | `agentic-rpg-setting-<name>` (e.g., `agentic-rpg-setting-ironlands`) |
-| Craft | `agentic-rpg-craft-<name>` (e.g., `agentic-rpg-craft-default`) |
-| Expansion | `agentic-rpg-expansion-<system>-<name>` (e.g., `agentic-rpg-expansion-ironsworn-delve`) |
+| Runtime core | `@agentic-rpg/core` |
+| Game system | `@agentic-rpg/system-<name>` (e.g., `@agentic-rpg/system-ironsworn`) |
+| Setting | `@agentic-rpg/setting-<name>` (e.g., `@agentic-rpg/setting-ironlands`) |
+| Craft | `@agentic-rpg/craft-<name>` (e.g., `@agentic-rpg/craft-default`) |
+| Expansion | `@<publisher>/<system>-<name>` (e.g., `@karimn/ironsworn-delve`) |
 
-### How the three mechanisms compose
+A world is a Bun project. Its `package.json` declares which content
+packages are in play; `bun.lock` records the exact resolved versions;
+`node_modules/` holds them. The runtime loads modules by importing from
+`node_modules` — standard.
 
-A worked example — a player running Starforged in the official Forge
-setting, with the Sundered Isles expansion, plus default craft, on the
-public core:
+```
+~/rpg/my-zura-world/
+  package.json        # declares @agentic-rpg/system-ironsworn, @agentic-rpg/setting-ironlands, ...
+  bun.lock            # resolved versions, by Bun
+  node_modules/       # actual installed packages
+  world.json          # game state metadata (schema versions, embedding pin, kgPath)
+  world.db            # the KG
+  campaigns/<id>/     # per-campaign state
+```
 
-| Conceptual piece | Repo | TS package | CC plugin | License |
-|---|---|---|---|---|
-| Core | this repo (public) | `packages/core` | `agentic-rpg-core` | open |
-| System | private (Shawn Tomkin / IronSpike) | own package | `agentic-rpg-system-starforged` | paid |
-| Setting | private (same publisher) | data-only package | `agentic-rpg-setting-forge` | paid |
-| Expansion | private | own package | `agentic-rpg-expansion-starforged-sundered-isles` | paid |
-| Craft | this repo (public) | `packages/craft-default` | `agentic-rpg-craft-default` | open |
+### How the user actually interacts with it
 
-Five conceptual pieces, three repos, five TS packages, five CC plugins,
-two distinct license terms. The mechanisms cover the variance
-independently:
+Adding content is `bun add`:
 
-- **Conceptual level** says *what role the piece plays in the system.*
-- **Repo** says *who controls the source and IP.*
-- **TS package** says *how the code is organized for the loader.*
-- **CC plugin** says *what the player installs and the lifecycle CC
-  enforces.*
+```
+cd ~/rpg/my-zura-world
+bun add @agentic-rpg/system-ironsworn @agentic-rpg/setting-ironlands
+bun add @karimn/ironsworn-delve --registry=https://npm.pkg.github.com  # paid
+```
 
-### Cross-module versioning
+Updates are `bun update`. Removal is `bun remove`. Lock file is
+`bun.lock`. There are no compat ranges to manage in `world.json`,
+no per-module CC plugin install commands, no `installed_plugins.json`
+scanning at our layer.
 
-Every CC plugin versions independently. The compatibility surface is
-declared in each manifest:
+The CC plugin provides slash command wrappers (`/agentic-rpg-add system-ironsworn`)
+that shell out to Bun, so players who don't want to type CLI commands
+still get a guided experience. The wrappers are thin; Bun does the
+work.
 
-- A game system declares `coreCompat: ">=1.0.0"`.
-- A setting declares `systemCompat: { "ironsworn": ">=1.0.0" }` —
-  often pinned to one system, occasionally to several.
-- An expansion declares `extends: "ironsworn"` and a version range
-  against the system.
-- A craft module declares `coreCompat` and optionally `systemHint:
-  "ironsworn"` if it's system-flavored.
+### Why this resolves the maze
 
-The loader refuses to activate a module whose compatibility doesn't
-match the active world's system + core. Errors are logged to stderr;
-the module is treated as inert (graceful absence — same pattern as v0.x
-expansion loading).
+What goes away vs. the v0.x trajectory:
 
-### Where the modularity dimensions are *not* free
+- ~~Per-module CC plugins~~ → one CC plugin, npm packages for the rest
+- ~~`installed_plugins.json` scanning in our loader~~ → Bun resolves; we import
+- ~~Compat ranges in `world.json` per module~~ → Bun's `package.json` + `bun.lock`
+- ~~`coreCompat`/`systemCompat`/`extends` ranges in manifests~~ → standard `peerDependencies`
+- ~~`world.lock.json`~~ → `bun.lock` already does this
+- ~~Three version namespaces (CC plugin, TS package, schema)~~ → one (npm) + schema (separate concern)
+- ~~Starter meta-plugin pattern~~ → publish a `package.json` template
+- ~~Setup wizard for multi-plugin install~~ → `/agentic-rpg-init-world` runs `bun init` + adds starter deps
 
-Two cases where the orthogonality breaks down and that's fine:
+What stays:
 
-1. **Settings are coupled to systems.** A setting package targets one
-   or more specific game systems by name. Ironlands is for Ironsworn,
-   not for Cairn. This is a content fact, not a tech limitation — the
-   canon seed includes entity types and assumptions that only make
-   sense in the target system. Cross-system settings (a "generic
-   fantasy commons" pack) are out of scope for v1.0; see OQ3.
+- **Schema versions** on `world.json` and `character.json` — how the
+  migration runner knows what shape to read
+- **Embedding model pin** in `world.json` — silent correctness issue if
+  it drifts
+- **KG path pin** in `world.json` — can't switch backends transparently
+- **The conceptual four-level modularity** (system, setting, world,
+  campaign) — that's content modeling, not packaging
+- **Public monorepo vs. private repos for licensing** — same boundary,
+  just expressed via npm registry config
 
-2. **A world is bound to its system + setting at init.** Changing the
-   active game system of an existing world mid-life is not supported.
-   The character schema, the system tools, and the seed canon
-   collectively determine the world's identity; swapping the system
-   would invalidate too much. Worlds are cheap to create; if a player
-   wants to "switch system," they start a new world (optionally
-   importing a re-published setting bundle from the old one).
+### Worked example — paid content stack
+
+A player running Starforged (paid) in the official Forge setting (paid),
+with the Sundered Isles expansion (paid), on the open runtime:
+
+```jsonc
+// ~/rpg/my-starforged-world/package.json
+{
+  "dependencies": {
+    "@agentic-rpg/core":             "^1.0.0",
+    "@ironspike/system-starforged":  "^1.0.0",  // paid, private registry
+    "@ironspike/setting-forge":      "^1.0.0",  // paid, private registry
+    "@ironspike/sundered-isles":     "^1.0.0",  // paid, private registry
+    "@agentic-rpg/craft-default":    "^1.0.0"
+  }
+}
+```
+
+Five packages, two registries (npm public + IronSpike private), one
+CC plugin. The user runs `bun install` once; everything resolves.
+
+Where the licensing boundary lives: in the registry config (which
+private registries the user has auth for), not in our manifest schema.
+
+### Why the npm package, not the CC plugin, is the unit of content
+
+Bun's package resolver handles transitive dependencies, version conflict
+detection, lock files, hoisting, peer dependency checking — every one
+of those is a problem CC plugins don't solve. By putting content
+distribution on Bun, we get all of that for free.
+
+The CC plugin is just the runtime's installation vehicle.
 
 ## The KG layer — two paths, one spike to decide
 
@@ -306,74 +394,89 @@ the rest of this doc is path-agnostic.
 
 ## Module contracts
 
-### Game-system module
+Every module is a normal npm package. Inter-module compatibility is
+expressed through standard `peerDependencies`. There's no custom
+"manifest" format separate from `package.json` — we use the one Bun
+already understands.
+
+A module signals its kind via the `agenticRpg` field on `package.json`
+(a namespaced extension; npm tooling ignores unknown fields):
+
+### Game-system package
 
 ```jsonc
+// @agentic-rpg/system-ironsworn/package.json
 {
-  "kind": "system",
-  "name": "ironsworn",
+  "name": "@agentic-rpg/system-ironsworn",
   "version": "1.0.0",
-  "coreCompat": ">=1.0.0",
-  "schemaVersion": 1,
-  "contributes": {
-    "rules":           "./rules",                  // pure TS, typed
-    "data":            ["moves", "oracles", "assets"],
-    "tools":           "./mcp-tools",              // game-specific MCP tools
-    "characterShape":  "./character.schema.json",  // validates character.json
-    "contextSections": ["./context/state.ts"],     // GM context injection
-    "agentBriefing":   "./agent-briefing.md"       // appended to GM prompt
+  "peerDependencies": {
+    "@agentic-rpg/core": "^1.0.0"
+  },
+  "agenticRpg": {
+    "kind": "system",
+    "rules":           "./dist/rules.js",
+    "data":            ["./data/moves.yaml", "./data/oracles.yaml", "./data/assets.yaml"],
+    "tools":           "./dist/mcp-tools.js",
+    "characterShape":  "./dist/character.schema.json",
+    "contextSections": ["./dist/context-state.js"],
+    "agentBriefing":   "./agent-briefing.md"
   }
 }
 ```
 
-The core uses these to:
+The runtime imports the module, reads the `agenticRpg` field,
+registers its contributions. Bun ensures `@agentic-rpg/core` is
+installed in a compatible version before any of this happens; peer-
+dependency resolution is the loader's compat check.
 
-- Validate `character.json` against the system's schema; run system-
-  specific character migrations
-- Register system MCP tools (`roll_move`, `endure_stress`, etc.) into
-  the scribe namespace
-- Inject `contextSections` output into the GM context build
-- Append `agentBriefing` to the GM system prompt
+A system does not ship canon. Settings do.
 
-A game system **does not** ship canon. Default settings ship as
-sibling packages (see below).
-
-### Setting module
+### Setting package
 
 ```jsonc
+// @agentic-rpg/setting-ironlands/package.json
 {
-  "kind": "setting",
-  "name": "ironlands",
+  "name": "@agentic-rpg/setting-ironlands",
   "version": "1.0.0",
-  "systemCompat":  { "ironsworn": ">=1.0.0" },
-  "contributes": {
-    "canon":        "./seed/canon.json",       // entities + relations
-    "agentBriefing": "./tone-and-themes.md"    // optional setting-flavor briefing
+  "peerDependencies": {
+    "@agentic-rpg/system-ironsworn": "^1.0.0"
+  },
+  "agenticRpg": {
+    "kind": "setting",
+    "canon":         "./seed/canon.json",
+    "agentBriefing": "./tone-and-themes.md"
   }
 }
 ```
 
-At world-init the core:
+A setting declares which system(s) it targets via `peerDependencies`.
+Bun refuses to install a setting whose peer system isn't satisfied;
+the error happens at `bun add` time, with a clear message — not at
+load time, hidden inside our loader.
 
-- Validates that the world's chosen system is in `systemCompat`
-- Loads `canon` into the fresh world DB as `campaign_id IS NULL`
-  entities and relations
-- Appends `agentBriefing` to the GM prompt (after the system's briefing)
+A setting ships pure content. No rules, no tools.
 
-A setting **does not** ship rules or tools. Settings are pure content;
-mixing in mechanics would couple them to systems in ways the manifest
-boundary forbids.
+### Craft and expansion packages
 
-### Craft and expansion module contracts
+Both follow the same pattern. Craft packages have
+`kind: "craft"` and peer-depend on `@agentic-rpg/core`. Expansion
+packages have `kind: "expansion"` and peer-depend on the system they
+extend (e.g., `@agentic-rpg/system-ironsworn`). See
+`docs/design/expansion-system.md` for expansion-specific contribution
+shapes.
 
-(Unchanged in structure; both follow the same manifest pattern with
-`kind: "craft"` and `kind: "expansion"` respectively. Expansion manifest
-includes `extends: "<system-name>"` and a version range. See
-`docs/design/expansion-system.md` for the expansion specifics.)
+### Why peerDependencies, not dependencies
 
-Other systems and settings implement the same contracts. The KG, the
-MCP plumbing, the agent runtime, and the campaign state shell stay
-system- and setting-agnostic.
+Settings and expansions don't *embed* the system; they *coordinate with*
+it. The user installs `@agentic-rpg/system-ironsworn` directly in their
+world's `package.json`. The setting and expansion declare that they
+need the system to be present, and at a compatible version, but they
+don't pull a duplicate copy. Standard npm peer-dep semantics.
+
+This is also what makes one-content-package = one-version a clean
+story. No "this package has a system version, that one wants a
+different version" conflict — Bun resolves all peer deps to a single
+satisfying version or errors out.
 
 ## Craft module
 
@@ -432,23 +535,39 @@ Total budget target: ~6k tokens. The GM agent pulls more on demand via
 
 ## Campaign state shell
 
-System-agnostic, file-based (still — small data, git-friendly diffs):
+A world is a Bun project directory. Layout:
 
 ```
 worlds/<world>/
-  world.json              # { name, system, setting, axioms, tone, schemaVersion }
+  package.json            # declares which content packages are in play
+  bun.lock                # exact resolved versions, by Bun
+  node_modules/           # installed content packages
+  world.json              # { name, schemaVersion, embedding, kgPath, axioms, tone }
   world.db / world.bundle # the KG (file in Path B, container volume in Path A)
   campaigns/
     <campaign>/
-      campaign.json       # campaign id, name, schema versions
-      character.json      # character state (shape from game-system module)
+      campaign.json       # campaign id, name, character schema version
+      character.json      # character state (shape from the active system package)
       state-journal.jsonl # append-only audit log of mutations
 ```
 
-`world.json` pins the system and setting versions at world-init. The
-loader uses these to load the right CC plugins and to refuse activation
-if compatibility no longer holds (e.g., the system has had a breaking
-major bump and this world hasn't been migrated).
+`package.json` is the source of truth for what content is loaded. Bun
+resolves versions, writes `bun.lock`. The runtime reads `package.json`
+and imports the declared packages from `node_modules` — no
+`installed_plugins.json` scan, no custom manifest discovery, no compat
+ranges in `world.json` to manage.
+
+`world.json` carries only the three things npm can't reasonably express:
+
+- **`schemaVersion`** — what shape `world.json` itself is; the migration
+  runner reads this
+- **`embedding`** — `{ model, version, dim }` pinned at world-init;
+  load fails fast if the active embedding model differs (silent
+  retrieval corruption otherwise)
+- **`kgPath`** — Path A (Graphiti + FalkorDB) or Path B (SQLite +
+  sqlite-vec); not switchable in place
+
+Plus user-facing flavor (`name`, `axioms`, `tone`). That's it.
 
 Why not put `character.json` in the KG? Character state isn't world
 knowledge — it's the player's mechanical position in the game. It
@@ -458,385 +577,225 @@ a 2KB document that's read in full every turn anyway.
 
 ## User journey and version management
 
-This section walks the lifecycle — cold install through long-running
-play, package updates, expansion activation, and world publishing —
-naming what gets pinned where, what's free to change, and what
-triggers migration. It exists because if versioning isn't designed
-end-to-end, the modularity story collapses at the first patch update.
+The lifecycle. Bun handles the package side; the runtime handles
+schema migrations and the few correctness-critical pins.
 
-### Version namespaces — what's actually pinned
-
-Before walking the lifecycle, name the version namespaces in play.
-There are three; they're not the same thing.
-
-| Namespace | Lives in | What it controls |
-|---|---|---|
-| **CC plugin version** | `.claude-plugin/plugin.json` | CC install, world.json compat resolution, the value users see in `/plugin list` |
-| **TS package version** | `package.json` | npm publishing semantics (if a module is also consumed as an npm package); mirror of the plugin version |
-| **Schema version** | `world.json.schemaVersion`, `character.json.schemaVersion`, DB `_schema_migrations` | Migration runner — which shape to read/write; an internal marker, not part of compat resolution |
-
-**The CC plugin version is authoritative for module identity.** Every
-compat range in world.json (`"compat": "^1.0.0"`) refers to this
-version. So when world.json says
-`"system": { "name": "ironsworn", "compat": "^1.0.0" }`, the `1.0.0`
-is the version in `agentic-rpg-system-ironsworn/.claude-plugin/plugin.json`.
-
-**The TS package version mirrors the CC plugin version.** Same number,
-two files (because each ecosystem expects to find it in its own place).
-A pre-publish check (analog of the existing v0.x Stop hook that enforces
-plugin.json bumps per PR) verifies the two are aligned. If they ever
-drift, the CC plugin version wins — it's what users actually install
-against. The TS package version exists so that if a module is also
-published to npm (or consumed via path reference from another package
-during development), the import-side has a sensible version to declare.
-
-**The schema versions are a separate namespace entirely.** They're how
-the migration runner knows what shape `character.json` or the DB has,
-independent of which plugin version produced it. A patch-level plugin
-version bump never touches schema versions; a major plugin bump usually
-does (and ships migrations from the previous schema version to the
-new one). Schema versions monotonically increase; plugin versions can
-have parallel branches (a 1.x maintenance line alongside 2.x).
-
-The practical upshot: developer workflow at PR time bumps **one
-number** (plugin.json version) and a pre-commit hook mirrors it to
-package.json. Schema versions are only bumped when migrations are
-actually being added. Three namespaces, but day-to-day only the plugin
-version is hand-edited.
-
-### Stage 0 — cold install
-
-The minimum viable install is four CC plugins for a basic Ironsworn setup:
+### Cold install
 
 ```
-/plugin install karimn/agentic-rpg-core
-/plugin install karimn/agentic-rpg-system-ironsworn
-/plugin install karimn/agentic-rpg-setting-ironlands   # optional but recommended
-/plugin install karimn/agentic-rpg-craft-default
+/plugin install karimn/agentic-rpg
 ```
 
-Four commands is real friction. Two mitigations:
+One CC plugin. The runtime is now available; no content is loaded yet.
 
-1. **Starter meta-plugins.** A thin CC plugin that declares dependencies
-   on a recommended set: `agentic-rpg-starter-ironsworn` pulls the four
-   above. Player runs one command. Paid bundles
-   (`agentic-rpg-starter-starforged-forge`) do the same for licensed
-   combos. The meta-plugin owns no content; it's a manifest pointing at
-   the others.
-
-2. **Setup wizard.** A slash command `/agentic-rpg-setup` that detects
-   what's missing, prompts choices, and invokes `/plugin install` on
-   the user's behalf. First-time UX: "Pick a game system" → "Pick a
-   setting" → "Install recommended craft?" → done.
-
-Each install records the plugin in `~/.claude/plugins/installed_plugins.json`
-with absolute install path and version. The core loader reads this file at
-server startup to discover what's available (carries forward from v0.x).
-
-### Stage 1 — world creation
+### Create a world
 
 ```
 cd ~/rpg/my-zura-world
 claude-code
-/agentic-rpg-init-world
+/agentic-rpg-init-world          # prompts for system, setting, name
 ```
 
-The command prompts for system, setting, and world name. It writes
-`world.json` with version *ranges*, not exact pins:
+The command:
 
-```jsonc
-{
-  "name":    "my-zura-world",
-  "core":    "^1.0.0",
-  "system":  { "name": "ironsworn",     "compat": "^1.0.0" },
-  "setting": { "name": "ironlands",     "compat": "^1.0.0" },
-  "craft":   { "name": "craft-default", "compat": "^1.0.0" },
-  "expansions": [],
-  "embedding": { "model": "nomic-embed-text", "version": "v1.5", "dim": 768 },
-  "kgPath":  "B",
-  "schemaVersion": 1
-}
-```
+1. Runs `bun init` to scaffold a Bun project in the current directory
+2. Runs `bun add` for the user's chosen system, setting, and craft
+   defaults
+3. Writes `world.json` (with `schemaVersion`, `embedding`, `kgPath`,
+   plus user-facing flavor)
+4. Creates `world.db` (or container) and runs the setting's canon-seed
+   merge
 
-Caret ranges are deliberate: patches and minors should land
-transparently; majors should require explicit migration. The exact
-installed version at init is recorded in a parallel `world.lock.json`
-for reproducibility (`package-lock.json` analog).
+The user could equivalently do this by hand with `bun init && bun add ...`
+followed by `/agentic-rpg-init-world` invoking only steps 3-4. The
+slash command is a convenience over the same Bun commands.
 
-Then: create `world.db` (file in Path B, container in Path A), run the
-setting's canon-seed merge, stamp the active embedding model into
-world.json. The first campaign folder is created on demand by
-`/agentic-rpg-init-campaign`.
-
-### Stage 2 — first session and mid-campaign play
-
-Sessions write to the world DB, character.json, and state-journal.jsonl.
-Plugin versions in CC may drift forward over time as `/plugin update`
-runs or auto-updates land. The core's load-time behavior:
-
-- Read world.json's compat ranges
-- For each module, find the highest installed version satisfying the range
-- If any range is *violated* (e.g., only 2.x is installed but world pins
-  `^1.0.0`), refuse to load and surface a migration prompt
-- If all ranges are satisfied, proceed; use the highest compatible
-  installed versions; update `world.lock.json` to record what was
-  actually loaded
-
-This is the same model package managers use. It's load-bearing: without
-it, a routine plugin update can silently change how the world behaves
-between sessions.
-
-### Stage 3 — package updates arrive
-
-| Update kind | Semver shape | Effect on existing world | User action |
-|---|---|---|---|
-| Patch | 1.0.0 → 1.0.1 | Used transparently on next load | None |
-| Minor | 1.0.x → 1.1.0 | Used transparently; new features available | None (optional: canonize anything new the setting added) |
-| Major | 1.x → 2.0.0 | Core refuses to load until migration | Run `/agentic-rpg-migrate-world` |
-| Pre-release | 1.0.0 → 2.0.0-beta.1 | Not picked up by caret range | None; explicit opt-in only |
-
-**Compat contract:** every module declares which other modules' versions
-it tolerates. System declares `coreCompat`; setting declares
-`systemCompat` (potentially multiple systems); expansion declares
-`extends` plus version range; craft declares `coreCompat`. The loader
-cross-checks all of these at world load. A consistent solution exists
-or the load fails fast with a clear error naming which constraint
-broke.
-
-### Stage 4 — activating an expansion mid-world
+### Add content
 
 ```
-/plugin install karimn/agentic-rpg-expansion-ironsworn-delve
-/agentic-rpg-activate-expansion delve
+bun add @karimn/ironsworn-delve --registry=https://npm.pkg.github.com
 ```
 
-Activation steps, in order:
+Or with the slash command wrapper:
 
-1. **Compat check.** Verify `extends: "ironsworn"` matches world.json's
-   system; verify version range is satisfied.
-2. **Canon merge.** If the expansion ships a canon seed, merge it into
-   the world DB as `campaign_id IS NULL`, tagged with provenance
-   (`source: "expansion:delve@1.0.0"`). The tag lets a future
-   deactivation distinguish expansion-merged canon from organically
-   grown world canon.
-3. **Migrations.** Run the expansion's namespaced migrations (per
-   existing expansion-system design).
-4. **Tool registration.** Register the expansion's MCP tools, context
-   sections, and skills into the running scribe namespace.
-5. **Manifest update.** Append to world.json:
-   ```jsonc
-   "expansions": [
-     { "name": "delve", "compat": "^1.0.0", "activatedAt": "2026-05-27T..." }
-   ]
-   ```
+```
+/agentic-rpg-add @karimn/ironsworn-delve
+```
 
-Deactivation reverses 4 and 5. **Canon merged from the expansion stays
-in the world by default** — the player has played with it, they own it.
-A `--purge` flag also strips canon tagged with that expansion's
-provenance, for a fully clean removal.
+Either way: Bun resolves the package, writes to `bun.lock` and
+`node_modules`, the next world load picks it up. If a canon seed
+ships with the package, the runtime offers to merge it into the world
+DB on next load (with provenance tagged so a later removal can
+optionally `--purge`).
 
-### Stage 5 — major-version migration
+### Update content
 
-A system or core major bump arrives. The world refuses to load.
+```
+bun update
+```
+
+Bun handles version resolution against the world's declared ranges.
+The next world load uses whatever Bun installed. Patches and minors
+land transparently because that's what semver promises; majors that
+break compatibility are caught by the schema-version check, not by a
+version-range gate.
+
+### Schema migration
+
+If a content package's major version bump changes a data shape, the
+runtime detects it on world load (the schema version stamped in
+`world.json` or `character.json` is behind what the loaded code
+expects) and prompts:
 
 ```
 /agentic-rpg-migrate-world
 ```
 
-What runs:
+The migration runner:
 
-- Core inspects each affected module's `migrations/` directory. Each
-  migration declares `fromVersion`, `toVersion`, and an `apply()` that
-  the runner invokes.
-- Migrations cover: character.json shape, KG schema (within the
-  module's namespace), seed-canon shape interpretation, expansion compat
-  ranges.
-- The runner walks from currently-loaded versions through to the latest
-  installed versions, applying every migration in order.
-- After success, `world.json` compat ranges are widened to the new
-  major; `world.lock.json` is rewritten.
-- On failure, the world is rolled back to its pre-migration state. The
-  KG bundle is snapshotted before any destructive operation; rollback
-  restores the snapshot atomically.
+- Walks from the world's current schema version to the loaded code's
+  current version
+- Applies each registered migration in order (same append-only
+  contract as v0.x)
+- Snapshots the KG before any destructive step; rolls back atomically
+  on failure
+- Stamps the new schema version when done
 
-**Migration discipline:** module authors MUST ship migrations for every
-major bump. Append-only — never edit or reorder existing migrations.
-The migration runner is the same one used in v0.x and carries forward
-unchanged. This is the contract that lets schemas evolve without
-breaking long-running worlds.
+Module authors ship migrations alongside any breaking schema change.
+This is the only "version contract" the doc commits to — and it's
+already the contract v0.x ships.
 
-### Stage 6 — publishing a world as a setting
+### Publish a world as a setting
 
 ```
 /agentic-rpg-export-as-setting zura ./packages/setting-zura
 ```
 
-What gets stripped:
-
-- All scenes
-- All entities and relations with `campaign_id != NULL`
-- All character.json data and state journals
-- Overlay relations (discovery state, "PC has met X", etc.)
-
-What gets kept:
-
-- All `campaign_id IS NULL` entities and relations
-- Community summaries that reference only canon entities
-- Proximity edges between canon places
-
-The output is a CC plugin scaffold ready to commit:
+Filters the world DB to `campaign_id IS NULL` entities + relations,
+strips PC/party state, scaffolds a `setting-zura` npm package:
 
 ```
 packages/setting-zura/
-  .claude-plugin/plugin.json
-  manifest.json                    # kind: "setting", systemCompat
+  package.json     # @karimn/setting-zura, peerDependencies: { @agentic-rpg/system-ironsworn: "^1.0.0" }
   seed/canon.json
   README.md
 ```
 
-The player commits and publishes. Others install
-`agentic-rpg-setting-zura` and init worlds seeded from it.
+The player publishes to their npm registry of choice. Others install
+with `bun add @karimn/setting-zura` and init worlds seeded from it.
 
-### Cross-cutting: embedding model versioning
+### Embedding model — the one silent-corruption guard
 
-This is the subtle one that breaks silently if not designed in.
+If embeddings were written with model X and the active default is now
+model Y, vector retrieval silently returns garbage. The runtime pins
+`{ model, version, dim }` in `world.json` at init and refuses to load
+on mismatch, offering either:
 
-Embeddings are computed at write time and used for vector retrieval at
-read time. If the embedding model changes between those two moments —
-the player updated Ollama, the system default shifted, a new model was
-installed — vector search silently returns garbage. The cosine similarity
-space is now inconsistent.
+1. **Restore the original model** in the user's environment
+2. **Re-embed** — recompute all entity and scene embeddings with the
+   new model (one-shot migration; same snapshot-and-rollback discipline)
 
-Resolution:
+### KG path migration
 
-- `world.json` pins the embedding model name, version, and dimension at
-  init
-- On every world load, core checks the active embedding model against
-  the pin
-- Mismatch is a hard refuse-to-load with two offered remediations:
-  1. **Restore the original model** — player switches Ollama back, or
-     installs the original model alongside the new one
-  2. **Re-embed** — recompute all entity and scene embeddings with the
-     new model; expensive but one-shot; on success, update the pin
+Path A (Graphiti + FalkorDB) ↔ Path B (SQLite + sqlite-vec) is not
+supported in place. Workflow:
 
-A re-embed is a migration; same migration runner; same snapshot-and-
-rollback discipline.
+1. `/agentic-rpg-export-world bundle.tar`
+2. Init a fresh world on the desired path
+3. `/agentic-rpg-import-world bundle.tar`
 
-### Cross-cutting: KG path migration
+Bundle format is path-agnostic JSON; round-trip is lossy on backend-
+specific features (e.g., bi-temporal edges flatten on Path B import).
 
-Moving a world between Path A (Graphiti + FalkorDB) and Path B
-(SQLite + sqlite-vec) is **not supported in v1.0**. Worlds are bound to
-their `kgPath` at init. To switch:
+### Summary — what's pinned, what's not
 
-1. Export the world as a bundle (`/agentic-rpg-export-world bundle.tar`)
-2. Init a fresh world on the desired path with the same system + setting
-3. Import the bundle (`/agentic-rpg-import-world bundle.tar`)
-
-The bundle format is path-agnostic JSON. Round-trip is lossy on
-backend-specific features (e.g., Graphiti's bi-temporal edges
-flatten to point-in-time on a Path B import). Probably fine; revisit if
-it becomes a real use case.
-
-### Summary — what's pinned where
-
-| Pinned in | What | Why |
+| What | Pinned where | Who manages it |
 |---|---|---|
-| `world.json` | core, system, setting, craft compat ranges; embedding model; kgPath | The world's identity. Drives load-time compat checks. |
-| `world.lock.json` | exact versions actually loaded last session | Reproducibility, debugging. |
-| `world.json.expansions[]` | each active expansion's compat range | Same as system pinning, per-expansion. |
-| `campaign.json` | system + character schema version at campaign-init | Campaigns within a world can drift if created on different system minors; this records which. |
-| Module manifests | `coreCompat`, `systemCompat`, `extends` | The module's tolerance surface; the loader enforces it. |
+| Content package versions | `package.json` + `bun.lock` | Bun |
+| `world.json` shape | `world.json.schemaVersion` | Migration runner |
+| `character.json` shape | `character.json.schemaVersion` | Migration runner |
+| DB schema | `_schema_migrations` table | Migration runner |
+| Embedding model | `world.json.embedding` | Runtime (silent-corruption guard) |
+| KG backend | `world.json.kgPath` | Runtime (not in-place switchable) |
 
-## Expansion system (carried forward)
+That's the complete pinning surface. No `world.lock.json` (`bun.lock`
+is the lock file). No `coreCompat`/`systemCompat`/`extends` ranges in a
+custom manifest (`peerDependencies` is the constraint surface). No
+three-namespace version story — just npm versions for packages plus
+schema versions for migrations, governed by different concerns.
 
-Expansions extend a game system. They contribute moves, oracles,
-assets, MCP tools, DB migrations, context sections, skills, and
-(optionally) canon seed. The existing v0.x expansion design (Delve as
-a CC plugin loaded into the scribe namespace) carries forward unchanged
-in spirit. Adjustments for v1.0:
+## Expansion system
 
-- Expansions declare which game system they extend (`extends: "ironsworn"`)
-- Core refuses to load expansions whose `extends` doesn't match the
-  active world's game system
-- Migration namespacing extends from system + expansion (Path B) /
-  Graphiti group-id scoping (Path A)
+Expansions are npm packages with `agenticRpg.kind: "expansion"` and a
+`peerDependencies` constraint on the system they extend. They
+contribute moves, oracles, assets, MCP tools, DB migrations, context
+sections, skills, and optionally a canon seed. The v0.x expansion
+design's *integration model* (load contributions into the scribe
+namespace) carries forward; only the *discovery mechanism* changes
+from `installed_plugins.json` scanning to importing from `node_modules`.
 
-See `docs/design/expansion-system.md`.
+See `docs/design/expansion-system.md` for the contribution shapes and
+migration namespacing — both unchanged.
 
-### Licensing boundary — expansions stay in separate repos
+### Licensing boundary
 
-The licensing boundary that drives v0.x's expansion design is preserved
-in v1.0 and made cleaner by the three-store split. The key insight:
-**expansions are rules, not lore.** They don't go in the KG. They ship
-as separate packages, public or private, with no contractual link to
-this repo other than the loader's manifest contract.
+The licensing boundary is preserved end-to-end. **Expansions are rules,
+not lore.** They don't go in the KG. They ship as npm packages,
+distributed through whichever registry their license demands:
 
-What an expansion contributes, mapped onto the three stores:
+- Open / CC-BY content → public npm
+- Paid / proprietary content → private npm registry (GitHub Packages,
+  Verdaccio, npm Pro, etc.)
 
-| Contribution | Three-store layer | Distribution |
+What an expansion contributes, mapped onto the three-store split:
+
+| Contribution | Three-store layer | Where it stays |
 |---|---|---|
-| Moves, oracles, assets | Game-system (rules) | Ships with the expansion package |
-| Skills | Craft | Ships with the expansion package, loaded by CC |
-| MCP tools, DB migrations, context sections | Technical integration | Ships with the expansion package, registered at load |
-| **Canon seed** (named NPCs, places, factions shipped as official content) | World (after activation) | Ships with the expansion; **merged into world KG at activation time** |
+| Moves, oracles, assets | Game-system (rules) | In the npm package |
+| Skills | Craft | In the npm package; runtime surfaces them on activation |
+| MCP tools, DB migrations, context sections | Technical | In the npm package; registered at load |
+| **Canon seed** | World (after merge) | Merged into the world KG; player owns from then on |
 
-The first three are static system content — they belong in the
-expansion's private repo and never touch the world DB. The fourth is the
-only thing that crosses into the player's world DB, and it does so as
-`campaign_id IS NULL` entries identical to any other world canon. After
-activation, the seed is owned by the world; the expansion's source
-repo is no longer involved.
+Uninstalling the expansion (`bun remove`) removes the rules and tools.
+Merged canon stays in the world DB by default (player owns it); a
+`--purge` option removes canon tagged with that expansion's provenance.
+Re-installing restores rules and tools without re-merging (idempotent
+on entity ID).
 
-This means a paid expansion's actual copyrighted content (move text,
-oracle tables, asset cards, named threats, site themes) lives entirely
-in the private repo. Purchasers install the CC plugin; the loader
-registers contributions; the seed merges; play resumes. Uninstalling
-the expansion removes the rules and tools — the merged canon stays in
-the world DB (player owns it now). Re-activating restores rules and
-tools without re-merging (idempotent on entity ID).
+A typical paid stack — Starforged + The Forge + Sundered Isles + open
+craft + open runtime:
 
-### What about paid game-system, setting, or craft modules?
-
-The same mechanism works at any conceptual level. A paid game system
-(e.g., Starforged), a paid setting (e.g., The Forge), or a paid craft
-module (a published "advanced GM techniques" pack) all ship as private
-CC plugins discovered the same way. The manifest contract, loader, and
-CC plugin discovery are identical across kinds. The only difference is
-where the package lives and how it's distributed.
-
-Four independently licensed pieces can stack in one world:
-
-```
-public:  agentic-rpg-core                              (scribe server, agent, KG)
-private: agentic-rpg-system-starforged                 (paid base rules)
-private: agentic-rpg-setting-forge                     (paid setting canon)
-private: agentic-rpg-expansion-starforged-sundered-isles (paid expansion)
-public:  agentic-rpg-craft-default                     (free GM skills)
+```jsonc
+// the world's package.json
+{
+  "dependencies": {
+    "@agentic-rpg/core":            "^1.0.0",   // open
+    "@ironspike/system-starforged": "^1.0.0",   // paid, private registry
+    "@ironspike/setting-forge":     "^1.0.0",   // paid, private registry
+    "@ironspike/sundered-isles":    "^1.0.0",   // paid, private registry
+    "@agentic-rpg/craft-default":   "^1.0.0"    // open
+  }
+}
 ```
 
-All five are CC plugins discovered through `installed_plugins.json`.
-The player has paid for three of them. The world DB ends up with canon
-seed from the paid setting and any seed contributed by the expansion,
-owned by the player from activation onward. The public core never sees
-the paid content's source.
+Three packages from a private registry, two from public npm. The
+runtime never reads the paid registry's source; Bun handles auth.
 
 ### What expansions cannot do
 
-The licensing boundary cuts both ways. An expansion **cannot**:
+The boundary cuts both ways. An expansion **cannot**:
 
-- Modify the world DB schema (only contribute migrations within its
-  namespace)
-- Override core retrieval tools (`recall`, `record_scene`, etc.) — only
-  add new tools
-- Contribute canon scoped to a specific campaign (canon seeds always
-  merge as world-level `campaign_id IS NULL` — per-campaign overlay
-  state is the player's to write through play, not the expansion's)
+- Modify the world DB schema outside its namespaced migrations
+- Override core retrieval tools (`recall`, `record_scene`, etc.) —
+  only add new tools
+- Contribute canon scoped to a specific campaign (seeds always merge
+  as `campaign_id IS NULL`; per-campaign state is the player's to
+  write through play)
 - Reach into another expansion's namespace
 
-These limits aren't about licensing per se — they keep expansions
-composable. Two expansions for the same system should be installable
-together without contention, which means neither can claim shared
-ground.
+These constraints keep expansions composable. Two expansions for the
+same system should be installable together without contention; that
+means neither can claim shared ground.
 
 ## The fiction-grounding protocol
 
@@ -1005,27 +964,34 @@ in one world, with shared world canon).
 Tracked separately. Major pieces:
 
 1. Refactor the public repo into a Bun workspace monorepo:
-   `packages/core` + `packages/game-system-ironsworn` +
-   `packages/setting-ironlands` + `packages/craft-default`. Each is a
-   separate CC plugin.
+   `packages/core` + `packages/system-ironsworn` +
+   `packages/setting-ironlands` + `packages/craft-default`. The CC
+   plugin shrinks to just the runtime shim (MCP wiring, default
+   skills, slash commands); all logic and content moves into npm
+   packages under the `@agentic-rpg/*` scope.
 2. Resolve #166: unify lore.duckdb + scenes.duckdb + npcs/*.json into
-   one world DB; introduce `campaign_id` column
-3. Implement the Path A vs Path B spike; commit to one
+   one world DB; introduce `campaign_id` column.
+3. Implement the Path A vs Path B spike; commit to one.
 4. Implement the setting-seed-at-world-init mechanism; package the
-   Ironlands canon as `setting-ironlands`. Verify a fresh world with
-   `setting: null` boots cleanly with no seed.
-5. Move existing skills into a `craft-default` module; verify they don't
-   leak system-specific tool names
+   Ironlands canon as `@agentic-rpg/setting-ironlands`. Verify a fresh
+   world with no setting installed boots cleanly with no seed.
+5. Move existing skills into `@agentic-rpg/craft-default`; verify they
+   don't leak system-specific tool names.
 6. Implement `recall` as the unified retrieval tool; deprecate the v0.x
-   split
-7. Add per-tool retrieval budgets; tune
-8. Implement the canonize slash command; integrate with `extract_session_lore`
+   split.
+7. Add per-tool retrieval budgets; tune.
+8. Implement the canonize slash command; integrate with `extract_session_lore`.
 9. Implement the future-proofing extension points (coordinates convention,
    bulk ops, `near` parameter union, `procgen` manifest type, `tick`
    primitive). Each is small individually; together they make v1.0 the
    architecture-stable target.
+10. Repackage the v0.x Delve expansion as `@karimn/ironsworn-delve` (or
+    similar) on a private registry; verify install via `bun add` works
+    end-to-end with the new contribution mechanism.
 
 ## Decisions (settled)
+
+### Knowledge model
 
 - **D1** Three knowledge stores, not one: game-system, craft, world.
   Only the world is the KG.
@@ -1034,137 +1000,146 @@ Tracked separately. Major pieces:
   module ships canon — never the same package.
 - **D3** One world DB, campaign as a column (#166). Visibility filter on
   every read. Canon promotion is one column flip.
-- **D4** Game-system-agnostic core. Modules declare rules, data,
-  character shape via the game-system contract; canon seed via the
-  separate setting contract.
-- **D4a** Four conceptual modularity levels (system, setting, world,
-  campaign) are independent from three distribution mechanisms (TS
-  packages, repos, CC plugins). Mechanisms compose orthogonally per
-  piece of content.
-- **D4b** Settings are first-class modules, separable from systems.
-  A game system ships rules; a setting ships canon seed. Multiple
-  worlds can share a setting. A mature world can be re-packaged as a
-  setting for republication.
-- **D5** Craft is system-agnostic by default. Optional system-flavored
-  craft modules stack additively.
-- **D6** Tool surface: one tool per query pattern (`recall`, not
-  six search tools). Per-tool retrieval budgets enforced at boundary.
 - **D7** Character state stays on disk as `character.json`, not in the
   KG.
+
+### Conceptual modularity
+
+- **D4** Four conceptual modularity levels (system, setting, world,
+  campaign). The runtime core is system- and setting-agnostic.
+- **D4b** Settings are first-class modules, separable from systems.
+  Multiple worlds can share a setting. A mature world can be
+  re-packaged as a setting for republication.
+- **D5** Craft is system-agnostic by default. Optional system-flavored
+  craft modules stack additively.
+- **D14** A world is bound to its system + setting at init. Mid-life
+  swaps are not supported. Worlds are cheap; start a new world if you
+  want to switch.
+
+### Runtime vs frontend
+
+- **D20** The runtime is the product. The CC plugin is the v1.0
+  frontend, not the platform. No CC-specific assumptions in runtime
+  code; skills are content, not behavior; slash commands are frontend
+  ergonomics over runtime actions.
+- **D21** Alternate frontends (web app, desktop app, mobile app) are
+  anticipated but explicitly out of scope for v1.0.
+
+### Distribution and packaging
+
+- **D22** One CC plugin (`agentic-rpg`) ships the runtime. All content
+  (systems, settings, craft, expansions) ships as npm packages under
+  `@agentic-rpg/*` or a publisher's own scope.
+- **D23** A world is a Bun project directory: `package.json` declares
+  content, `bun.lock` records resolved versions, `node_modules` holds
+  installed packages. The runtime imports from `node_modules` —
+  no custom discovery mechanism.
+- **D24** Inter-module compatibility is expressed via standard
+  `peerDependencies` in each package's `package.json`. No custom
+  manifest format, no `coreCompat`/`systemCompat`/`extends` ranges in
+  a separate file. Bun's resolver enforces.
+- **D25** Licensing boundary is expressed via npm registry
+  configuration: public scope on public npm; paid content on private
+  registries the user has auth for.
+
+### Tool surface and retrieval
+
+- **D6** One tool per query pattern (`recall`, not six search tools).
+  Per-tool retrieval budgets enforced at boundary.
+
+### Storage
+
 - **D8** Path A (Graphiti + FalkorDB) vs Path B (SQLite + sqlite-vec)
   decided by spike, not by argument. Default lean: Path A.
+
+### Versioning and migration
+
+- **D26** Three things are pinned in `world.json` because npm can't
+  reasonably express them: `schemaVersion`, `embedding` (model name +
+  version + dim), and `kgPath`. Everything else (which package
+  versions are loaded) is Bun's responsibility.
+- **D16** Embedding model mismatch on world load is a hard refuse,
+  with a re-embed migration offered. Vector retrieval is silently
+  wrong otherwise; this can't be left implicit.
+- **D27** Migrations are the only "compatibility contract" the
+  runtime enforces. Each migration is version-tagged
+  (`fromVersion`/`toVersion`); the migration runner walks from the
+  world's current shape to the loaded code's expected shape; failure
+  is rolled back via snapshot. Append-only, never edit existing
+  migrations. Same contract as v0.x, carried forward.
+
+### Future-proofing
+
 - **D9** Spatial coordinates are an entity-metadata convention, not a
   first-class column. Core stores them; modules interpret them.
-- **D10** Per-campaign overlay state (discovery, faction disposition,
-  PC-met-this-NPC) lives as relations with `campaign_id = current`, not
-  in a side table. The existing schema absorbs it; the visibility filter
-  naturally scopes it.
-- **D11** Bulk operations (`upsert_entities`, `link_batch`), spatial
-  `near` parameter shape, `procgen` manifest type, and `tick` primitive
-  ship in v1.0 as extension scaffolding even though Ironsworn doesn't
-  use them. Cheap now, expensive to retrofit.
-- **D12** Expansions and paid modules of any kind (system, setting,
-  craft) live in separate (public or private) repos and are discovered
-  through CC's plugin install mechanism. They contribute according to
-  their kind's manifest contract. Only canon (from settings or seed-
-  carrying expansions) crosses into the world DB; rules, craft, and
-  tools stay packaged with the source. The licensing boundary is
-  preserved end-to-end.
-- **D13** CC plugin naming convention is
-  `agentic-rpg-{system|setting|expansion|craft}-<name>`. The loader
-  discovers by prefix; every plugin's manifest declares its `kind`.
-  Each plugin versions independently and declares its compatibility
-  surface (`coreCompat`, `systemCompat`, `extends`).
-- **D14** A world is bound to its system + setting at init.
-  Mid-life system or setting swaps are not supported. Worlds are cheap;
-  start a new world if you want to switch.
-- **D15** `world.json` pins compat ranges (caret semver), not exact
-  versions. `world.lock.json` records the exact versions actually
-  loaded. Patches and minors land transparently; majors require
-  explicit `/agentic-rpg-migrate-world`. This is the same model package
-  managers use.
-- **D16** Embedding model is pinned in `world.json` (name + version +
-  dim). Mismatch on load is a hard refuse with a re-embed migration
-  offered. Vector retrieval is silently wrong otherwise; this can't be
-  left implicit.
-- **D17** Expansion canon merged into a world stays after deactivation
-  by default (player owns it). `--purge` flag removes only canon tagged
+- **D10** Per-campaign overlay state lives as relations with
+  `campaign_id = current`, not in a side table.
+- **D11** Bulk operations, spatial `near` parameter shape, `procgen`
+  manifest type, and `tick` primitive ship in v1.0 as extension
+  scaffolding. Cheap now, expensive to retrofit.
+
+### Expansion specifics
+
+- **D17** Expansion canon merged into a world stays after `bun remove`
+  by default (player owns it). `--purge` removes only canon tagged
   with that expansion's provenance.
-- **D18** A meta-plugin pattern (`agentic-rpg-starter-*`) is the v1.0
-  answer to multi-plugin install friction. Plus a `/agentic-rpg-setup`
-  wizard for first-time UX.
-- **D19** One version per module, surfaced in two files. The CC plugin
-  version (`.claude-plugin/plugin.json`) is authoritative for module
-  identity and compat-range resolution. The TS package version
-  (`package.json`) mirrors it; a pre-commit hook enforces alignment.
-  Schema versions (`world.json.schemaVersion`,
-  `character.json.schemaVersion`, DB `_schema_migrations`) are a
-  separate namespace, governed by the migration runner, and bumped
-  only when migrations are added — not on routine plugin bumps.
 
 ## Open questions
 
 - **OQ1** Spike outcome (Path A vs Path B) — decides storage backend.
 - **OQ2** Should `world.json` itself live in the KG as a single
   `type='world'` entity? Cleaner uniformity, but adds a special case to
-  the visibility filter. Default: stays as a file. Revisit if it accumulates
-  enough properties to feel awkward as JSON.
+  the visibility filter. Default: stays as a file. Revisit if it
+  accumulates enough properties to feel awkward as JSON.
 - **OQ3** Cross-world canon (e.g., a shared "fantasy commons" of
   generic tropes some players want pre-loaded). Skipped for v1.0.
-  Worlds are isolated.
-- **OQ4** Multi-character campaigns (one party, multiple PCs). Adjacent
-  to v1.0 but not required — character state shape would need to be
-  pluralized. Tracked separately if pursued.
+- **OQ4** Multi-character campaigns (one party, multiple PCs).
+  Character state shape would need to be pluralized. Tracked
+  separately if pursued.
 - **OQ5** A canonize ritual UX: slash command, end-of-session prompt,
   or implicit on high-confidence extraction. Probably explicit slash
   command. Settle when implementing.
 - **OQ6** Should overlay-state relations anchor on the PC entity or on
   a synthetic `party` entity? PC is simpler; `party` generalizes to
-  multi-PC parties (OQ4). Default to PC; revisit if/when OQ4 is
-  pursued.
-- **OQ7** Should `tick` events be a true pub/sub the module subscribes
-  to, or just a counter the module polls? Pub/sub is more elegant but
-  adds runtime complexity; polling is simpler. Default to polling for
-  v1.0; revisit if a module wants reactive tick handling.
-- **OQ8** Does CC's plugin manager support cross-plugin dependency
-  declarations strong enough for the starter meta-plugin pattern? If
-  not, the wizard becomes the only viable mitigation for first-install
-  friction. Verify against CC docs during implementation.
-- **OQ9** What's the right rollback granularity for failed migrations?
-  Per-step rollback is safest but doubles complexity (every migration
-  needs a `down()`). Snapshot-and-restore is simpler but expensive on
-  large worlds. Default to snapshot-and-restore for v1.0; revisit if
-  migration runtimes become a UX problem.
-- **OQ10** How do we surface "your installed plugins are inconsistent
-  with this world" in the GM agent's responses, vs. just at world-load
-  time? Probably both: hard fail at load, but if a session was already
-  running when a plugin auto-updated incompatibly, surface as a
-  user-visible warning that ends the session cleanly rather than
-  letting state drift.
+  multi-PC parties (OQ4). Default to PC.
+- **OQ7** Should `tick` events be pub/sub or polled? Default to
+  polling for v1.0.
+- **OQ11** What shape should the future alternate UI take (Electron,
+  Tauri, web app, native mobile)? Out of scope for v1.0; flagged so
+  that runtime decisions don't accidentally constrain it.
+- **OQ12** Does Bun's `peerDependencies` handling produce clear-enough
+  error messages for non-developer users when a peer constraint isn't
+  satisfied (e.g., a setting requires a system the user hasn't
+  installed)? If not, the `/agentic-rpg-add` wrapper needs to pre-flight
+  the install and surface a friendly error before calling `bun add`.
 
 ## Why this is v1.0
 
 v0.x evolved by accretion: each feature was added without challenging
 whether it belonged in the layer that grew it. By v0.18 we had three
 parallel stores, system-specific names baked into shared retrieval
-tools, and ambiguity about whether GraphRAG community detection was
-fundamental or speculative.
+tools, and a versioning story that tried to make CC plugins do
+dependency-graph work they aren't built for.
 
-v1.0 is the version where the system can answer:
-- "What does this layer know?" (clean three-way split: system / craft /
-  world)
-- "How do I run this game system?" (the system manifest)
-- "What setting am I playing in?" (the setting manifest, decoupled)
-- "What carries to a new campaign?" (the visibility filter)
-- "Where does the agent get its craft?" (the craft module)
-- "Where does the source live? How is it packaged? What does CC see?"
-  (the three orthogonal distribution mechanisms)
+v1.0 cuts cleanly in three places:
 
-It's also the version where:
-- Adding Cairn or Trophy Gold is a manifest-and-data exercise
-- Publishing a homebrew setting (your Zura world, frozen) is an export
-  + repackage operation
-- Two players can share a setting and play independent worlds without
-  cross-contamination
+1. **Knowledge by kind.** System (rules), craft (skills), world (KG).
+   Only the world is dynamic; the others are content shipped with
+   modules. The KG's discipline doesn't apply to the others.
+2. **Runtime vs frontend.** The runtime is the product. CC is the v1.0
+   frontend; alternate frontends are anticipated. The runtime contains
+   no CC assumptions.
+3. **Bun owns packages; we own schemas.** Content distribution,
+   version resolution, lock files, peer-dep enforcement — all Bun.
+   The runtime owns the few things npm can't reasonably express
+   (schema versions, embedding-model pin, KG backend pin) and the
+   migration runner that walks shapes forward when packages bump.
+
+It's the version where:
+
+- Adding Cairn or Trophy Gold is a `package.json` + data exercise
+- Publishing a homebrew setting is an export + `npm publish`
 - A paid system plus a paid setting plus a paid expansion plus a free
-  craft module compose cleanly on a free core
+  craft module compose with `bun install`
+- Stripping CC from the loop, when that day comes, is a frontend
+  rewrite — not a runtime rewrite
