@@ -218,6 +218,69 @@ Three constraints follow:
    UI might use a button. The runtime exports the action surface, not
    the slash command names.
 
+### Frontend inventory — what CC does for us, and what's portable
+
+Concrete enumeration of what the v1.0 CC plugin provides, with the
+portability story for each. Any future alternate frontend uses this
+list to scope its build.
+
+| Capability | Form | Portable to other frontends? |
+|---|---|---|
+| MCP server hosting (spawns scribe via `.mcp.json`) | Protocol wiring | **Yes** — MCP is a standard. Spawn the scribe child process; speak MCP over stdio. |
+| GM agent prompt (`agents/<name>.md`) | Markdown file in a craft package | **Yes** — read the file; send the body as system prompt to Claude. |
+| Skill content (`skills/*/SKILL.md`) | Markdown files in a craft package | **Yes** — pure content, format is ours. |
+| Skill activation (deciding when to surface a skill) | CC heuristic on frontmatter triggers | **No** — reimplement or replace. See "Skill activation strategies" below. |
+| Slash command targets | Runtime-exported actions (TS functions) | **Yes** — the runtime exports them; CC happens to be one dispatcher. |
+| Slash command dispatch (`/foo` → action) | CC behavior | **No** — alternate UI uses buttons, palette, or natural-language detection. |
+| `/remember` + memory store | CC skill + `.remember/` directory | **No** — replaced in v1.0 by runtime-owned `preferences.md` files + `remember(scope, note)` tool. See D28. |
+| Agent loop (Claude tool-use loop, streaming, context build) | CC behavior | **No** — but Anthropic's Claude Agent SDK is purpose-built for this. ~200 lines of glue, not a rewrite. |
+| Anthropic API auth | CC behavior | **No** — alternate UI uses Anthropic SDK with user-provided API key or a hosted approach. |
+| Conversation UI (chat rendering, tool-use display) | CC behavior | **No** — entirely custom. The point of building one. |
+| Settings, hooks, permissions | CC behavior | **No** — alternate UI has its own settings model. |
+| Plugin install/update for the runtime shim | CC plugin manager | **Per-frontend.** Each frontend distributes itself however it wants. CC owns its shim; a custom app handles its own updates. |
+| Content package install (`bun add ...`) | Bun, not CC | **Yes** — already portable. Any frontend invokes Bun or wraps it. |
+
+### Skill activation strategies a frontend can choose
+
+Skill *content* is portable (markdown in craft packages). Skill
+*activation* — when to surface a skill into the agent's context — is a
+frontend decision. Three plausible strategies, all consistent with the
+runtime contract:
+
+1. **Always-on.** Concatenate all relevant skills into the system
+   prompt. Works if the total token budget is small enough
+   (~15 skills × ~600 words ≈ ~9k tokens; fine for Claude). Simplest
+   to ship.
+2. **Tool-use activation.** Skills become tools the agent calls:
+   `load_skill("combat-resolution")` returns the content. Lets the
+   agent decide when it needs reference material rather than the
+   frontend guessing. Best for a real custom UI.
+3. **UI-surfaced.** A sidebar lists available skills; the user clicks
+   to pin one into the next prompt. Good for power-user workflows
+   where the human GM wants explicit control of what's in context.
+
+CC today uses a frontmatter-driven variant of (3) (heuristic
+activation on trigger phrases). The runtime doesn't care which
+strategy a frontend uses; it ships the markdown.
+
+### Minimum viable alternate frontend
+
+For reference: the smallest possible custom UI that consumes our
+runtime needs five things:
+
+1. Spawn the scribe MCP server (one child process, MCP over stdio)
+2. Read the GM agent prompt from a craft package and pass to Claude
+3. Read skill markdown from craft packages; pick an activation
+   strategy
+4. Run a Claude tool-use loop (Claude Agent SDK does this for you)
+5. Render conversation; provide input affordances
+
+Everything below this — the runtime, the rules engines, the KG, the
+migrations, every content package, the player-directive store — works
+unchanged. The CC plugin today does these five things plus its own
+UX surface; a custom frontend does the same five things plus
+whatever UX it wants.
+
 ## Distribution — one CC plugin, many npm packages
 
 The CC plugin and Bun/npm are good at different things. v0.x tried to
