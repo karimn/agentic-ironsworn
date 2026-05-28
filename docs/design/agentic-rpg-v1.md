@@ -505,6 +505,13 @@ Per "one tool per query pattern, not per concept" (start-from-scratch).
 - `canonize(entity_id)` / `decanonize(entity_id, into_campaign)`
 - `extract_session_lore()` — batch extraction from recent scenes
 
+**Player-directive tools (system-agnostic, in core):**
+
+- `remember(scope, note)` — append a free-form player directive to
+  either `worlds/<world>/preferences.md` (`scope: "world"`) or
+  `campaigns/<id>/preferences.md` (`scope: "campaign"`). Replaces v0.x
+  reliance on CC's `/remember` skill + memory store.
+
 **Game-system tools (registered by the system module):**
 
 - For Ironsworn: `roll_move`, `take_momentum`, `endure_stress`,
@@ -523,15 +530,20 @@ expensive:
 |---|---|---|
 | World axioms | `world.json` | ~200 tokens |
 | Game system briefing | system module's `agentBriefing` | ~500 |
+| World-level player directives | `worlds/<world>/preferences.md` | ~300 |
 | Active campaign state summary | core, from `character.json` + state journal | ~600 |
+| Campaign-level player directives | `campaigns/<id>/preferences.md` | ~300 |
 | System context sections | system module's `contextSections` | ~800 |
 | Recent scenes summary (≤10) | KG | ~1500 |
 | Recently referenced entities (≤20) | KG | ~1500 |
 | Active threads (≤5) | KG | ~400 |
 | Relevant community summaries (0–3) | KG | ~600 |
 
-Total budget target: ~6k tokens. The GM agent pulls more on demand via
+Total budget target: ~6.7k tokens. The GM agent pulls more on demand via
 `recall(...)`. This is the discipline that makes long campaigns work.
+
+The two `preferences.md` layers replace the v0.x reliance on CC's
+memory feature — see "Player preferences" under Campaign state shell.
 
 ## Campaign state shell
 
@@ -544,11 +556,13 @@ worlds/<world>/
   node_modules/           # installed content packages
   world.json              # { name, schemaVersion, embedding, kgPath, axioms, tone }
   world.db / world.bundle # the KG (file in Path B, container volume in Path A)
+  preferences.md          # world-level player directives ("/remember" target)
   campaigns/
     <campaign>/
       campaign.json       # campaign id, name, character schema version
       character.json      # character state (shape from the active system package)
       state-journal.jsonl # append-only audit log of mutations
+      preferences.md      # campaign-level player directives ("/remember" target)
 ```
 
 `package.json` is the source of truth for what content is loaded. Bun
@@ -568,6 +582,35 @@ ranges in `world.json` to manage.
   sqlite-vec); not switchable in place
 
 Plus user-facing flavor (`name`, `axioms`, `tone`). That's it.
+
+### Player preferences (`preferences.md`)
+
+A pair of free-form markdown files — one at world scope, one per
+campaign — that capture out-of-game player directives: "narrate more
+moodily," "always offer me three options before I commit," "this PC
+distrusts authority figures, lean into that," etc. This is the
+runtime's equivalent of CC's `/remember` + project-memory pattern,
+which v0.x has been leaning on but which CC owns rather than us.
+
+In v1.0 the runtime owns it:
+
+- A `remember(scope, note)` MCP tool appends to the world-level or
+  campaign-level `preferences.md` with a timestamp
+- The GM context builder always loads both files into the system
+  prompt
+- The frontend chooses how to surface the action — CC dispatches
+  `/remember` to it; a custom UI might offer a "pin directive" button
+
+This pulls the behavior into the runtime so any frontend gets it,
+and removes the implicit dependency on CC's memory store. CC's
+user-level `~/.claude/CLAUDE.md` can still hold cross-tool prefs
+("I'm Karim, I prefer terse responses"); per-world play directives
+belong in our files.
+
+Migration from v0.x: an `.remember/` directory at world root (or
+project-level `CLAUDE.md`) gets read once and written to
+`worlds/<world>/preferences.md` under a `## Migrated from CC memory`
+heading. One-shot, part of the world DB migration.
 
 Why not put `character.json` in the KG? Character state isn't world
 knowledge — it's the player's mechanical position in the game. It
@@ -988,6 +1031,12 @@ Tracked separately. Major pieces:
 10. Repackage the v0.x Delve expansion as `@karimn/ironsworn-delve` (or
     similar) on a private registry; verify install via `bun add` works
     end-to-end with the new contribution mechanism.
+11. Move player-directive content out of CC memory into runtime-owned
+    `preferences.md` files (world + per-campaign). Implement
+    `remember(scope, note)` MCP tool. Read existing `.remember/`
+    directories and project-level `CLAUDE.md` files into
+    `worlds/<world>/preferences.md` with a `## Migrated from CC memory`
+    heading, one-shot.
 
 ## Decisions (settled)
 
@@ -1083,6 +1132,15 @@ Tracked separately. Major pieces:
 - **D17** Expansion canon merged into a world stays after `bun remove`
   by default (player owns it). `--purge` removes only canon tagged
   with that expansion's provenance.
+
+### Player directives
+
+- **D28** Player out-of-game directives ("/remember" content — narration
+  preferences, GM behavior cues, table-talk constraints) live in
+  runtime-owned `preferences.md` files at world and campaign scope. The
+  `remember(scope, note)` MCP tool writes them; the GM context builder
+  always loads them. This pulls the behavior out of CC's memory store
+  so any frontend gets it.
 
 ## Open questions
 
