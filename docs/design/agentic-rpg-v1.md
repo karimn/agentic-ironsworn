@@ -464,6 +464,46 @@ naming what gets pinned where, what's free to change, and what
 triggers migration. It exists because if versioning isn't designed
 end-to-end, the modularity story collapses at the first patch update.
 
+### Version namespaces — what's actually pinned
+
+Before walking the lifecycle, name the version namespaces in play.
+There are three; they're not the same thing.
+
+| Namespace | Lives in | What it controls |
+|---|---|---|
+| **CC plugin version** | `.claude-plugin/plugin.json` | CC install, world.json compat resolution, the value users see in `/plugin list` |
+| **TS package version** | `package.json` | npm publishing semantics (if a module is also consumed as an npm package); mirror of the plugin version |
+| **Schema version** | `world.json.schemaVersion`, `character.json.schemaVersion`, DB `_schema_migrations` | Migration runner — which shape to read/write; an internal marker, not part of compat resolution |
+
+**The CC plugin version is authoritative for module identity.** Every
+compat range in world.json (`"compat": "^1.0.0"`) refers to this
+version. So when world.json says
+`"system": { "name": "ironsworn", "compat": "^1.0.0" }`, the `1.0.0`
+is the version in `agentic-rpg-system-ironsworn/.claude-plugin/plugin.json`.
+
+**The TS package version mirrors the CC plugin version.** Same number,
+two files (because each ecosystem expects to find it in its own place).
+A pre-publish check (analog of the existing v0.x Stop hook that enforces
+plugin.json bumps per PR) verifies the two are aligned. If they ever
+drift, the CC plugin version wins — it's what users actually install
+against. The TS package version exists so that if a module is also
+published to npm (or consumed via path reference from another package
+during development), the import-side has a sensible version to declare.
+
+**The schema versions are a separate namespace entirely.** They're how
+the migration runner knows what shape `character.json` or the DB has,
+independent of which plugin version produced it. A patch-level plugin
+version bump never touches schema versions; a major plugin bump usually
+does (and ships migrations from the previous schema version to the
+new one). Schema versions monotonically increase; plugin versions can
+have parallel branches (a 1.x maintenance line alongside 2.x).
+
+The practical upshot: developer workflow at PR time bumps **one
+number** (plugin.json version) and a pre-commit hook mirrors it to
+package.json. Schema versions are only bumped when migrations are
+actually being added. Three namespaces, but day-to-day only the plugin
+version is hand-edited.
+
 ### Stage 0 — cold install
 
 The minimum viable install is four CC plugins for a basic Ironsworn setup:
@@ -1053,6 +1093,14 @@ Tracked separately. Major pieces:
 - **D18** A meta-plugin pattern (`agentic-rpg-starter-*`) is the v1.0
   answer to multi-plugin install friction. Plus a `/agentic-rpg-setup`
   wizard for first-time UX.
+- **D19** One version per module, surfaced in two files. The CC plugin
+  version (`.claude-plugin/plugin.json`) is authoritative for module
+  identity and compat-range resolution. The TS package version
+  (`package.json`) mirrors it; a pre-commit hook enforces alignment.
+  Schema versions (`world.json.schemaVersion`,
+  `character.json.schemaVersion`, DB `_schema_migrations`) are a
+  separate namespace, governed by the migration runner, and bumped
+  only when migrations are added — not on routine plugin bumps.
 
 ## Open questions
 
