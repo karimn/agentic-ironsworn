@@ -13,9 +13,26 @@ export { runDbMigrations, runCharacterMigrations } from "./migrations/index.js";
 export type { DbMigration, CharacterMigration } from "./migrations/index.js";
 export { LORE_MIGRATIONS } from "./migrations/lore.js";
 export { SCENES_MIGRATIONS } from "./migrations/scenes.js";
+export { WORLD_MIGRATIONS } from "./migrations/world.js";
 
 // RAG — lore DB
 export { getLoreDb, openLoreWriteConn, getLoreEmbedding, peekLoreDb } from "./rag/lore-db.js";
+
+// RAG — world DB
+export { getWorldDb, peekWorldDb, openWorldWriteConn, getWorldEmbedding } from "./rag/world-db.js";
+export type { WorldContext } from "./rag/world-db.js";
+
+// World context + world.json helpers
+export {
+  resolveWorldContext,
+  loadWorldJson,
+  writeWorldJson,
+  assertEmbeddingPin,
+  ensureWorldJson,
+  CURRENT_WORLD_SCHEMA_VERSION,
+  DEFAULT_EMBEDDING_PIN,
+} from "./world.js";
+export type { EmbeddingPin, WorldJson } from "./world.js";
 
 // RAG — lore
 export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, LORE_TYPES } from "./rag/lore.js";
