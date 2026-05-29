@@ -41,6 +41,9 @@ export const DEFAULT_EMBEDDING_PIN: EmbeddingPin = {
 // resolveWorldContext
 // ---------------------------------------------------------------------------
 
+/** Memoization cache: campaignPath → Promise<WorldContext> (same pattern as DB caches). */
+const _worldContextCache = new Map<string, Promise<WorldContext>>();
+
 /**
  * Walk up from `campaignPath` looking for a directory that contains
  * `world.json` or `world.duckdb`. That directory becomes `worldRoot`.
@@ -50,8 +53,22 @@ export const DEFAULT_EMBEDDING_PIN: EmbeddingPin = {
  * `dirname(dirname(campaignPath))` (one level above "campaigns/") as the world
  * root — the canonical multi-campaign layout from the spec. Otherwise we fall
  * back to `campaignPath` itself (single-campaign legacy/dev case).
+ *
+ * Results are memoized per campaignPath so repeated calls within a request
+ * are cheap (one Promise shared across concurrent callers).
  */
-export async function resolveWorldContext(campaignPath: string): Promise<WorldContext> {
+export function resolveWorldContext(campaignPath: string): Promise<WorldContext> {
+  const cached = _worldContextCache.get(campaignPath);
+  if (cached !== undefined) return cached;
+  const promise = _resolveWorldContextImpl(campaignPath).catch((e) => {
+    _worldContextCache.delete(campaignPath);
+    throw e;
+  });
+  _worldContextCache.set(campaignPath, promise);
+  return promise;
+}
+
+async function _resolveWorldContextImpl(campaignPath: string): Promise<WorldContext> {
   // Walk up looking for world.json or world.duckdb
   let worldRoot: string | null = null;
   let current = campaignPath;

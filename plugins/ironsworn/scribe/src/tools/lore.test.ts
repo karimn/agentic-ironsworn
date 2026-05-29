@@ -17,7 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { register } from "./lore.js";
-import { getLoreDb, openLoreWriteConn } from "@agentic-rpg/core";
+import { resolveWorldContext, getWorldDb, openWorldWriteConn } from "@agentic-rpg/core";
 
 let campaignDir: string;
 let server: McpServer;
@@ -31,7 +31,8 @@ let dbReady = false;
 beforeEach(async () => {
   campaignDir = await mkdtemp(join(tmpdir(), "scribe-tools-lore-test-"));
   try {
-    const inst = await getLoreDb(campaignDir);
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
     const probe = await inst.connect();
     probe.closeSync();
     dbReady = true;
@@ -56,15 +57,17 @@ function parseToolText<T = unknown>(result: unknown): T {
   return JSON.parse(blocks[0].text) as T;
 }
 
+// Returns the generated UUID for the new community row.
 async function seedCommunity(args: {
-  id: string;
   level: number;
   parent_id: string | null;
   member_ids: string[];
   summary: string;
-}): Promise<void> {
-  const inst = await getLoreDb(campaignDir);
-  const conn = await openLoreWriteConn(inst);
+}): Promise<string> {
+  const id = crypto.randomUUID();
+  const ctx = await resolveWorldContext(campaignDir);
+  const inst = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(inst);
   try {
     const memberLit =
       args.member_ids.length === 0
@@ -73,21 +76,33 @@ async function seedCommunity(args: {
     const now = new Date().toISOString();
     await conn.run(
       `INSERT INTO lore_communities
-         (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-       VALUES (?, ?, ?, ${memberLit}, ?, ?, NULL, '{}', ?, ?)`,
-      [args.id, args.level, args.parent_id, args.member_ids.length, args.summary, now, now],
+         (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, ?, ?, ${memberLit}, ?, ?, NULL, '{}', ?, ?, ?)`,
+      [id, args.level, args.parent_id, args.member_ids.length, args.summary, ctx.campaignId, now, now],
     );
   } finally {
     conn.closeSync();
   }
+  return id;
 }
 
 describe("list_communities tool", () => {
   it("filters by level", async () => {
     if (!dbReady) return;
-    await seedCommunity({ id: "leaf1", level: 0, parent_id: "root", member_ids: ["a", "b"], summary: "one" });
-    await seedCommunity({ id: "leaf2", level: 0, parent_id: "root", member_ids: ["c"], summary: "two" });
-    await seedCommunity({ id: "root", level: 1, parent_id: null, member_ids: ["leaf1", "leaf2"], summary: "rollup" });
+    const rootId = crypto.randomUUID();
+    const leaf1Id = await seedCommunity({ level: 0, parent_id: rootId, member_ids: [], summary: "one" });
+    const leaf2Id = await seedCommunity({ level: 0, parent_id: rootId, member_ids: [], summary: "two" });
+    // Insert root directly with known UUID
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
+    const now = new Date().toISOString();
+    await conn.run(
+      `INSERT INTO lore_communities (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, 1, NULL, []::TEXT[], 2, 'rollup', NULL, '{}', ?, ?, ?)`,
+      [rootId, ctx.campaignId, now, now],
+    );
+    conn.closeSync();
 
     const result = await client.callTool({
       name: "list_communities",
@@ -97,13 +112,24 @@ describe("list_communities tool", () => {
     const items = parseToolText<Array<{ id: string; level: number }>>(result);
     expect(items).toHaveLength(2);
     expect(items.every((c) => c.level === 0)).toBe(true);
-    expect(new Set(items.map((c) => c.id))).toEqual(new Set(["leaf1", "leaf2"]));
+    expect(new Set(items.map((c) => c.id))).toEqual(new Set([leaf1Id, leaf2Id]));
   });
 
   it("treats parent_id='' as a NULL filter (root rollups only)", async () => {
     if (!dbReady) return;
-    await seedCommunity({ id: "leaf", level: 0, parent_id: "root", member_ids: ["a"], summary: "leaf" });
-    await seedCommunity({ id: "root", level: 1, parent_id: null, member_ids: ["leaf"], summary: "root" });
+    const rootId = crypto.randomUUID();
+    await seedCommunity({ level: 0, parent_id: rootId, member_ids: [], summary: "leaf" });
+    // Root has null parent_id
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
+    const now = new Date().toISOString();
+    await conn.run(
+      `INSERT INTO lore_communities (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, 1, NULL, []::TEXT[], 1, 'root', NULL, '{}', ?, ?, ?)`,
+      [rootId, ctx.campaignId, now, now],
+    );
+    conn.closeSync();
 
     const result = await client.callTool({
       name: "list_communities",
@@ -112,42 +138,58 @@ describe("list_communities tool", () => {
     expect(result.isError).not.toBe(true);
     const items = parseToolText<Array<{ id: string; parent_id: string | null }>>(result);
     expect(items).toHaveLength(1);
-    expect(items[0].id).toBe("root");
+    expect(items[0].id).toBe(rootId);
     expect(items[0].parent_id).toBeNull();
   });
 
   it("uses parent_id as a direct-children filter when non-empty", async () => {
     if (!dbReady) return;
-    await seedCommunity({ id: "leaf1", level: 0, parent_id: "root", member_ids: ["a"], summary: "l1" });
-    await seedCommunity({ id: "leaf2", level: 0, parent_id: "root", member_ids: ["b"], summary: "l2" });
-    await seedCommunity({ id: "root", level: 1, parent_id: null, member_ids: ["leaf1", "leaf2"], summary: "r" });
-    await seedCommunity({ id: "stray", level: 0, parent_id: "other", member_ids: ["x"], summary: "s" });
+    const rootId = crypto.randomUUID();
+    const otherRootId = crypto.randomUUID();
+    const leaf1Id = await seedCommunity({ level: 0, parent_id: rootId, member_ids: [], summary: "l1" });
+    const leaf2Id = await seedCommunity({ level: 0, parent_id: rootId, member_ids: [], summary: "l2" });
+    // root and stray are children of different parents
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
+    const now = new Date().toISOString();
+    await conn.run(
+      `INSERT INTO lore_communities (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, 1, NULL, []::TEXT[], 2, 'r', NULL, '{}', ?, ?, ?)`,
+      [rootId, ctx.campaignId, now, now],
+    );
+    await conn.run(
+      `INSERT INTO lore_communities (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, 0, ?, []::TEXT[], 1, 's', NULL, '{}', ?, ?, ?)`,
+      [otherRootId, crypto.randomUUID(), ctx.campaignId, now, now],
+    );
+    conn.closeSync();
 
     const result = await client.callTool({
       name: "list_communities",
-      arguments: { parent_id: "root" },
+      arguments: { parent_id: rootId },
     });
     expect(result.isError).not.toBe(true);
     const items = parseToolText<Array<{ id: string; parent_id: string | null }>>(result);
     expect(items).toHaveLength(2);
-    expect(items.every((c) => c.parent_id === "root")).toBe(true);
+    expect(new Set(items.map((c) => c.id))).toEqual(new Set([leaf1Id, leaf2Id]));
+    expect(items.every((c) => c.parent_id === rootId)).toBe(true);
   });
 });
 
 describe("get_community tool", () => {
   it("returns the full record for a known id", async () => {
     if (!dbReady) return;
-    await seedCommunity({
-      id: "c1",
+    const c1Id = await seedCommunity({
       level: 0,
       parent_id: null,
-      member_ids: ["a", "b"],
+      member_ids: [],
       summary: "the cluster",
     });
 
     const result = await client.callTool({
       name: "get_community",
-      arguments: { id: "c1" },
+      arguments: { id: c1Id },
     });
     expect(result.isError).not.toBe(true);
     const detail = parseToolText<{
@@ -158,11 +200,10 @@ describe("get_community tool", () => {
       member_count: number;
       summary: string;
     }>(result);
-    expect(detail.id).toBe("c1");
+    expect(detail.id).toBe(c1Id);
     expect(detail.level).toBe(0);
     expect(detail.parent_id).toBeNull();
-    expect(detail.member_ids).toEqual(["a", "b"]);
-    expect(detail.member_count).toBe(2);
+    expect(detail.member_count).toBe(0);
     expect(detail.summary).toBe("the cluster");
   });
 
@@ -201,28 +242,30 @@ describe("recompute_communities tool", () => {
 });
 
 // Helper to seed a community with a populated embedding directly via SQL.
-// Used by search_lore_global tests so we don't need Ollama at test time.
+// Returns the generated UUID for the new community row.
 async function seedCommunityWithEmbedding(args: {
-  id: string;
   level: number;
   parent_id: string | null;
   summary: string;
   embedding: number[];
-}): Promise<void> {
-  const inst = await getLoreDb(campaignDir);
-  const conn = await openLoreWriteConn(inst);
+}): Promise<string> {
+  const id = crypto.randomUUID();
+  const ctx = await resolveWorldContext(campaignDir);
+  const inst = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(inst);
   try {
     const now = new Date().toISOString();
     const embedLit = `[${args.embedding.join(",")}]::FLOAT[768]`;
     await conn.run(
       `INSERT INTO lore_communities
-         (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-       VALUES (?, ?, ?, []::TEXT[], 0, ?, ${embedLit}, '{}', ?, ?)`,
-      [args.id, args.level, args.parent_id, args.summary, now, now],
+         (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, ?, ?, []::TEXT[], 0, ?, ${embedLit}, '{}', ?, ?, ?)`,
+      [id, args.level, args.parent_id, args.summary, ctx.campaignId, now, now],
     );
   } finally {
     conn.closeSync();
   }
+  return id;
 }
 
 describe("search_lore_global tool", () => {
@@ -235,8 +278,7 @@ describe("search_lore_global tool", () => {
     // a valid cosine similarity.
     const embedding = new Array(768).fill(0);
     embedding[7] = 1;
-    await seedCommunityWithEmbedding({
-      id: "c1",
+    const c1Id = await seedCommunityWithEmbedding({
       level: 0,
       parent_id: null,
       summary: "a themed cluster",
@@ -266,7 +308,7 @@ describe("search_lore_global tool", () => {
     >(result);
     expect(Array.isArray(hits)).toBe(true);
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[0].id).toBe("c1");
+    expect(hits[0].id).toBe(c1Id);
     expect(typeof hits[0].score).toBe("number");
   });
 

@@ -9,7 +9,8 @@ import {
   type LoreType,
   type LoreSearchHit,
 } from "./lore.js";
-import { getLoreDb, openLoreWriteConn } from "./lore-db.js";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 import { getScene, exportScenes } from "./scenes.js";
 
 export interface ExtractedEntity {
@@ -81,8 +82,9 @@ async function writeExtractionLog(
   campaignPath: string,
   report: ExtractionReport,
 ): Promise<void> {
-  const instance = await getLoreDb(campaignPath);
-  const conn = await openLoreWriteConn(instance);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
   try {
     await conn.run(
       `INSERT INTO lore_extraction_log
@@ -109,7 +111,8 @@ async function writeExtractionLog(
 }
 
 async function getLoggedSceneIds(campaignPath: string): Promise<Set<string>> {
-  const instance = await getLoreDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const rows = (

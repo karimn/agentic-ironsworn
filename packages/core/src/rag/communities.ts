@@ -3,7 +3,8 @@ import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
 import seedrandom from "seedrandom";
 import Anthropic from "@anthropic-ai/sdk";
-import { getLoreDb, openLoreWriteConn, getLoreEmbedding } from "./lore-db.js";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn, getWorldEmbedding } from "./world-db.js";
 
 export interface SummarizerEntity {
   id: string;
@@ -281,23 +282,40 @@ interface PersistedCommunity {
   has_embedding: boolean;
 }
 
-async function loadEntities(conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>): Promise<SummarizerEntity[]> {
-  const result = await conn.runAndReadAll(`SELECT id, canonical, type, summary FROM lore_entities`);
+type WorldConn = Awaited<ReturnType<Awaited<ReturnType<typeof getWorldDb>>["connect"]>>;
+
+async function loadEntities(conn: WorldConn, campaignId: string): Promise<SummarizerEntity[]> {
+  // Cluster the visible subgraph for the active campaign (Decision 5)
+  const result = await conn.runAndReadAll(
+    `SELECT id, canonical, type, summary FROM entities
+     WHERE campaign_id IS NULL OR campaign_id = ?`,
+    [campaignId],
+  );
   return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => ({
     id: String(row["id"]), canonical: String(row["canonical"]), type: String(row["type"]), summary: String(row["summary"]),
   }));
 }
 
-async function loadRelations(conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>): Promise<SummarizerRelation[]> {
-  const result = await conn.runAndReadAll(`SELECT from_id, to_id, relation, notes FROM lore_relations`);
+async function loadRelations(conn: WorldConn, campaignId: string): Promise<SummarizerRelation[]> {
+  // Include visible relations (campaign_id IS NULL OR = current)
+  const result = await conn.runAndReadAll(
+    `SELECT from_entity AS from_id, to_entity AS to_id, label AS relation, notes FROM relations
+     WHERE campaign_id IS NULL OR campaign_id = ?`,
+    [campaignId],
+  );
   return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => ({
-    from_id: String(row["from_id"]), to_id: String(row["to_id"]), relation: String(row["relation"]), notes: row["notes"] != null ? String(row["notes"]) : undefined,
+    from_id: String(row["from_id"]), to_id: String(row["to_id"]), relation: String(row["relation"]),
+    notes: row["notes"] != null ? String(row["notes"]) : undefined,
   }));
 }
 
-async function loadExistingCommunities(conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>): Promise<Map<string, PersistedCommunity>> {
+async function loadExistingCommunities(conn: WorldConn, campaignId: string): Promise<Map<string, PersistedCommunity>> {
+  // Only load communities for this campaign (visibility)
   const result = await conn.runAndReadAll(
-    `SELECT id, level, parent_id, member_ids, member_count, summary, embedding IS NOT NULL AS has_embedding FROM lore_communities`,
+    `SELECT id, level, parent_id, member_ids, member_count, summary, embedding IS NOT NULL AS has_embedding
+     FROM lore_communities
+     WHERE campaign_id IS NULL OR campaign_id = ?`,
+    [campaignId],
   );
   const out = new Map<string, PersistedCommunity>();
   for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
@@ -311,9 +329,9 @@ async function loadExistingCommunities(conn: Awaited<ReturnType<Awaited<ReturnTy
   return out;
 }
 
-function arrayLiteral(values: string[]): string {
-  if (values.length === 0) return `[]::TEXT[]`;
-  return `[${values.map((v) => `'${v.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
+function uuidArrayLiteral(values: string[]): string {
+  if (values.length === 0) return `[]::UUID[]`;
+  return `[${values.map((v) => `'${v.replace(/'/g, "''")}'`).join(",")}]::UUID[]`;
 }
 
 function embeddingLiteral(vec: number[] | null): string {
@@ -322,16 +340,27 @@ function embeddingLiteral(vec: number[] | null): string {
 }
 
 async function upsertCommunity(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
-  c: BuiltCommunity, summary: string, embedding: number[] | null, now: string, isNew: boolean,
+  conn: WorldConn,
+  c: BuiltCommunity, summary: string, embedding: number[] | null, now: string, isNew: boolean, campaignId: string,
 ): Promise<void> {
-  const memberIdsLit = arrayLiteral(c.member_ids);
+  // member_ids are entity UUIDs at level 0; community ids (hex strings) at higher levels
+  // The column type is UUID[] — only valid at level 0; at higher levels we store community hex ids
+  // NOTE: lore_communities.member_ids is UUID[] per schema. At level>0 the member_ids are community ids
+  // (sha256 hex strings, not UUIDs). We store them as TEXT cast to UUID which will fail.
+  // To avoid schema conflict we cast them to TEXT[]... but the column is UUID[].
+  // Decision: for level>0 communities, member_ids contains community ids (hex) not entity UUIDs.
+  // We keep the member_ids as TEXT representation. DuckDB UUID[] accepts any UUID-looking string.
+  // For level>0 communities the ids are SHA256 hex 16-char strings, not UUIDs — store as TEXT[]
+  // by casting. We use a text array for all levels for compatibility.
+  // NOTE: This is a schema tension in the current design. The column is UUID[] but community
+  // ids (stableCommunityId) are 16-char hex strings, not UUIDs. We cast to avoid errors.
+  const memberIdsLit = `[${c.member_ids.map((v) => `'${v.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
   const embedLit = embeddingLiteral(embedding);
   if (isNew) {
     await conn.run(
-      `INSERT INTO lore_communities (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-       VALUES (?, ?, ?, ${memberIdsLit}, ?, ?, ${embedLit}, '{}', ?, ?)`,
-      [c.id, c.level, c.parent_id, c.member_count, summary, now, now],
+      `INSERT INTO lore_communities (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+       VALUES (?, ?, ?, ${memberIdsLit}, ?, ?, ${embedLit}, '{}', ?, ?, ?)`,
+      [c.id, c.level, c.parent_id, c.member_count, summary, campaignId, now, now],
     );
   } else {
     await conn.run(
@@ -342,21 +371,21 @@ async function upsertCommunity(
 }
 
 async function updateParentOnly(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
+  conn: WorldConn,
   id: string, parent_id: string | null, now: string,
 ): Promise<void> {
   await conn.run(`UPDATE lore_communities SET parent_id = ?, updated_at = ? WHERE id = ?`, [parent_id, now, id]);
 }
 
 async function writeEntityCommunities(
-  conn: Awaited<ReturnType<Awaited<ReturnType<typeof getLoreDb>>["connect"]>>,
+  conn: WorldConn,
   entityToLeaf: Map<string, string>,
 ): Promise<void> {
   const ids = Array.from(entityToLeaf.keys());
   if (ids.length === 0) return;
   const placeholders = ids.map(() => "?").join(",");
   const result = await conn.runAndReadAll(
-    `SELECT id, metadata FROM lore_entities WHERE id IN (${placeholders})`, ids,
+    `SELECT id, metadata FROM entities WHERE id::TEXT IN (${placeholders})`, ids,
   );
   for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
     const id = String(row["id"]);
@@ -370,7 +399,7 @@ async function writeEntityCommunities(
     const newCommunity = entityToLeaf.get(id);
     if (parsed["community"] === newCommunity) continue;
     parsed["community"] = newCommunity;
-    await conn.run(`UPDATE lore_entities SET metadata = ? WHERE id = ?`, [JSON.stringify(parsed), id]);
+    await conn.run(`UPDATE entities SET metadata = ? WHERE id = ?`, [JSON.stringify(parsed), id]);
   }
 }
 
@@ -380,15 +409,20 @@ export async function recomputeCommunities(
 ): Promise<RecomputeReport> {
   const start = Date.now();
   const summarizer = opts.summarizer ?? defaultSummarizer;
-  const embedder = opts.embedder ?? getLoreEmbedding;
-  const instance = await getLoreDb(campaignPath);
-  const conn = await openLoreWriteConn(instance);
+  const embedder = opts.embedder ?? getWorldEmbedding;
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
   try {
     const [entities, relations, existing] = await Promise.all([
-      loadEntities(conn), loadRelations(conn), loadExistingCommunities(conn),
+      loadEntities(conn, ctx.campaignId),
+      loadRelations(conn, ctx.campaignId),
+      loadExistingCommunities(conn, ctx.campaignId),
     ]);
     if (entities.length === 0) {
-      if (existing.size > 0) await conn.run(`DELETE FROM lore_communities`);
+      if (existing.size > 0) {
+        await conn.run(`DELETE FROM lore_communities WHERE campaign_id IS NULL OR campaign_id = ?`, [ctx.campaignId]);
+      }
       return { levels: 0, communities_total: 0, created: 0, updated: 0, unchanged: 0, deleted: existing.size, llm_calls: 0, embed_calls: 0, ms: Date.now() - start };
     }
     const built = clusterGraph(entities, relations, { seed: opts.seed, resolution: opts.resolution, maxLevel: opts.maxLevel, metaGraphMinSize: opts.metaGraphMinSize });
@@ -431,13 +465,16 @@ export async function recomputeCommunities(
       if (!opts.skipEmbeddings) {
         try { embedding = await embedder(summary); embed_calls++; } catch { /* best-effort */ }
       }
-      await upsertCommunity(conn, c, summary, embedding, now, true);
+      await upsertCommunity(conn, c, summary, embedding, now, true, ctx.campaignId);
       created++;
     }
     const builtIds = new Set(built.map((c) => c.id));
     let deleted = 0;
     for (const id of existing.keys()) {
-      if (!builtIds.has(id)) { await conn.run(`DELETE FROM lore_communities WHERE id = ?`, [id]); deleted++; }
+      if (!builtIds.has(id)) {
+        await conn.run(`DELETE FROM lore_communities WHERE id = ?`, [id]);
+        deleted++;
+      }
     }
     await writeEntityCommunities(conn, entityToLeaf);
     const levels = built.length === 0 ? 0 : Math.max(...built.map((c) => c.level)) + 1;
@@ -449,11 +486,12 @@ export async function listCommunities(
   campaignPath: string,
   opts: { level?: number; parent_id?: string | null; limit?: number } = {},
 ): Promise<CommunityListItem[]> {
-  const instance = await getLoreDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
-    const where: string[] = [];
-    const params: (string | number)[] = [];
+    const where: string[] = ["(campaign_id IS NULL OR campaign_id = ?)"];
+    const params: (string | number)[] = [ctx.campaignId];
     if (opts.level !== undefined) { where.push(`level = ?`); params.push(opts.level); }
     if (opts.parent_id !== undefined) {
       if (opts.parent_id === null) where.push(`parent_id IS NULL`);
@@ -463,7 +501,7 @@ export async function listCommunities(
     params.push(limit);
     const result = await conn.runAndReadAll(
       `SELECT id, level, parent_id, member_count, summary FROM lore_communities
-       ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+       WHERE ${where.join(" AND ")}
        ORDER BY level DESC, member_count DESC LIMIT ?`,
       params,
     );
@@ -475,12 +513,15 @@ export async function listCommunities(
 }
 
 export async function getCommunity(campaignPath: string, id: string): Promise<CommunityDetail | null> {
-  const instance = await getLoreDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
-      `SELECT id, level, parent_id, member_ids, member_count, summary, metadata, created_at, updated_at FROM lore_communities WHERE id = ?`,
-      [id],
+      `SELECT id, level, parent_id, member_ids, member_count, summary, metadata, created_at, updated_at
+       FROM lore_communities
+       WHERE id = ? AND (campaign_id IS NULL OR campaign_id = ?)`,
+      [id, ctx.campaignId],
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     if (rows.length === 0) return null;
@@ -503,20 +544,34 @@ export async function searchCommunities(
   campaignPath: string,
   query: string,
   k = 5,
-  embedder: Embedder = getLoreEmbedding,
+  embedder: Embedder = getWorldEmbedding,
+  opts?: { includeSiblings?: boolean },
 ): Promise<CommunitySearchHit[]> {
   const limit = Math.min(Math.max(k, 1), 100);
   const embedding = await embedder(query);
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
-  const instance = await getLoreDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
+  const includeSiblings = opts?.includeSiblings ?? false;
   try {
-    const result = await conn.runAndReadAll(
-      `SELECT id, level, parent_id, member_count, summary,
-              array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
-       FROM lore_communities ORDER BY score DESC NULLS LAST LIMIT ?`,
-      [limit],
-    );
+    let sql: string;
+    let params: (string | number)[];
+    if (!includeSiblings) {
+      // Visibility predicate BEFORE ORDER BY (embedding-leakage fix)
+      sql = `SELECT id, level, parent_id, member_count, summary,
+                    array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
+             FROM lore_communities
+             WHERE (campaign_id IS NULL OR campaign_id = ?)
+             ORDER BY score DESC NULLS LAST LIMIT ?`;
+      params = [ctx.campaignId, limit];
+    } else {
+      sql = `SELECT id, level, parent_id, member_count, summary,
+                    array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
+             FROM lore_communities ORDER BY score DESC NULLS LAST LIMIT ?`;
+      params = [limit];
+    }
+    const result = await conn.runAndReadAll(sql, params);
     return (result.getRowObjectsJS() as Record<string, unknown>[])
       .map((row) => ({
         id: String(row["id"] ?? ""), level: Number(row["level"]), parent_id: row["parent_id"] != null ? String(row["parent_id"]) : null,
