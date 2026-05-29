@@ -144,6 +144,17 @@ known silent-corruption failure mode (D16).
 sequence (Phase 1→4 below). `main` is never left half-migrated; the
 phasing is review structure, not merge boundaries.
 
+### Decision 5 — communities cluster the visible graph (confirmed)
+
+`recompute_communities` runs Louvain over the active campaign's **visible
+graph** (canon ∪ campaign-scoped entities). Each resulting community row is
+stamped with the active `campaign_id`; `search_lore_global` filters by the
+same visibility predicate as every other read. A sibling campaign clusters
+its own visible graph independently. Rationale: it is the only option that
+gives campaign-local lore thematic framing while staying consistent with
+how all other reads behave. A canon-only or two-tier clustering pass can be
+added later without breaking this contract.
+
 ## Target schema
 
 ```sql
@@ -356,9 +367,6 @@ workspace, `bun run src/server.ts` starts and lists the new tools.
 
 ## Open questions (deferred, not blocking)
 
-- **Community scope under canon.** v1 here: communities are stamped with
-  the active `campaign_id` and clustered over the visible graph. A pure
-  canon-only community pass is possible later; not required by #166.
 - **`created_in_campaign` for canon-seed imports.** Setting seeds (v1 doc)
   will set `campaign_id = NULL` with `created_in_campaign = '<seed>'`;
   harmless here, finalized when settings ship.
