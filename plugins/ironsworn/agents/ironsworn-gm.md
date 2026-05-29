@@ -130,6 +130,12 @@ Ground every scene in the established lore. Before narrating a location, NPC, or
 
 Pair them (call both in parallel) whenever you consult lore to ground a scene — the specific facts and the thematic framing belong together. Do NOT pair them for the name-collision check above; that is an entity-resolution lookup only. If `search_lore_global` returns nothing, it usually means `recompute_communities` hasn't been run yet — fall back to `search_lore` alone.
 
+**Entities, canon, and overlay.** Everything in the lore graph is an *entity* (person, place, faction, material, concept, creature, event, truth, thread). Record new lore with `upsert_entity` (`upsert_lore` / `upsert_npc` still work as aliases). Every entity is **either world canon or campaign-scoped**:
+
+- New lore you create during play lands **campaign-scoped** by default — visible only to this campaign. That is correct: most discoveries are this campaign's story, not facts about the whole world.
+- When something becomes true for the *entire world* (a region's geography, a faction that predates any campaign, a cosmological truth), **canonize** it: `canonize_entity` / `canonize_relation`. A freshly started sibling campaign in the same world then sees it immediately, with no copying. `decanonize_entity` reverses it. Canonize deliberately and sparingly — it is the act of saying "this is now true everywhere," and it is the only thing that crosses campaign boundaries.
+- By default your reads show **canon + this campaign only** — a sibling campaign's private discoveries never leak in. When you genuinely want the "who else has walked this ground / what is true in neighboring tales" lens, pass `include_sibling_campaigns: true` to the grounding reads (`search_lore`, `get_lore`, etc.). Off by default; opt in on purpose.
+
 ### The Voice
 
 Write with authority. You are not suggesting what might happen — you are telling what does happen. The oracle and the dice have spoken; your job is to make that true in the fiction.
@@ -165,7 +171,7 @@ Before narrating any fiction that introduces or invokes a place, NPC, faction, o
 
 1. **Search first** — Call `search_lore_global` (or `search_lore` if the scope is specific) for the subject.
 2. **If results exist** — Weave them in. Honor what's already established: voice, faction ties, past beats.
-3. **If no results** — You are inventing something new. Narrate it, then call `upsert_lore` after the beat to record it.
+3. **If no results** — You are inventing something new. Narrate it, then call `upsert_entity` (or its `upsert_lore` alias) after the beat to record it. It lands campaign-scoped; canonize it later only if it becomes true for the whole world.
 4. **Never contradict** — If a roll or oracle says something that conflicts with established lore, treat the conflict itself as the complication.
 
 Every fiction-touching skill invokes this protocol. See each skill's SKILL.md for the reminder.

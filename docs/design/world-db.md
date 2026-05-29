@@ -1,0 +1,247 @@
+# Unified World DB (#166)
+
+How shared lore, per-campaign overlays, and scene memory live together in a
+single DuckDB file. This is the design-of-record; the working spec is
+`docs/superpowers/specs/2026-05-29-world-db-design.md`.
+
+## Motivation
+
+The original layout gave every campaign its own `lore.duckdb` + `scenes.duckdb`
+under `campaigns/<id>/`. Lore was siloed: a place discovered in one campaign was
+invisible to a sibling set in the same world, and there was no way to share
+canon without copying data. Entities were also keyed by **slug** (a human
+handle), so the same slug meaning two different things across campaigns was a
+latent collision, and scene→entity links were name strings, not foreign keys.
+
+The world DB collapses both stores into one **`world.duckdb`** that holds every
+campaign in a world, keys everything by **UUID**, and uses a single nullable
+`campaign_id` column to express visibility — shared canon vs. campaign-private
+overlay — without moving any data.
+
+## Directory layout
+
+`world.duckdb` and `world.json` live **one level above** the campaign folder, so
+sibling campaigns share them:
+
+```
+<world-root>/
+  world.duckdb           # all tables, all campaigns
+  world.json             # schema version + embedding pin + world name
+  campaigns/
+    <id>/
+      campaign.json      # { "id": "...", "name": "..." }
+      character.json
+      state-journal.jsonl
+```
+
+`SCRIBE_CAMPAIGN` still points at a **campaign folder**. The server walks up to
+find `world.duckdb` / `world.json` and reads the active `campaign_id` from
+`campaign.json` (falling back to the folder name). This resolution lives in
+`packages/core/src/world.ts` (`resolveWorldContext`).
+
+A campaign may also be laid out flat (`world.duckdb` directly inside the campaign
+folder) — the walk-up resolver treats the campaign folder as its own world root
+when there is no enclosing `campaigns/` directory.
+
+## The visibility model
+
+Every entity, relation, community, and proximity edge carries a `campaign_id`:
+
+- **`campaign_id IS NULL`** → **world canon**, visible to every campaign in the
+  world.
+- **`campaign_id = '<id>'`** → **campaign-scoped overlay**, visible only to that
+  campaign.
+
+Scenes, scene beats, and `scene_entity_refs` are **always** campaign-owned
+(`campaign_id NOT NULL`) — they are play history, never canon.
+
+Every read applies the visibility predicate:
+
+```sql
+WHERE (campaign_id IS NULL OR campaign_id = :current_campaign)
+```
+
+Scenes use the stricter `campaign_id = :current` (no canon scenes).
+
+### Vector search must filter *before* ranking
+
+For semantic search the predicate goes in the `WHERE` **before**
+`ORDER BY array_cosine_similarity(...) LIMIT k`, so a sibling campaign's
+high-similarity row can never leak into the active campaign's top-k. This is the
+regression the issue calls "filter before RRF." (The lore/scene path is
+vector-only; the static-rulebook RRF path is unaffected.)
+
+### The sibling lens
+
+Grounding read tools accept an optional `include_sibling_campaigns: boolean`
+(default `false`). When `true`, the predicate widens to the whole world — the
+deliberate "who else has been here / what else is true elsewhere" lens, opt-in
+so it never leaks by default.
+
+## Promotion to canon
+
+Sharing lore is a **column flip**, not a copy:
+
+```sql
+UPDATE entities  SET campaign_id = NULL WHERE id = :id;  -- canonize_entity
+UPDATE relations SET campaign_id = NULL WHERE id = :id;  -- canonize_relation
+```
+
+`decanonize_entity(id, into_campaign)` / `decanonize_relation(...)` set
+`campaign_id` back to a named campaign. Both directions are reversible and move
+no rows. The ritual: a campaign discovers something, it lives as a
+campaign-scoped overlay, and the GM (or player) deliberately **canonizes** it
+when it becomes true for the whole world. A freshly initialized sibling campaign
+then sees it immediately, with no export/import.
+
+## Schema (essentials)
+
+```sql
+CREATE TABLE entities (
+  id              UUID PRIMARY KEY,
+  slug            TEXT NOT NULL,        -- legacy/human handle; NOT unique across campaigns
+  canonical       TEXT NOT NULL,
+  aliases         TEXT[] NOT NULL DEFAULT [],
+  type            TEXT NOT NULL,        -- place|person|faction|material|concept|creature|event|truth|thread
+  summary         TEXT NOT NULL,
+  content         TEXT NOT NULL DEFAULT '{}',
+  metadata        TEXT NOT NULL DEFAULT '{}',
+  embedding       FLOAT[768] NOT NULL,
+  campaign_id         TEXT,             -- NULL = world canon
+  created_in_campaign TEXT NOT NULL,    -- provenance, always set
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE relations (
+  id          UUID PRIMARY KEY,
+  from_entity UUID NOT NULL,
+  to_entity   UUID NOT NULL,
+  label       TEXT NOT NULL,
+  notes       TEXT,
+  metadata    TEXT NOT NULL DEFAULT '{}',
+  embedding   FLOAT[768],
+  campaign_id TEXT,                      -- NULL = world-level; set = overlay state
+  created_at  TEXT NOT NULL,
+  UNIQUE (from_entity, to_entity, label, campaign_id)
+);
+
+CREATE TABLE scenes (
+  id            UUID PRIMARY KEY,
+  campaign_id   TEXT NOT NULL,           -- scenes are always campaign-owned
+  place_entity  UUID,                    -- shared geospatial anchor (nullable)
+  text          TEXT NOT NULL,
+  embedding     FLOAT[768] NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'scene',
+  complication_theme TEXT,
+  quality_notes TEXT,
+  timestamp     TEXT NOT NULL
+);
+
+CREATE TABLE scene_entity_refs (
+  scene_id  UUID NOT NULL,
+  entity_id UUID NOT NULL,
+  role      TEXT NOT NULL DEFAULT 'present',  -- present | mentioned | affected
+  PRIMARY KEY (scene_id, entity_id)
+);
+```
+
+`scene_beats`, `lore_provenance`, `lore_communities`, `lore_proximity_edges`,
+and `lore_extraction_log` are retained; entity references are UUIDs, and
+`lore_communities` / `lore_proximity_edges` gain a `campaign_id` column.
+`lore_provenance.subject_id` holds the entity/relation/proximity **UUID** (the
+old `from|to|label` composite for relations is replaced by the relation UUID).
+
+NPCs and threads are no longer loose files — they are entities of
+`type='person'` and `type='thread'` respectively, with their former fields
+folded into `metadata`.
+
+### `world.json` embedding pin
+
+`world.json` is created alongside `world.duckdb`:
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "embedding": { "model": "nomic-embed-text", "version": "1.5", "dim": 768 },
+  "name": "<world name>"
+}
+```
+
+On load, if the active embedder's `{model, version, dim}` differs from the pin,
+the server refuses to start with an actionable error. Embeddings from different
+models share a vector space only by accident; this guard turns a silent
+corruption mode into a loud, recoverable one.
+
+## Migration
+
+A one-time, CLI-gated migration (the directory restructure is user-visible, so
+it never runs silently on first start):
+
+```bash
+bun run plugins/ironsworn/scribe/src/migrate.ts [campaignPath]
+# campaignPath defaults to $SCRIBE_CAMPAIGN, then campaigns/default
+```
+
+The SDK entry is `migrateToWorldDb(campaignPath, opts)` in
+`packages/core/src/migrations/world-migrate.ts`. Steps:
+
+1. Resolve the world root (one level above the campaign folder) and the
+   `campaign_id`; create `world.json` + `world.duckdb` with the full schema.
+2. Build a `slug → uuid` map for all `lore_entities`; insert into `entities`
+   with `campaign_id = '<id>'`, `created_in_campaign = '<id>'`, `slug`
+   preserved, old slug appended to `aliases`.
+3. Rewrite `lore_relations`, `lore_proximity_edges`,
+   `lore_provenance.subject_id`, and `metadata.community` through the map (a
+   second `from|to|label → relation-uuid` map and an `old-prox-id → uuid` map
+   drive the provenance rewrite); carry communities and the extraction log.
+4. Import `npcs/*.md` as `entities(type='person')` and `threads.yaml` as
+   `entities(type='thread')`, scoped to the campaign.
+5. Import `scenes` + `scene_beats`, preserving ids and `campaign_id`.
+6. Write `campaign.json` if absent.
+7. **Count-verify** (`in == out` for entities/relations/proximity/scenes/beats)
+   *before* touching any file; throw on mismatch.
+8. On success, rename legacy stores to `*.legacy` (Decision 6 — reversible, not
+   deleted). The user removes them manually once satisfied.
+
+**Embeddings:** entity/relation/scene/beat embeddings are **copied directly**
+from the legacy rows (no re-embed). Only NPC and thread summaries — which had no
+stored embedding — are embedded, via Ollama (or an injected embedder in tests).
+
+**Idempotent:** if no legacy `*.duckdb` remain (already migrated), the call
+no-ops and returns `alreadyMigrated: true`.
+
+**Known limitation:** a run that fails *after* inserting rows but *before*
+moving legacy files cannot be cleanly re-run — the count-verify will mismatch
+and throw (it never loses data). Clear the partial `world.duckdb` and retry.
+
+**Legacy scenes** stored no entity references, so migrated scenes start with an
+empty `scene_entity_refs`; references accrue going forward via `record_scene`.
+
+## Export / import
+
+`CampaignExport` is **version 3**: entity rows carry `id`/`slug`/`campaign_id`/
+`created_in_campaign`; relations carry `id`/`campaign_id`; scenes carry
+`campaign_id`/`place_entity`; `scene_entity_refs` is a new top-level array.
+Import is idempotent on UUID. v1/v2 exports still import — they land under the
+target `campaign_id` with freshly minted UUIDs (slug→uuid map built on import,
+same as migration).
+
+## Per-campaign overlay state (reserved)
+
+Per-campaign relations ("the PC has met X", a discovery, a faction shift) anchor
+on the **PC entity** (the `type='person'` row for the character), carried by the
+`campaign_id` column on `relations` (Decision 7). #166 reserves this mechanism;
+it does not yet build overlay-producing features. Multi-PC parties are deferred.
+
+## Tool surface
+
+| Tool | Change |
+|---|---|
+| `upsert_entity` | **New.** Writes with `campaign_id = current`, `created_in_campaign = current`. |
+| `upsert_npc` / `upsert_lore` | **Aliases** of `upsert_entity`, kept one release. |
+| `canonize_entity` / `canonize_relation` | **New.** Column flip to `NULL`. |
+| `decanonize_entity` / `decanonize_relation` | **New.** Column flip to a named campaign. |
+| `search_lore` / `search_lore_global` / `get_lore` / `get_lore_graph` (and other grounding reads) | Apply the visibility filter; accept `include_sibling_campaigns`. |
+| `record_scene` | Resolves names to entity UUIDs, auto-stubs unknowns as campaign-scoped entities, writes `scene_entity_refs`. |
+| `recompute_communities` | Clusters the **visible** subgraph and stamps results with the active `campaign_id`. |
