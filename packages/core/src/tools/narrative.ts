@@ -1,9 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "../rag/scenes.js";
+import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, setSceneEntityRefs, type BeatInput } from "../rag/scenes.js";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "../state/npcs.js";
 import { getLore, upsertLore } from "../rag/lore.js";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn, getWorldEmbedding } from "../rag/world-db.js";
+import { slugify } from "../rag/lore.js";
 import { recordMutation } from "../checkpoint.js";
 import { pushBeat, drainNotices } from "../rag/beat-queue.js";
 
@@ -23,11 +26,138 @@ export interface SceneReferenceResult {
   stubbed: { npcs: string[]; lore: string[] };
 }
 
+// ---------------------------------------------------------------------------
+// Auto-stub + scene_entity_refs FK writing
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve or auto-stub entities for scene refs, then write scene_entity_refs rows.
+ *
+ * For each name in `npcs`: look up visible person entity; if not found, create a
+ * campaign-scoped person entity (auto-stub). For each id in `loreIds`: look up visible
+ * entity; if not found, create a campaign-scoped concept entity.
+ *
+ * All resolved/stubbed entities are written to scene_entity_refs with role='present'.
+ *
+ * Returns stubbed names (no warnings emitted for auto-stubs — these are FK-backed now).
+ */
+async function _resolveAndWriteEntityRefs(
+  campaignPath: string,
+  sceneId: string,
+  npcs: string[] | undefined,
+  loreIds: string[] | undefined,
+): Promise<SceneReferenceResult> {
+  const warnings: string[] = [];
+  const stubbed: { npcs: string[]; lore: string[] } = { npcs: [], lore: [] };
+
+  if (npcs === undefined && loreIds === undefined) {
+    warnings.push(
+      "Reminder: Have you recorded all NPCs and lore entities introduced in this scene? Call upsert_npc and upsert_lore if needed.",
+    );
+    return { warnings, stubbed };
+  }
+
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const refs: { entity_id: string; role: string }[] = [];
+
+  // --- NPCs ---
+  if (npcs !== undefined) {
+    for (const name of npcs) {
+      // First try getNpc (uses the entity store)
+      const found = await getNpc(campaignPath, name);
+      if (found !== null) {
+        // Resolve the UUID for this person entity
+        const conn = await instance.connect();
+        try {
+          const result = await conn.runAndReadAll(
+            `SELECT id FROM entities
+             WHERE type = 'person'
+               AND (campaign_id IS NULL OR campaign_id = ?)
+               AND (lower(canonical) = ? OR lower(slug) = ?
+                    OR EXISTS (SELECT 1 FROM unnest(aliases) AS t(alias) WHERE lower(alias) = ?))
+             ORDER BY (campaign_id IS NOT NULL) DESC LIMIT 1`,
+            [ctx.campaignId, name.toLowerCase(), name.toLowerCase(), name.toLowerCase()],
+          );
+          const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+          if (rows.length > 0) {
+            refs.push({ entity_id: String(rows[0]!["id"]), role: "present" });
+          }
+        } finally {
+          conn.closeSync();
+        }
+      } else {
+        // Auto-stub: create a minimal person entity
+        await upsertNpc(campaignPath, name);
+        stubbed.npcs.push(name);
+        // Get the newly created entity's UUID
+        const conn = await instance.connect();
+        try {
+          const result = await conn.runAndReadAll(
+            `SELECT id FROM entities
+             WHERE type = 'person' AND campaign_id = ? AND lower(canonical) = ?
+             ORDER BY created_at DESC LIMIT 1`,
+            [ctx.campaignId, name.toLowerCase()],
+          );
+          const rows = result.getRowObjectsJS() as Record<string, unknown>[];
+          if (rows.length > 0) {
+            refs.push({ entity_id: String(rows[0]!["id"]), role: "present" });
+          }
+        } finally {
+          conn.closeSync();
+        }
+      }
+    }
+  }
+
+  // --- Lore IDs ---
+  if (loreIds !== undefined) {
+    for (const id of loreIds) {
+      const found = await getLore(campaignPath, id);
+      if (found !== null) {
+        refs.push({ entity_id: found.id, role: "present" });
+      } else {
+        // Auto-stub: create a concept entity (requires Ollama for embedding; falls back gracefully)
+        try {
+          const result = await upsertLore(campaignPath, {
+            id,
+            canonical: id,
+            type: "concept",
+            summary: id,
+          });
+          stubbed.lore.push(id);
+          refs.push({ entity_id: result.id, role: "present" });
+        } catch {
+          // Ollama unavailable — fall back to warning (no FK ref written)
+          warnings.push(`Lore entity not recorded: "${id}". Call upsert_lore to record this entity.`);
+        }
+      }
+    }
+  }
+
+  // Write scene_entity_refs
+  if (refs.length > 0) {
+    await setSceneEntityRefs(campaignPath, sceneId, refs);
+  }
+
+  return { warnings, stubbed };
+}
+
+/**
+ * buildSceneWarnings — exported for backward compat with tests.
+ *
+ * When called from record_scene / update_scene, this now writes scene_entity_refs
+ * and auto-stubs unknown entities. The name "warnings" is historical — most callers
+ * now get an empty warnings array (auto-stubs replaced warnings).
+ */
 export async function buildSceneWarnings(
   campaignPath: string,
   npcs: string[] | undefined,
   loreIds: string[] | undefined,
+  sceneId?: string,
 ): Promise<SceneReferenceResult> {
+  // If no sceneId, we're in the legacy path (update_scene without entity refs)
+  // Still do the auto-stub + entity existence check, just skip scene_entity_refs write.
   const warnings: string[] = [];
   const stubbed: { npcs: string[]; lore: string[] } = { npcs: [], lore: [] };
 
@@ -67,6 +197,22 @@ export async function buildSceneWarnings(
     }
   }
 
+  // If we have a sceneId, also write FK refs
+  if (sceneId !== undefined && (stubbed.npcs.length > 0 || stubbed.lore.length > 0 || (npcs && npcs.length > 0) || (loreIds && loreIds.length > 0))) {
+    try {
+      const result = await _resolveAndWriteEntityRefs(campaignPath, sceneId, npcs, loreIds);
+      // Merge: the refs are already written; merge any additional stubbed names
+      for (const n of result.stubbed.npcs) {
+        if (!stubbed.npcs.includes(n)) stubbed.npcs.push(n);
+      }
+      for (const l of result.stubbed.lore) {
+        if (!stubbed.lore.includes(l)) stubbed.lore.push(l);
+      }
+    } catch {
+      // Non-fatal: entity ref writing failure should not break record_scene
+    }
+  }
+
   return { warnings, stubbed };
 }
 
@@ -90,12 +236,16 @@ export function register(server: McpServer, campaignPath: string): void {
       quality_notes: z.string().optional().describe(
         "Optional fiction/RP quality feedback for this scene (e.g. 'Combat felt dangerous — layered pressure worked well', 'Complication theme was repetitive'). Captured for GM improvement and included in semantic search."
       ),
+      place: z.string().optional().describe(
+        "Optional place entity name or UUID to anchor the scene geographically. Resolved to a place_entity UUID on the scene row."
+      ),
     },
-    async ({ summary, kind, npcs, lore_ids, complication_theme, beats, quality_notes }) => {
+    async ({ summary, kind, npcs, lore_ids, complication_theme, beats, quality_notes, place }) => {
       try {
-        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined, quality_notes);
+        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined, quality_notes, place);
         recordMutation(campaignPath);
-        const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
+        // Write scene_entity_refs + auto-stub unknown names
+        const { warnings, stubbed } = await _resolveAndWriteEntityRefs(campaignPath, id, npcs, lore_ids);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
         };

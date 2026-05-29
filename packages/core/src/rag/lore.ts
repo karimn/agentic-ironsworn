@@ -7,11 +7,6 @@ import {
   getWorldEmbedding,
 } from "./world-db.js";
 
-// Re-export getLoreEmbedding for callers that imported it from this module.
-// Keep lore-db.ts importable — it still provides the embedder. This is
-// transitional dead code; Phase 2 cleanup will review.
-export { getLoreEmbedding } from "./lore-db.js";
-
 export const LORE_TYPES = [
   "material",
   "faction",

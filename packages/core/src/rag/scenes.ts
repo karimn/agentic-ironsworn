@@ -1,10 +1,9 @@
-import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
-import { mkdir } from "node:fs/promises";
-import { runDbMigrations } from "../migrations/index.js";
-import { SCENES_MIGRATIONS } from "../migrations/scenes.js";
+import { type DuckDBValue } from "@duckdb/node-api";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn, peekWorldDb, getWorldEmbedding } from "./world-db.js";
 
-const OLLAMA_BASE_URL =
-  process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+// NOTE: Local DB plumbing (initDb, getDb, openWriteConn, getEmbedding from old scenes.duckdb)
+// has been removed. All reads/writes now target world.duckdb via getWorldDb(ctx).
 
 export interface Scene {
   id: string;
@@ -54,96 +53,6 @@ export interface BeatExport {
   created_at: string;
 }
 
-const _dbPromises = new Map<string, Promise<DuckDBInstance>>();
-
-async function initDb(campaignPath: string): Promise<DuckDBInstance> {
-  await mkdir(campaignPath, { recursive: true });
-  const instance = await DuckDBInstance.create(`${campaignPath}/scenes.duckdb`);
-  const conn = await instance.connect();
-  try {
-    let vssLoaded = false;
-    try {
-      await conn.run("LOAD vss;");
-      await conn.run("SET hnsw_enable_experimental_persistence = true;");
-      vssLoaded = true;
-    } catch { /* vss not pre-installed */ }
-    await conn.run(`
-      CREATE TABLE IF NOT EXISTS scenes (
-        id                 TEXT PRIMARY KEY,
-        text               TEXT NOT NULL,
-        embedding          FLOAT[768] NOT NULL,
-        timestamp          TEXT NOT NULL,
-        kind               TEXT NOT NULL DEFAULT 'scene',
-        complication_theme TEXT,
-        quality_notes      TEXT
-      )
-    `);
-    await conn.run(`ALTER TABLE scenes ADD COLUMN IF NOT EXISTS complication_theme TEXT`);
-    await conn.run(`ALTER TABLE scenes ADD COLUMN IF NOT EXISTS quality_notes TEXT`);
-    await conn.run(`
-      CREATE TABLE IF NOT EXISTS scene_beats (
-        id          TEXT PRIMARY KEY,
-        scene_id    TEXT NOT NULL,
-        beat_index  INTEGER NOT NULL,
-        kind        TEXT NOT NULL,
-        speaker     TEXT,
-        text        TEXT NOT NULL,
-        embedding   FLOAT[768] NOT NULL,
-        metadata    TEXT NOT NULL DEFAULT '{}',
-        created_at  TEXT NOT NULL,
-        UNIQUE (scene_id, beat_index)
-      )
-    `);
-    await conn.run(`CREATE INDEX IF NOT EXISTS scene_beats_scene_idx ON scene_beats (scene_id, beat_index)`);
-    if (vssLoaded) {
-      await conn.run(`CREATE INDEX IF NOT EXISTS scenes_embedding_idx ON scenes USING HNSW (embedding) WITH (metric = 'cosine')`);
-      await conn.run(`CREATE INDEX IF NOT EXISTS scene_beats_embedding_idx ON scene_beats USING HNSW (embedding) WITH (metric = 'cosine')`);
-    }
-    await runDbMigrations(conn, SCENES_MIGRATIONS, "");
-  } finally {
-    conn.closeSync();
-  }
-  return instance;
-}
-
-function getDb(campaignPath: string): Promise<DuckDBInstance> {
-  const cached = _dbPromises.get(campaignPath);
-  if (cached !== undefined) return cached;
-  const promise = initDb(campaignPath).catch((e) => {
-    _dbPromises.delete(campaignPath);
-    throw e;
-  });
-  _dbPromises.set(campaignPath, promise);
-  return promise;
-}
-
-async function openWriteConn(
-  instance: DuckDBInstance,
-): Promise<Awaited<ReturnType<DuckDBInstance["connect"]>>> {
-  const conn = await instance.connect();
-  try { await conn.run("SET hnsw_enable_experimental_persistence = true;"); } catch { /* skip */ }
-  return conn;
-}
-
-async function getEmbedding(text: string): Promise<number[]> {
-  let response: Response;
-  try {
-    response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "nomic-embed-text", input: text }),
-    });
-  } catch (e) {
-    throw new Error(`Ollama unavailable at ${OLLAMA_BASE_URL}: ${(e as Error).message}`);
-  }
-  if (!response.ok) throw new Error(`Ollama embed failed: ${response.status} ${response.statusText}`);
-  const data = (await response.json()) as { embeddings: number[][] };
-  if (!data.embeddings || !Array.isArray(data.embeddings[0])) throw new Error("Unexpected Ollama response shape");
-  if (data.embeddings[0].length !== 768) throw new Error(`Expected 768-dim embedding, got ${data.embeddings[0].length}`);
-  if (!data.embeddings[0].every((v) => typeof v === "number" && isFinite(v))) throw new Error("Invalid embedding values from Ollama");
-  return data.embeddings[0];
-}
-
 function rowToBeat(row: Record<string, unknown>): Beat {
   let metadata: Record<string, unknown> = {};
   try { metadata = JSON.parse(String(row["metadata"] ?? "{}")) as Record<string, unknown>; } catch { /* ignore */ }
@@ -167,18 +76,30 @@ export async function recordScene(
   complicationTheme?: string,
   beats?: BeatInput[],
   qualityNotes?: string,
+  placeEntity?: string,
 ): Promise<string> {
+  const ctx = await resolveWorldContext(campaignPath);
   const embedText = qualityNotes ? `${summary}\n${qualityNotes}` : summary;
-  const [embedding, instance] = await Promise.all([getEmbedding(embedText), getDb(campaignPath)]);
+  const [embedding, instance] = await Promise.all([
+    getWorldEmbedding(embedText),
+    getWorldDb(ctx),
+  ]);
   const id = crypto.randomUUID();
   const timestamp = new Date().toISOString();
   const sceneKind = kind ?? "scene";
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
-  const conn = await openWriteConn(instance);
+
+  // Resolve place entity UUID if provided (best-effort; null if unresolved)
+  // NOTE: Phase 3 will wire up the full entity resolution; for now accept raw UUID or null
+  const resolvedPlaceEntity: string | null =
+    placeEntity != null && placeEntity.length > 0 ? placeEntity : null;
+
+  const conn = await openWorldWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme, quality_notes) VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?, ?)`,
-      [id, summary, timestamp, sceneKind, complicationTheme ?? null, qualityNotes ?? null],
+      `INSERT INTO scenes (id, campaign_id, place_entity, text, embedding, timestamp, kind, complication_theme, quality_notes)
+       VALUES (?, ?, ?, ?, ${embeddingLiteral}, ?, ?, ?, ?)`,
+      [id, ctx.campaignId, resolvedPlaceEntity, summary, timestamp, sceneKind, complicationTheme ?? null, qualityNotes ?? null],
     );
   } finally {
     conn.closeSync();
@@ -194,13 +115,16 @@ export async function getScene(
   id: string,
   opts?: { include_beats?: boolean },
 ): Promise<Scene | null> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   let scene: Scene | null = null;
   try {
     const rows = (await conn.runAndReadAll(
-      `SELECT id, text, timestamp, kind, complication_theme, quality_notes FROM scenes WHERE id = ?`,
-      [id],
+      `SELECT id, text, timestamp, kind, complication_theme, quality_notes
+       FROM scenes
+       WHERE campaign_id = ? AND id = ?`,
+      [ctx.campaignId, id],
     )).getRowObjectsJS() as Record<string, unknown>[];
     if (rows.length === 0) return null;
     const row = rows[0]!;
@@ -226,7 +150,8 @@ export async function updateScene(
   id: string,
   fields: { summary?: string; kind?: string; complication_theme?: string; quality_notes?: string },
 ): Promise<void> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const setClauses: string[] = [];
   const params: DuckDBValue[] = [];
   if (fields.summary !== undefined || fields.quality_notes !== undefined) {
@@ -236,7 +161,7 @@ export async function updateScene(
       const checkConn = await instance.connect();
       try {
         const rows = (await checkConn.runAndReadAll(
-          `SELECT text, quality_notes FROM scenes WHERE id = ?`, [id],
+          `SELECT text, quality_notes FROM scenes WHERE campaign_id = ? AND id = ?`, [ctx.campaignId, id],
         )).getRowObjectsJS() as Record<string, unknown>[];
         if (rows.length > 0) {
           if (embedSummary === undefined) embedSummary = String(rows[0]!["text"] ?? "");
@@ -248,7 +173,7 @@ export async function updateScene(
       } finally { checkConn.closeSync(); }
     }
     const embedText = embedNotes ? `${embedSummary}\n${embedNotes}` : embedSummary!;
-    const embedding = await getEmbedding(embedText);
+    const embedding = await getWorldEmbedding(embedText);
     const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
     if (fields.summary !== undefined) { setClauses.push(`text = ?`); params.push(fields.summary); }
     setClauses.push(`embedding = ${embeddingLiteral}`);
@@ -257,19 +182,22 @@ export async function updateScene(
   if (fields.complication_theme !== undefined) { setClauses.push(`complication_theme = ?`); params.push(fields.complication_theme); }
   if (fields.quality_notes !== undefined) { setClauses.push(`quality_notes = ?`); params.push(fields.quality_notes); }
   if (setClauses.length === 0) return;
+  params.push(ctx.campaignId);
   params.push(id);
-  const conn = await openWriteConn(instance);
+  const conn = await openWorldWriteConn(instance);
   try {
-    await conn.run(`UPDATE scenes SET ${setClauses.join(", ")} WHERE id = ?`, params);
+    await conn.run(`UPDATE scenes SET ${setClauses.join(", ")} WHERE campaign_id = ? AND id = ?`, params);
   } finally { conn.closeSync(); }
 }
 
 export async function deleteScene(campaignPath: string, id: string): Promise<void> {
-  const instance = await getDb(campaignPath);
-  const conn = await openWriteConn(instance);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
   try {
     await conn.run(`DELETE FROM scene_beats WHERE scene_id = ?`, [id]);
-    await conn.run(`DELETE FROM scenes WHERE id = ?`, [id]);
+    await conn.run(`DELETE FROM scene_entity_refs WHERE scene_id = ?`, [id]);
+    await conn.run(`DELETE FROM scenes WHERE campaign_id = ? AND id = ?`, [ctx.campaignId, id]);
   } finally { conn.closeSync(); }
 }
 
@@ -279,9 +207,10 @@ export async function recordBeats(
   beats: BeatInput[],
 ): Promise<void> {
   if (beats.length === 0) return;
+  const ctx = await resolveWorldContext(campaignPath);
   const [embeddings, instance] = await Promise.all([
-    Promise.all(beats.map((b) => getEmbedding(b.text))),
-    getDb(campaignPath),
+    Promise.all(beats.map((b) => getWorldEmbedding(b.text))),
+    getWorldDb(ctx),
   ]);
   const checkConn = await instance.connect();
   let startIndex = 0;
@@ -291,7 +220,7 @@ export async function recordBeats(
     )).getRowObjectsJS() as Record<string, unknown>[];
     startIndex = Number(rows[0]?.["next_index"] ?? 0);
   } finally { checkConn.closeSync(); }
-  const conn = await openWriteConn(instance);
+  const conn = await openWorldWriteConn(instance);
   try {
     for (let i = 0; i < beats.length; i++) {
       const beat = beats[i]!;
@@ -314,12 +243,13 @@ export async function recordBeat(
   sceneId: string,
   beat: BeatInput,
 ): Promise<number> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const checkConn = await instance.connect();
   let beatIndex: number;
   try {
     const sceneRows = (await checkConn.runAndReadAll(
-      `SELECT id FROM scenes WHERE id = ?`, [sceneId],
+      `SELECT id FROM scenes WHERE campaign_id = ? AND id = ?`, [ctx.campaignId, sceneId],
     )).getRowObjectsJS() as Record<string, unknown>[];
     if (sceneRows.length === 0) throw new Error(`Scene not found: ${sceneId}`);
     const rows = (await checkConn.runAndReadAll(
@@ -327,12 +257,12 @@ export async function recordBeat(
     )).getRowObjectsJS() as Record<string, unknown>[];
     beatIndex = Number(rows[0]?.["next_index"] ?? 0);
   } finally { checkConn.closeSync(); }
-  const embedding = await getEmbedding(beat.text);
+  const embedding = await getWorldEmbedding(beat.text);
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
   const beatId = crypto.randomUUID();
   const created_at = new Date().toISOString();
   const metadata = JSON.stringify(beat.metadata ?? {});
-  const conn = await openWriteConn(instance);
+  const conn = await openWorldWriteConn(instance);
   try {
     await conn.run(
       `INSERT INTO scene_beats (id, scene_id, beat_index, kind, speaker, text, embedding, metadata, created_at)
@@ -344,7 +274,8 @@ export async function recordBeat(
 }
 
 export async function getBeats(campaignPath: string, sceneId: string): Promise<Beat[]> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const rows = (await conn.runAndReadAll(
@@ -362,25 +293,29 @@ export async function searchBeats(
   opts?: { kind?: string; scene_id?: string },
 ): Promise<BeatSearchResult> {
   const limit = k ?? 5;
-  const [embedding, instance] = await Promise.all([getEmbedding(query), getDb(campaignPath)]);
+  const ctx = await resolveWorldContext(campaignPath);
+  const [embedding, instance] = await Promise.all([getWorldEmbedding(query), getWorldDb(ctx)]);
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
-  const conditions: string[] = [];
-  const filterParams: DuckDBValue[] = [];
-  if (opts?.kind) { conditions.push(`kind = ?`); filterParams.push(opts.kind); }
-  if (opts?.scene_id) { conditions.push(`scene_id = ?`); filterParams.push(opts.scene_id); }
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // Build per-campaign scene_id filter: beats are implicitly campaign-scoped via scene_id FK
+  // We join to scenes to enforce campaign_id filtering.
+  const conditions: string[] = [`sb.scene_id IN (SELECT id FROM scenes WHERE campaign_id = ?)`];
+  const filterBaseParams: DuckDBValue[] = [ctx.campaignId];
+  if (opts?.kind) { conditions.push(`sb.kind = ?`); filterBaseParams.push(opts.kind); }
+  if (opts?.scene_id) { conditions.push(`sb.scene_id = ?`); filterBaseParams.push(opts.scene_id); }
+  const whereClause = `WHERE ${conditions.join(" AND ")}`;
   const conn = await instance.connect();
   try {
     const countResult = await conn.runAndReadAll(
-      `SELECT COUNT(*) AS cnt FROM scene_beats ${whereClause}`, filterParams,
+      `SELECT COUNT(*) AS cnt FROM scene_beats sb ${whereClause}`, filterBaseParams,
     );
     const countRows = countResult.getRowObjectsJS() as Record<string, unknown>[];
     const total_beats = Number(countRows[0]?.["cnt"] ?? 0);
-    const searchParams: DuckDBValue[] = [...filterParams, limit];
+    const searchParams: DuckDBValue[] = [...filterBaseParams, limit];
     const result = await conn.runAndReadAll(
-      `SELECT id, scene_id, beat_index, kind, speaker, text, metadata, created_at,
-              array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
-       FROM scene_beats ${whereClause} ORDER BY score DESC LIMIT ?`,
+      `SELECT sb.id, sb.scene_id, sb.beat_index, sb.kind, sb.speaker, sb.text, sb.metadata, sb.created_at,
+              array_cosine_similarity(sb.embedding, ${embeddingLiteral}) AS score
+       FROM scene_beats sb ${whereClause} ORDER BY score DESC LIMIT ?`,
       searchParams,
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
@@ -399,14 +334,22 @@ export interface SceneExport {
 }
 
 export async function exportScenes(campaignPath: string): Promise<SceneExport[]> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const sceneRows = (await conn.runAndReadAll(
-      `SELECT id, text, timestamp, kind, complication_theme, quality_notes FROM scenes ORDER BY timestamp`,
+      `SELECT id, text, timestamp, kind, complication_theme, quality_notes
+       FROM scenes WHERE campaign_id = ? ORDER BY timestamp`,
+      [ctx.campaignId],
     )).getRowObjectsJS() as Record<string, unknown>[];
     const beatRows = (await conn.runAndReadAll(
-      `SELECT id, scene_id, beat_index, kind, speaker, text, metadata, created_at FROM scene_beats ORDER BY scene_id, beat_index`,
+      `SELECT sb.id, sb.scene_id, sb.beat_index, sb.kind, sb.speaker, sb.text, sb.metadata, sb.created_at
+       FROM scene_beats sb
+       JOIN scenes s ON s.id = sb.scene_id
+       WHERE s.campaign_id = ?
+       ORDER BY sb.scene_id, sb.beat_index`,
+      [ctx.campaignId],
     )).getRowObjectsJS() as Record<string, unknown>[];
     const beatsByScene = new Map<string, BeatExport[]>();
     for (const row of beatRows) {
@@ -452,27 +395,29 @@ export async function importScene(
   beats?: BeatExport[],
   qualityNotes?: string,
 ): Promise<boolean> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const checkConn = await instance.connect();
   let exists = false;
   try {
     const rows = (await checkConn.runAndReadAll(
-      `SELECT id FROM scenes WHERE id = ?`, [id],
+      `SELECT id FROM scenes WHERE campaign_id = ? AND id = ?`, [ctx.campaignId, id],
     )).getRowObjectsJS() as unknown[];
     exists = rows.length > 0;
   } finally { checkConn.closeSync(); }
   if (exists) return false;
   const embedText = qualityNotes ? `${text}\n${qualityNotes}` : text;
   const allTexts = [embedText, ...(beats ?? []).map((b) => b.text)];
-  const allEmbeddings = await Promise.all(allTexts.map(getEmbedding));
+  const allEmbeddings = await Promise.all(allTexts.map((t) => getWorldEmbedding(t)));
   const sceneEmbedding = allEmbeddings[0]!;
   const beatEmbeddings = allEmbeddings.slice(1);
   const embeddingLiteral = `[${sceneEmbedding.join(",")}]::FLOAT[768]`;
-  const conn = await openWriteConn(instance);
+  const conn = await openWorldWriteConn(instance);
   try {
     await conn.run(
-      `INSERT INTO scenes (id, text, embedding, timestamp, kind, complication_theme, quality_notes) VALUES (?, ?, ${embeddingLiteral}, ?, ?, ?, ?)`,
-      [id, text, timestamp, kind, complicationTheme ?? null, qualityNotes ?? null],
+      `INSERT INTO scenes (id, campaign_id, place_entity, text, embedding, timestamp, kind, complication_theme, quality_notes)
+       VALUES (?, ?, ?, ?, ${embeddingLiteral}, ?, ?, ?, ?)`,
+      [id, ctx.campaignId, null, text, timestamp, kind, complicationTheme ?? null, qualityNotes ?? null],
     );
     if (beats && beats.length > 0) {
       for (let i = 0; i < beats.length; i++) {
@@ -491,12 +436,15 @@ export async function importScene(
 }
 
 export async function checkpointScenes(campaignPath: string): Promise<void> {
-  const cached = _dbPromises.get(campaignPath);
+  // NOTE: scenes are now in world.duckdb — checkpoint the world DB via peekWorldDb.
+  // It's fine that checkpointLore and checkpointScenes both checkpoint the same file.
+  const ctx = await resolveWorldContext(campaignPath);
+  const cached = peekWorldDb(ctx.worldDbPath);
   if (cached === undefined) return;
   const instance = await cached;
   const conn = await instance.connect();
   try {
-    try { await conn.run("LOAD vss;"); } catch { /* skip */ }
+    try { await conn.run("LOAD vss;"); } catch { /* vss not pre-installed */ }
     await conn.run("CHECKPOINT;");
   } finally { conn.closeSync(); }
 }
@@ -507,15 +455,18 @@ export async function searchScenes(
   k?: number,
 ): Promise<Scene[]> {
   const limit = k ?? 5;
-  const [embedding, instance] = await Promise.all([getEmbedding(query), getDb(campaignPath)]);
+  const ctx = await resolveWorldContext(campaignPath);
+  const [embedding, instance] = await Promise.all([getWorldEmbedding(query), getWorldDb(ctx)]);
   const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
       `SELECT id, text, timestamp, kind, complication_theme, quality_notes,
               array_cosine_similarity(embedding, ${embeddingLiteral}) AS score
-       FROM scenes ORDER BY score DESC LIMIT ?`,
-      [limit],
+       FROM scenes
+       WHERE campaign_id = ?
+       ORDER BY score DESC LIMIT ?`,
+      [ctx.campaignId, limit],
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((row) => ({
@@ -542,14 +493,15 @@ export async function getRecentScenesChronological(
   campaignPath: string,
   k: number = 5,
 ): Promise<RecentSceneSummary[]> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
       `SELECT id, text, timestamp, kind FROM (
-         SELECT id, text, timestamp, kind FROM scenes ORDER BY timestamp DESC LIMIT ?
+         SELECT id, text, timestamp, kind FROM scenes WHERE campaign_id = ? ORDER BY timestamp DESC LIMIT ?
        ) sub ORDER BY timestamp ASC`,
-      [k],
+      [ctx.campaignId, k],
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((row) => ({
@@ -573,12 +525,13 @@ export async function countScenesMentioningNpc(
   npcName: string,
   sinceTimestamp: string,
 ): Promise<number> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
-      `SELECT COUNT(*) AS cnt FROM scenes WHERE timestamp > ? AND lower(text) LIKE ?`,
-      [sinceTimestamp, `%${npcName.toLowerCase()}%`],
+      `SELECT COUNT(*) AS cnt FROM scenes WHERE campaign_id = ? AND timestamp > ? AND lower(text) LIKE ?`,
+      [ctx.campaignId, sinceTimestamp, `%${npcName.toLowerCase()}%`],
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     return Number(rows[0]?.["cnt"] ?? 0);
@@ -589,13 +542,14 @@ export async function getRecentComplications(
   campaignPath: string,
   k: number = 5,
 ): Promise<ComplicationScene[]> {
-  const instance = await getDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const result = await conn.runAndReadAll(
       `SELECT text, complication_theme, kind, timestamp
-       FROM scenes WHERE complication_theme IS NOT NULL ORDER BY timestamp DESC LIMIT ?`,
-      [k],
+       FROM scenes WHERE campaign_id = ? AND complication_theme IS NOT NULL ORDER BY timestamp DESC LIMIT ?`,
+      [ctx.campaignId, k],
     );
     const rows = result.getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((row) => ({
@@ -605,4 +559,60 @@ export async function getRecentComplications(
       timestamp: String(row["timestamp"] ?? ""),
     }));
   } finally { conn.closeSync(); }
+}
+
+// ---------------------------------------------------------------------------
+// scene_entity_refs SDK functions (Phase 2 new additions)
+// ---------------------------------------------------------------------------
+
+/**
+ * Upsert rows in scene_entity_refs for a given scene.
+ * Uses ON CONFLICT (scene_id, entity_id) DO UPDATE SET role = EXCLUDED.role.
+ */
+export async function setSceneEntityRefs(
+  campaignPath: string,
+  sceneId: string,
+  refs: { entity_id: string; role?: string }[],
+): Promise<void> {
+  if (refs.length === 0) return;
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    for (const ref of refs) {
+      const role = ref.role ?? "present";
+      await conn.run(
+        `INSERT INTO scene_entity_refs (scene_id, entity_id, role)
+         VALUES (?, ?, ?)
+         ON CONFLICT (scene_id, entity_id) DO UPDATE SET role = EXCLUDED.role`,
+        [sceneId, ref.entity_id, role],
+      );
+    }
+  } finally {
+    conn.closeSync();
+  }
+}
+
+/**
+ * Retrieve entity refs for a scene.
+ */
+export async function getSceneEntityRefs(
+  campaignPath: string,
+  sceneId: string,
+): Promise<{ entity_id: string; role: string }[]> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await instance.connect();
+  try {
+    const rows = (await conn.runAndReadAll(
+      `SELECT entity_id, role FROM scene_entity_refs WHERE scene_id = ?`,
+      [sceneId],
+    )).getRowObjectsJS() as Record<string, unknown>[];
+    return rows.map((r) => ({
+      entity_id: String(r["entity_id"]),
+      role: String(r["role"] ?? "present"),
+    }));
+  } finally {
+    conn.closeSync();
+  }
 }

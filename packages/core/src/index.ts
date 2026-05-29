@@ -39,7 +39,7 @@ export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGra
 export type { LoreType, ProvenanceInput, ProvenanceEntry, LoreRelation, LoreEntity, LinkLoreInput, UpsertLoreInput, UpsertLoreResult, LoreSearchHit, LoreGraph, LoreEntityExport, LoreRelationExport } from "./rag/lore.js";
 
 // RAG — scenes
-export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications} from "./rag/scenes.js";
+export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs} from "./rag/scenes.js";
 export type { Scene, BeatInput, Beat, BeatSearchResult, BeatExport, SceneExport, RecentSceneSummary, ComplicationScene, BeatKind } from "./rag/scenes.js";
 
 // RAG — communities

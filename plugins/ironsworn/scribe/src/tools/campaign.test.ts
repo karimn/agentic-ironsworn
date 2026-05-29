@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile, readFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -127,10 +127,11 @@ describe("export_campaign", () => {
     expect(parseText<{ counts: Record<string, number> }>(result).counts.scenes).toBe(0);
   });
 
-  it("exports NPCs from the npcs/ directory", async () => {
+  it("exports NPCs from the entity store", async () => {
     await writeFile(join(campaignDir, "character.json"), JSON.stringify(BASE_CHARACTER));
-    await mkdir(join(campaignDir, "npcs"), { recursive: true });
-    await writeFile(join(campaignDir, "npcs", "aldric.md"), "# Aldric\nA blacksmith.");
+    // Use writeNpcRaw (which parses markdown and upserts an entity) to seed the NPC
+    const { writeNpcRaw } = await import("@agentic-rpg/core");
+    await writeNpcRaw(campaignDir, "aldric.md", "# Aldric\nA blacksmith.");
 
     const outputPath = join(exportDir, "export-npcs.json");
     await client.callTool({ name: "export_campaign", arguments: { output_path: outputPath } });
@@ -138,7 +139,10 @@ describe("export_campaign", () => {
     const raw = await readFile(outputPath, "utf-8");
     const data = JSON.parse(raw) as Record<string, unknown>;
     const npcs = data["npcs"] as Record<string, string>;
-    expect(npcs["aldric.md"]).toBe("# Aldric\nA blacksmith.");
+    // The exported NPC should have the Aldric heading in its markdown content
+    const aldricEntry = Object.values(npcs).find((v) => v.includes("# Aldric"));
+    expect(aldricEntry).toBeDefined();
+    expect(aldricEntry!).toContain("# Aldric");
   });
 
   it("succeeds even when character.json is absent (exports null character)", async () => {
@@ -239,8 +243,12 @@ describe("import_campaign", () => {
     const parsed = parseText<{ imported: Record<string, number> }>(result);
     expect(parsed.imported.npcs).toBe(1);
 
-    const npcContent = await readFile(join(campaignDir, "npcs", "aldric.md"), "utf-8");
-    expect(npcContent).toBe("# Aldric\nA blacksmith.");
+    // NOTE: NPCs are now stored in world.duckdb as person entities (not files).
+    // Verify via the entity store instead of file system.
+    const { getNpc } = await import("@agentic-rpg/core");
+    const npcContent = await getNpc(campaignDir, "Aldric");
+    expect(npcContent).not.toBeNull();
+    expect(npcContent!).toContain("# Aldric");
   });
 
   it("imports threads from a valid export", async () => {

@@ -1,9 +1,8 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { DuckDBInstance } from "@duckdb/node-api";
 import { loadCharacter } from "../state/character.js";
-import { searchScenes } from "@agentic-rpg/core";
+import { searchScenes, getRecentScenesChronological, listNpcs } from "@agentic-rpg/core";
 import { listThreads } from "../state/threads.js";
 import { getActiveExpansions, type LoadedExpansion } from "../expansions/loader.js";
 
@@ -35,17 +34,11 @@ interface RecentScene {
 }
 
 async function getRecentScenes(campaignPath: string): Promise<RecentScene[]> {
-  const dbPath = join(campaignPath, "scenes.duckdb");
-  const db = await DuckDBInstance.create(dbPath, { access_mode: "READ_ONLY" });
-  const conn = await db.connect();
+  // NOTE: Scenes now live in world.duckdb (not scenes.duckdb). Use the core SDK function.
   try {
-    const result = await conn.runAndReadAll(
-      "SELECT id, text, timestamp FROM scenes ORDER BY timestamp DESC LIMIT 2",
-    );
-    return result.getRowObjectsJS() as unknown as RecentScene[];
-  } finally {
-    conn.closeSync();
-    db.closeSync();
+    return await getRecentScenesChronological(campaignPath, 2);
+  } catch {
+    return [];
   }
 }
 
@@ -100,23 +93,24 @@ async function buildActiveNpcsSection(
   campaignPath: string,
   allSceneTexts: string[],
 ): Promise<string> {
-  const npcsDir = join(campaignPath, "npcs");
-  const files = await readdir(npcsDir);
+  // NOTE: NPCs now live in world.duckdb as entities(type='person').
+  // Use listNpcs which returns { filename -> markdown } with # Name headings.
+  let npcFiles: Record<string, string>;
+  try {
+    npcFiles = await listNpcs(campaignPath);
+  } catch {
+    return "";
+  }
 
   const combined = allSceneTexts.join(" ").toLowerCase();
 
   const matched: string[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-    const stem = file.slice(0, -3); // remove .md
-    const displayName = stem.replace(/-/g, " ");
+  for (const [filename, content] of Object.entries(npcFiles)) {
+    // Extract display name from the # Name heading (same as session_briefing does)
+    const nameMatch = content.match(/^# (.+)$/m);
+    const displayName = nameMatch ? nameMatch[1]! : filename.replace(/\.md$/, "").replace(/-/g, " ");
     if (combined.includes(displayName.toLowerCase())) {
-      try {
-        const content = await readFile(join(npcsDir, file), "utf-8");
-        matched.push(`**${displayName}**\n${content.slice(0, 200)}`);
-      } catch {
-        // skip unreadable files
-      }
+      matched.push(`**${displayName}**\n${content.slice(0, 200)}`);
     }
   }
 
@@ -195,7 +189,7 @@ export async function buildContext(
     allSceneTexts.push(...recentRows.map((s) => s.text));
     if (section) sections.push(section);
   } catch {
-    // omit if no scenes.duckdb or query fails
+    // omit if no world.duckdb or query fails
   }
 
   try {
@@ -215,7 +209,7 @@ export async function buildContext(
     const npcSection = await buildActiveNpcsSection(campaignPath, allSceneTexts);
     if (npcSection) sections.push(npcSection);
   } catch {
-    // omit if no npcs/ dir
+    // omit if entity store unavailable
   }
 
   // Open threads

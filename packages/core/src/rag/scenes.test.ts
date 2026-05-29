@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { recordScene, searchScenes, getRecentComplications, getScene, updateScene, deleteScene, recordBeats, recordBeat, getBeats, searchBeats, exportScenes, importScene } from "./scenes.js";
+import { recordScene, searchScenes, getRecentComplications, getScene, updateScene, deleteScene, recordBeats, recordBeat, getBeats, searchBeats, exportScenes, importScene, setSceneEntityRefs, getSceneEntityRefs } from "./scenes.js";
 
 let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
@@ -528,5 +528,63 @@ describe("export/import with beats", () => {
     } finally {
       await rm(dir2, { recursive: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scene_entity_refs — FK SDK
+// ---------------------------------------------------------------------------
+
+describe("scene_entity_refs — FK SDK", () => {
+  it("setSceneEntityRefs writes refs and getSceneEntityRefs reads them", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A forest encounter with Kira.", "exploration");
+    const entityId1 = crypto.randomUUID();
+    const entityId2 = crypto.randomUUID();
+    await setSceneEntityRefs(campaignDir, sceneId, [
+      { entity_id: entityId1, role: "present" },
+      { entity_id: entityId2, role: "mentioned" },
+    ]);
+    const refs = await getSceneEntityRefs(campaignDir, sceneId);
+    expect(refs.length).toBe(2);
+    const roles = new Map(refs.map((r) => [r.entity_id, r.role]));
+    expect(roles.get(entityId1)).toBe("present");
+    expect(roles.get(entityId2)).toBe("mentioned");
+  });
+
+  it("setSceneEntityRefs upserts — ON CONFLICT updates role", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A cave fight.", "action");
+    const entityId = crypto.randomUUID();
+    await setSceneEntityRefs(campaignDir, sceneId, [{ entity_id: entityId, role: "present" }]);
+    // Re-set with updated role
+    await setSceneEntityRefs(campaignDir, sceneId, [{ entity_id: entityId, role: "antagonist" }]);
+    const refs = await getSceneEntityRefs(campaignDir, sceneId);
+    // Should only have one ref (upserted), with updated role
+    const forEntity = refs.filter((r) => r.entity_id === entityId);
+    expect(forEntity.length).toBe(1);
+    expect(forEntity[0]!.role).toBe("antagonist");
+  });
+
+  it("getSceneEntityRefs returns empty array when no refs exist", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A quiet moment by the fire.", "exploration");
+    const refs = await getSceneEntityRefs(campaignDir, sceneId);
+    expect(refs).toEqual([]);
+  });
+
+  it("deleteScene also removes scene_entity_refs", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A scene to be deleted.", "exploration");
+    const entityId = crypto.randomUUID();
+    await setSceneEntityRefs(campaignDir, sceneId, [{ entity_id: entityId, role: "present" }]);
+    // Verify refs exist
+    const before = await getSceneEntityRefs(campaignDir, sceneId);
+    expect(before.length).toBe(1);
+    // Delete the scene
+    await deleteScene(campaignDir, sceneId);
+    // Refs should be gone
+    const after = await getSceneEntityRefs(campaignDir, sceneId);
+    expect(after).toEqual([]);
   });
 });
