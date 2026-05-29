@@ -14,6 +14,8 @@ export type { DbMigration, CharacterMigration } from "./migrations/index.js";
 export { LORE_MIGRATIONS } from "./migrations/lore.js";
 export { SCENES_MIGRATIONS } from "./migrations/scenes.js";
 export { WORLD_MIGRATIONS } from "./migrations/world.js";
+export { migrateToWorldDb } from "./migrations/world-migrate.js";
+export type { MigrateOptions, MigrateReport } from "./migrations/world-migrate.js";
 
 // RAG — lore DB
 export { getLoreDb, openLoreWriteConn, getLoreEmbedding, peekLoreDb } from "./rag/lore-db.js";
