@@ -121,8 +121,20 @@ Update this section as the campaign evolves.
 '
 safe_write "$CWD/CLAUDE.md" "$CLAUDE_MD_CONTENT"
 
-# campaigns/default/
+# world.json — embedding pin for world.duckdb (if absent; never overwrite)
+WORLD_JSON_CONTENT='{
+  "schemaVersion": 1,
+  "embedding": { "model": "nomic-embed-text", "version": "1.5", "dim": 768 },
+  "name": "'"$(basename "$CWD")"'"
+}'
+safe_write "$CWD/world.json" "$WORLD_JSON_CONTENT"
+
+# campaigns/default/ + campaign.json
 safe_mkdir "$CWD/campaigns/default"
+
+# campaign.json — campaign identity (if absent; never overwrite)
+CAMPAIGN_JSON_CONTENT='{ "id": "default", "name": "Default Campaign" }'
+safe_write "$CWD/campaigns/default/campaign.json" "$CAMPAIGN_JSON_CONTENT"
 
 # .gitignore
 GITIGNORE_CONTENT='node_modules/

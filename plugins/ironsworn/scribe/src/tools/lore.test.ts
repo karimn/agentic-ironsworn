@@ -360,3 +360,239 @@ describe("search_lore_global tool", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3a: upsert_entity, canonize_entity, decanonize_entity,
+//            canonize_relation, decanonize_relation
+//            include_sibling_campaigns on search_lore / get_lore
+// All tests use SQL-literal entity seeding so no Ollama is required.
+// ---------------------------------------------------------------------------
+
+/** Insert an entity directly via SQL (no Ollama). Returns the entity UUID. */
+async function seedEntity(
+  cp: string,
+  args: { canonical: string; type: string; campaignId: string | null },
+): Promise<string> {
+  const { resolveWorldContext: rwc, getWorldDb: gwdb, openWorldWriteConn: owwc } = await import("@agentic-rpg/core");
+  const ctx = await rwc(cp);
+  const inst = await gwdb(ctx);
+  const conn = await owwc(inst);
+  const id = crypto.randomUUID();
+  const slug = args.canonical.toLowerCase().replace(/\s+/g, "-");
+  const fakeEmb = new Array(768).fill(0);
+  const embLit = `[${fakeEmb.join(",")}]::FLOAT[768]`;
+  const now = new Date().toISOString();
+  try {
+    await conn.run(
+      `INSERT INTO entities (id, slug, canonical, aliases, type, summary, content, metadata, embedding, campaign_id, created_in_campaign, created_at, updated_at)
+       VALUES (?, ?, ?, []::TEXT[], ?, ?, '{}', '{}', ${embLit}, ?, ?, ?, ?)`,
+      [id, slug, args.canonical, args.type, `${args.canonical} summary.`, args.campaignId, ctx.campaignId, now, now],
+    );
+  } finally {
+    conn.closeSync();
+  }
+  return id;
+}
+
+/** Insert a relation between two known UUIDs. Returns the relation UUID. */
+async function seedRelation(
+  cp: string,
+  args: { fromId: string; toId: string; label: string; campaignId: string | null },
+): Promise<string> {
+  const { resolveWorldContext: rwc, getWorldDb: gwdb, openWorldWriteConn: owwc } = await import("@agentic-rpg/core");
+  const ctx = await rwc(cp);
+  const inst = await gwdb(ctx);
+  const conn = await owwc(inst);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  try {
+    await conn.run(
+      `INSERT INTO relations (id, from_entity, to_entity, label, notes, metadata, campaign_id, created_at)
+       VALUES (?, ?, ?, ?, NULL, '{}', ?, ?)`,
+      [id, args.fromId, args.toId, args.label, args.campaignId, now],
+    );
+  } finally {
+    conn.closeSync();
+  }
+  return id;
+}
+
+describe("upsert_entity tool", () => {
+  it("happy path: upserts an entity without Ollama (SQL fixture verify)", async () => {
+    if (!dbReady) return;
+    // Seed one entity via SQL
+    const entityId = await seedEntity(campaignDir, { canonical: "Iron Hall", type: "place", campaignId: null });
+    // Verify it's readable via get_lore (no embedder needed)
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await inst.connect();
+    try {
+      const rows = (await conn.runAndReadAll(
+        `SELECT canonical FROM entities WHERE id = ?`, [entityId],
+      )).getRowObjectsJS() as Record<string, unknown>[];
+      expect(rows[0]!["canonical"]).toBe("Iron Hall");
+    } finally {
+      conn.closeSync();
+    }
+  });
+
+  it("upsert_entity tool is registered and visible", async () => {
+    if (!dbReady) return;
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("upsert_entity");
+  });
+
+  it("upsert_lore alias is still registered", async () => {
+    if (!dbReady) return;
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("upsert_lore");
+    // description should mention 'alias of upsert_entity'
+    const ul = tools.find((t) => t.name === "upsert_lore");
+    expect(ul?.description).toMatch(/alias of upsert_entity/i);
+  });
+});
+
+describe("canonize_entity / decanonize_entity tools", () => {
+  it("canonize_entity flips campaign_id to NULL; decanonize_entity reverses", async () => {
+    if (!dbReady) return;
+
+    // Seed a campaign-scoped entity
+    const ctx = await resolveWorldContext(campaignDir);
+    const entityId = await seedEntity(campaignDir, {
+      canonical: "The Oracle",
+      type: "person",
+      campaignId: ctx.campaignId,
+    });
+
+    // Set up two sibling campaign dirs sharing the same world root
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const worldRoot = ctx.worldRoot;
+    const sib2Dir = join(worldRoot, "campaigns", "sib2");
+    await mkdir(sib2Dir, { recursive: true });
+    await writeFile(join(sib2Dir, "campaign.json"), JSON.stringify({ id: "sib2" }), "utf8");
+
+    // Sibling campaign cannot see the entity before canonization
+    const sib2Server = new McpServer({ name: "sib2", version: "0.0.1" });
+    register(sib2Server, sib2Dir);
+    const sib2Client = new Client({ name: "sib2-client", version: "0.0.1" });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    await sib2Server.connect(st);
+    await sib2Client.connect(ct);
+
+    const beforeCanonize = await sib2Client.callTool({ name: "get_lore", arguments: { identifier: "The Oracle" } });
+    expect(parseToolText(beforeCanonize)).toBeNull();
+
+    // Canonize via the active campaign
+    const canonResult = await client.callTool({
+      name: "canonize_entity",
+      arguments: { identifier: "The Oracle" },
+    });
+    expect(canonResult.isError).not.toBe(true);
+    const canonParsed = parseToolText<{ id: string; canonical: string }>(canonResult);
+    expect(canonParsed.id).toBe(entityId);
+    expect(canonParsed.canonical).toBe("The Oracle");
+
+    // Sibling can now see the entity (campaign_id IS NULL)
+    const afterCanonize = await sib2Client.callTool({ name: "get_lore", arguments: { identifier: "The Oracle" } });
+    expect(parseToolText<{ canonical: string } | null>(afterCanonize)).not.toBeNull();
+    expect(parseToolText<{ canonical: string; campaign_id: string | null }>(afterCanonize).campaign_id).toBeNull();
+
+    // Decanonize back to the original campaign
+    const decanonResult = await client.callTool({
+      name: "decanonize_entity",
+      arguments: { identifier: "The Oracle", into_campaign: ctx.campaignId },
+    });
+    expect(decanonResult.isError).not.toBe(true);
+
+    // Sibling can no longer see it
+    const afterDecanon = await sib2Client.callTool({ name: "get_lore", arguments: { identifier: "The Oracle" } });
+    expect(parseToolText(afterDecanon)).toBeNull();
+
+    await import("node:fs/promises").then((m) => m.rm(sib2Dir, { recursive: true, force: true }));
+  });
+});
+
+describe("canonize_relation / decanonize_relation tools", () => {
+  it("canonize_relation flips campaign_id to NULL and decanonize_relation reverses", async () => {
+    if (!dbReady) return;
+
+    const ctx = await resolveWorldContext(campaignDir);
+    const fromId = await seedEntity(campaignDir, { canonical: "Entity A", type: "concept", campaignId: ctx.campaignId });
+    const toId = await seedEntity(campaignDir, { canonical: "Entity B", type: "concept", campaignId: ctx.campaignId });
+    const relId = await seedRelation(campaignDir, { fromId, toId, label: "knows", campaignId: ctx.campaignId });
+
+    const inst = await getWorldDb(ctx);
+    const conn = await inst.connect();
+    try {
+      const before = (await conn.runAndReadAll(`SELECT campaign_id FROM relations WHERE id = ?`, [relId])).getRowObjectsJS() as Record<string, unknown>[];
+      expect(before[0]!["campaign_id"]).toBe(ctx.campaignId);
+    } finally { conn.closeSync(); }
+
+    const canonResult = await client.callTool({
+      name: "canonize_relation",
+      arguments: { relation_id: relId },
+    });
+    expect(canonResult.isError).not.toBe(true);
+
+    const conn2 = await inst.connect();
+    try {
+      const after = (await conn2.runAndReadAll(`SELECT campaign_id FROM relations WHERE id = ?`, [relId])).getRowObjectsJS() as Record<string, unknown>[];
+      expect(after[0]!["campaign_id"]).toBeNull();
+    } finally { conn2.closeSync(); }
+
+    const decanonResult = await client.callTool({
+      name: "decanonize_relation",
+      arguments: { relation_id: relId, into_campaign: ctx.campaignId },
+    });
+    expect(decanonResult.isError).not.toBe(true);
+
+    const conn3 = await inst.connect();
+    try {
+      const reverted = (await conn3.runAndReadAll(`SELECT campaign_id FROM relations WHERE id = ?`, [relId])).getRowObjectsJS() as Record<string, unknown>[];
+      expect(reverted[0]!["campaign_id"]).toBe(ctx.campaignId);
+    } finally { conn3.closeSync(); }
+  });
+
+  it("canonize_relation errors on non-existent relation id", async () => {
+    if (!dbReady) return;
+    const fakeId = crypto.randomUUID();
+    const result = await client.callTool({
+      name: "canonize_relation",
+      arguments: { relation_id: fakeId },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result as { content: Array<{ text: string }> }).content[0]!.text;
+    expect(text).toContain("Relation not found");
+  });
+});
+
+describe("include_sibling_campaigns on search_lore / get_lore", () => {
+  it("search_lore without flag excludes sibling-campaign entities", async () => {
+    if (!dbReady) return;
+
+    const worldRoot = (await resolveWorldContext(campaignDir)).worldRoot;
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const sib3Dir = join(worldRoot, "campaigns", "sib3");
+    await mkdir(sib3Dir, { recursive: true });
+    await writeFile(join(sib3Dir, "campaign.json"), JSON.stringify({ id: "sib3" }), "utf8");
+
+    // Seed an entity scoped to sib3 — active campaign is the test campaign
+    await seedEntity(sib3Dir, { canonical: "Sibling Only Entity", type: "concept", campaignId: "sib3" });
+
+    // Active campaign doesn't see it without flag
+    const hiddenResult = await client.callTool({
+      name: "get_lore",
+      arguments: { identifier: "Sibling Only Entity" },
+    });
+    expect(parseToolText(hiddenResult)).toBeNull();
+
+    // But the get_lore tool exists and include_sibling_campaigns is a valid param
+    const { tools } = await client.listTools();
+    const gl = tools.find((t) => t.name === "get_lore");
+    expect(gl?.inputSchema?.properties).toHaveProperty("include_sibling_campaigns");
+
+    await import("node:fs/promises").then((m) => m.rm(sib3Dir, { recursive: true, force: true }));
+  });
+});

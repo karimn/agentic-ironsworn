@@ -8,13 +8,15 @@ import {
 } from "./world-db.js";
 
 export const LORE_TYPES = [
-  "material",
-  "faction",
   "place",
+  "person",
+  "faction",
+  "material",
   "concept",
   "creature",
   "event",
   "truth",
+  "thread",
 ] as const;
 
 export type LoreType = (typeof LORE_TYPES)[number];
@@ -884,6 +886,108 @@ export async function replayProvenance(
        VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
       [entry.id, entry.subject_kind, entry.subject_id, entry.source_kind, entry.source_id, entry.excerpt, entry.confidence, entry.created_at],
     );
+  } finally {
+    conn.closeSync();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Canonize / Decanonize — Phase 3a
+// ---------------------------------------------------------------------------
+
+/**
+ * Promote an entity to world canon: flip `campaign_id` to NULL.
+ * Resolution uses the visibility filter (you can only canonize something you can see).
+ * Throws if the entity is not found.
+ */
+export async function canonizeEntity(
+  campaignPath: string,
+  identifier: string,
+): Promise<{ id: string; canonical: string }> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    const existing = await resolveExisting(conn, identifier, ctx.campaignId);
+    if (existing === null) throw new Error(`Entity not found (visible to campaign "${ctx.campaignId}"): "${identifier}"`);
+    const now = new Date().toISOString();
+    await conn.run(
+      `UPDATE entities SET campaign_id = NULL, updated_at = ? WHERE id = ?`,
+      [now, existing.id],
+    );
+    return { id: existing.id, canonical: existing.canonical };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+/**
+ * Reverse a canonization: flip `campaign_id` back to a named campaign.
+ * Resolution uses the visibility filter (including canon, i.e. current campaign or NULL).
+ * Throws if the entity is not found.
+ */
+export async function decanonizeEntity(
+  campaignPath: string,
+  identifier: string,
+  intoCampaign: string,
+): Promise<{ id: string; canonical: string }> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    const existing = await resolveExisting(conn, identifier, ctx.campaignId);
+    if (existing === null) throw new Error(`Entity not found (visible to campaign "${ctx.campaignId}"): "${identifier}"`);
+    const now = new Date().toISOString();
+    await conn.run(
+      `UPDATE entities SET campaign_id = ?, updated_at = ? WHERE id = ?`,
+      [intoCampaign, now, existing.id],
+    );
+    return { id: existing.id, canonical: existing.canonical };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+/**
+ * Promote a relation to world canon: flip `campaign_id` to NULL.
+ * `relationId` must be the UUID from `linkLore`'s `relation_id` return value.
+ * Throws if the relation is not found.
+ */
+export async function canonizeRelation(
+  campaignPath: string,
+  relationId: string,
+): Promise<void> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    await conn.run(`UPDATE relations SET campaign_id = NULL WHERE id = ?`, [relationId]);
+    // Verify the row actually existed (DuckDB does not error on 0-row updates)
+    const check = await conn.runAndReadAll(`SELECT id FROM relations WHERE id = ?`, [relationId]);
+    const rows = check.getRowObjectsJS() as Record<string, unknown>[];
+    if (rows.length === 0) throw new Error(`Relation not found: "${relationId}"`);
+  } finally {
+    conn.closeSync();
+  }
+}
+
+/**
+ * Reverse a relation canonization: flip `campaign_id` back to a named campaign.
+ * Throws if the relation is not found.
+ */
+export async function decanonizeRelation(
+  campaignPath: string,
+  relationId: string,
+  intoCampaign: string,
+): Promise<void> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    await conn.run(`UPDATE relations SET campaign_id = ? WHERE id = ?`, [intoCampaign, relationId]);
+    const check = await conn.runAndReadAll(`SELECT id FROM relations WHERE id = ?`, [relationId]);
+    const rows = check.getRowObjectsJS() as Record<string, unknown>[];
+    if (rows.length === 0) throw new Error(`Relation not found: "${relationId}"`);
   } finally {
     conn.closeSync();
   }

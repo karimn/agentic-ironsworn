@@ -435,6 +435,40 @@ export async function importScene(
   } finally { conn.closeSync(); }
 }
 
+export interface SceneEntityRefExport {
+  scene_id: string;
+  entity_id: string;
+  role: string;
+}
+
+/**
+ * Export all scene entity refs for the current campaign (joined through scenes for campaign filter).
+ */
+export async function exportSceneEntityRefs(
+  campaignPath: string,
+): Promise<SceneEntityRefExport[]> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await instance.connect();
+  try {
+    const rows = (await conn.runAndReadAll(
+      `SELECT ser.scene_id, ser.entity_id, ser.role
+       FROM scene_entity_refs ser
+       JOIN scenes s ON s.id = ser.scene_id
+       WHERE s.campaign_id = ?
+       ORDER BY ser.scene_id, ser.entity_id`,
+      [ctx.campaignId],
+    )).getRowObjectsJS() as Record<string, unknown>[];
+    return rows.map((r) => ({
+      scene_id: String(r["scene_id"]),
+      entity_id: String(r["entity_id"]),
+      role: String(r["role"] ?? "present"),
+    }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function checkpointScenes(campaignPath: string): Promise<void> {
   // NOTE: scenes are now in world.duckdb — checkpoint the world DB via peekWorldDb.
   // It's fine that checkpointLore and checkpointScenes both checkpoint the same file.

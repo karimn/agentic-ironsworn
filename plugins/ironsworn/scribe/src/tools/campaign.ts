@@ -7,11 +7,11 @@ import { loadThreads, saveThreads } from "../state/threads.js";
 import { listNpcs, writeNpcRaw } from "@agentic-rpg/core";
 import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, replayProvenance, type LoreType } from "@agentic-rpg/core";
 import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "@agentic-rpg/core";
-import { exportScenes, importScene, checkpointScenes, type BeatExport } from "@agentic-rpg/core";
+import { exportScenes, importScene, checkpointScenes, exportSceneEntityRefs, setSceneEntityRefs, type BeatExport, type SceneEntityRefExport } from "@agentic-rpg/core";
 import { shutdown as drainBeatQueue } from "@agentic-rpg/core";
 
 interface CampaignExport {
-  version: 2;
+  version: 3;
   exported_at: string;
   character: unknown;
   threads: unknown[];
@@ -21,6 +21,7 @@ interface CampaignExport {
   lore_proximity: unknown[];
   lore_provenance: unknown[];
   scenes: unknown[];
+  scene_entity_refs: SceneEntityRefExport[];
 }
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -68,7 +69,7 @@ export function register(server: McpServer, campaignPath: string): void {
           checkpointScenes(campaignPath).catch(() => undefined),
         ]);
 
-        const [character, threads, npcs, { entities, relations }, proximity, provenance, scenes] = await Promise.all([
+        const [character, threads, npcs, { entities, relations }, proximity, provenance, scenes, scene_entity_refs] = await Promise.all([
           loadCharacter(campaignPath).catch(() => null),
           loadThreads(campaignPath),
           listNpcs(campaignPath),
@@ -78,10 +79,13 @@ export function register(server: McpServer, campaignPath: string): void {
           include_scenes !== false
             ? exportScenes(campaignPath).catch(() => [])
             : Promise.resolve([]),
+          include_scenes !== false
+            ? exportSceneEntityRefs(campaignPath).catch(() => [])
+            : Promise.resolve([]),
         ]);
 
         const payload: CampaignExport = {
-          version: 2,
+          version: 3,
           exported_at: new Date().toISOString(),
           character,
           threads,
@@ -91,6 +95,7 @@ export function register(server: McpServer, campaignPath: string): void {
           lore_proximity: proximity,
           lore_provenance: provenance,
           scenes,
+          scene_entity_refs,
         };
 
         await mkdir(dirname(output_path), { recursive: true });
@@ -110,6 +115,7 @@ export function register(server: McpServer, campaignPath: string): void {
                 npcs: Object.keys(npcs).length,
                 threads: threads.length,
                 scenes: scenes.length,
+                scene_entity_refs: scene_entity_refs.length,
               },
             }),
           }],
@@ -135,7 +141,7 @@ export function register(server: McpServer, campaignPath: string): void {
         const parsed = JSON.parse(raw) as Record<string, unknown>;
         const exportVersion = parsed["version"] as number;
 
-        if (exportVersion !== 1 && exportVersion !== 2) {
+        if (exportVersion !== 1 && exportVersion !== 2 && exportVersion !== 3) {
           return {
             content: [{ type: "text", text: `Unsupported export version: ${exportVersion}` }],
             isError: true,
@@ -143,8 +149,9 @@ export function register(server: McpServer, campaignPath: string): void {
         }
 
         const data = parsed as unknown as CampaignExport;
+        const isV3 = exportVersion === 3;
 
-        const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, lore_provenance: 0, scenes: 0 };
+        const counts = { character: 0, threads: 0, npcs: 0, lore_entities: 0, lore_relations: 0, lore_proximity: 0, lore_provenance: 0, scenes: 0, scene_entity_refs: 0 };
 
         if (data.character) {
           await saveCharacter(campaignPath, data.character as Parameters<typeof saveCharacter>[1]);
@@ -166,6 +173,8 @@ export function register(server: McpServer, campaignPath: string): void {
         if (Array.isArray(data.lore_entities)) {
           for (const entity of data.lore_entities) {
             const e = entity as Record<string, unknown>;
+            // v3: id is a UUID, so upsertLore uses UUID PK-update path preserving campaign_id
+            // v1/v2: id may be a slug seed — upsertLore resolves via slug or mints a new UUID
             await upsertLore(campaignPath, {
               id: String(e["id"]),
               canonical: String(e["canonical"]),
@@ -254,6 +263,25 @@ export function register(server: McpServer, campaignPath: string): void {
               Array.isArray(s["beats"]) ? (s["beats"] as BeatExport[]) : undefined,
             );
             if (inserted) counts.scenes++;
+          }
+        }
+
+        // v3: import scene_entity_refs — idempotent via ON CONFLICT DO UPDATE
+        if (isV3 && Array.isArray((data as unknown as Record<string, unknown>)["scene_entity_refs"])) {
+          const refsArray = (data as unknown as Record<string, unknown>)["scene_entity_refs"] as unknown[];
+          // Group refs by scene_id for setSceneEntityRefs
+          const refsByScene = new Map<string, { entity_id: string; role?: string }[]>();
+          for (const ref of refsArray) {
+            const r = ref as Record<string, unknown>;
+            const sceneId = String(r["scene_id"]);
+            const entityId = String(r["entity_id"]);
+            const role = r["role"] != null ? String(r["role"]) : "present";
+            if (!refsByScene.has(sceneId)) refsByScene.set(sceneId, []);
+            refsByScene.get(sceneId)!.push({ entity_id: entityId, role });
+          }
+          for (const [sceneId, refs] of refsByScene) {
+            await setSceneEntityRefs(campaignPath, sceneId, refs);
+            counts.scene_entity_refs += refs.length;
           }
         }
 

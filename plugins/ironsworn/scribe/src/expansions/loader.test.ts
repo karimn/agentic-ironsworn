@@ -250,14 +250,14 @@ describe("loadExpansions namespace binding", () => {
     // back which namespace was recorded without needing any external imports.
     const resultPath = join(tmpDir, "ns-result.json");
 
-    // This expansion calls ctx.runDbMigrations using the lore DB connection
-    // supplied via ctx.getLoreDb. It writes the recorded namespace back to a
+    // This expansion calls ctx.runDbMigrations using the world DB connection
+    // supplied via ctx.getWorldDb. It writes the recorded namespace back to a
     // file so the test can verify it without importing @duckdb/node-api.
     await writeFile(
       join(expansionDir, "server", "index.ts"),
       `import { writeFileSync } from "node:fs";
 export async function register(_server, ctx) {
-  const db = await ctx.getLoreDb(ctx.campaignPath);
+  const db = await ctx.getWorldDb(ctx.campaignPath);
   const conn = await db.connect();
   try {
     await ctx.runDbMigrations(conn, [
@@ -327,7 +327,7 @@ export async function register(_server, ctx) {
       join(expansionDir, "server", "index.ts"),
       `import { writeFileSync } from "node:fs";
 export async function register(_server, ctx) {
-  const db = await ctx.getLoreDb(ctx.campaignPath);
+  const db = await ctx.getWorldDb(ctx.campaignPath);
   const conn = await db.connect();
   try {
     // Run expansion migration v1
