@@ -155,6 +155,32 @@ gives campaign-local lore thematic framing while staying consistent with
 how all other reads behave. A canon-only or two-tier clustering pass can be
 added later without breaking this contract.
 
+### Decision 6 — legacy files moved to `*.legacy`, not deleted (confirmed)
+
+The migration renames the legacy stores (`lore.duckdb`, `scenes.duckdb`,
+`npcs/`, `threads.yaml`) to `*.legacy` after count-verifying `in == out`,
+rather than hard-deleting them as the issue text suggests. Reversible if a
+corner case slipped through verification; the user deletes them manually
+once satisfied. This is the safer default for the largest schema change so
+far.
+
+### Decision 7 — overlay state anchors on the PC entity (confirmed)
+
+Per-campaign overlay relations (discovery, "PC has met X", faction shifts;
+D10) anchor on the **PC entity** (the `type='person'` row for the
+character), not a synthetic `party` node. Matches the v1 doc default
+(OQ6). Multi-PC parties (OQ4) are deferred; the anchor generalizes later
+without breaking the `campaign_id` relation model. #166 reserves the
+mechanism (the `campaign_id` column on `relations`); it does not build
+overlay-producing features.
+
+### Decision 8 — `world.json` stays a file; aliases live one release (confirmed)
+
+`world.json` remains a plain file (read before the DB opens; no special
+case in the visibility filter; OQ2 default). `upsert_npc` / `upsert_lore`
+ship as thin aliases of `upsert_entity` for **one release**, deprecation
+noted in their tool descriptions, then removed.
+
 ## Target schema
 
 ```sql
