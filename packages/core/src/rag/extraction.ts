@@ -164,7 +164,7 @@ export async function extractLoreFromScene(
       metadata["needs_review"] = true;
     }
 
-    await upsertLore(campaignPath, {
+    const upsertResult = await upsertLore(campaignPath, {
       ...(isExisting ? { id: topHit.id } : {}),
       canonical: isExisting ? topHit.canonical : entity.canonical,
       type: entity.type,
@@ -179,7 +179,10 @@ export async function extractLoreFromScene(
       },
     });
 
-    if (isExisting) {
+    // Count what actually happened: even when the vector pre-check (isExisting)
+    // misses, upsertLore still dedups by exact canonical/alias, so trust its
+    // result rather than the cosine guess.
+    if (upsertResult.updated) {
       report.entities_updated++;
     } else {
       report.entities_created++;

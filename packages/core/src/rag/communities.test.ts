@@ -304,8 +304,13 @@ describe("recomputeCommunities", () => {
       skipEmbeddings: true,
     });
 
-    // Some clusters were unchanged (the X-triangle should be one of them).
-    expect(second.unchanged).toBeGreaterThan(0);
+    // The X-triangle has identical members and must NOT be re-summarized. It may
+    // land in `updated` rather than `unchanged`: adding Q changes its sibling and
+    // therefore the member-derived root id, which re-points the X-triangle's
+    // parent — a pointer update, not a re-summarization. The real contract is
+    // that not every community is re-summarized.
+    expect(second.unchanged + second.updated).toBeGreaterThan(0);
+    expect(second.llm_calls).toBeLessThan(second.communities_total);
     // At least one community changed, so created > 0.
     expect(second.created).toBeGreaterThan(0);
   });
