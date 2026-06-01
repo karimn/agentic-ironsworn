@@ -519,7 +519,9 @@ describe("import_campaign", () => {
       expect(importedProv[0].source_kind).toBe("document");
       expect(importedProv[0].source_id).toBe("doc-123");
       expect(importedProv[0].excerpt).toBe("From chapter 5");
-      expect(importedProv[0].confidence).toBe(0.95);
+      // confidence is stored in a single-precision FLOAT column, so 0.95 is not
+      // exactly representable — compare with tolerance rather than exact equality.
+      expect(importedProv[0].confidence).toBeCloseTo(0.95, 5);
     } finally {
       await rm(importDir, { recursive: true, force: true });
     }

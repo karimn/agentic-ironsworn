@@ -181,8 +181,10 @@ export function register(server: McpServer, campaignPath: string): void {
         if (Array.isArray(data.lore_entities)) {
           for (const entity of data.lore_entities) {
             const e = entity as Record<string, unknown>;
-            // v3: id is a UUID, so upsertLore uses UUID PK-update path preserving campaign_id
-            // v1/v2: id may be a slug seed — upsertLore resolves via slug or mints a new UUID
+            // v3: id is a UUID — upsertLore preserves it (insert-with-id, or
+            //     UUID PK-update on re-import) and re-stamps campaign_id to the
+            //     target campaign. v1/v2: id may be a slug seed — upsertLore
+            //     resolves via slug or mints a new UUID.
             await upsertLore(campaignPath, {
               id: String(e["id"]),
               canonical: String(e["canonical"]),

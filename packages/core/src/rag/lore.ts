@@ -346,8 +346,13 @@ export async function upsertLore(
         metadataJson = existingRow.metadata;
       }
     } else {
-      // New entity: mint UUID and derive slug
-      entityId = crypto.randomUUID();
+      // New entity. Preserve an explicit UUID id (v3 import / export roundtrip
+      // is idempotent on UUID); otherwise mint a fresh one. A non-UUID input.id
+      // is treated as a slug seed, not an id.
+      entityId =
+        input.id !== undefined && looksLikeUuid(input.id)
+          ? input.id
+          : crypto.randomUUID();
       // Prefer explicit slug seed when input.id is a non-UUID string
       entitySlug = (input.id !== undefined && input.id.length > 0 && !looksLikeUuid(input.id))
         ? input.id
