@@ -64,7 +64,7 @@ export function validateLinkInput(input: LinkProximityInput): void {
   }
 }
 
-interface LoreRow { id: string; type: string; campaign_id: string | null }
+interface LoreRow { id: string; slug: string; type: string; campaign_id: string | null }
 
 /**
  * Resolve an entity from the `entities` table with visibility filter.
@@ -77,7 +77,7 @@ async function resolveLore(
 ): Promise<LoreRow> {
   const needle = identifier.toLowerCase();
   const result = await conn.runAndReadAll(
-    `SELECT id, type, campaign_id FROM entities
+    `SELECT id, slug, type, campaign_id FROM entities
      WHERE (campaign_id IS NULL OR campaign_id = ?)
        AND (lower(id::TEXT) = ? OR lower(canonical) = ? OR lower(slug) = ?
             OR EXISTS (SELECT 1 FROM unnest(aliases) AS t(alias) WHERE lower(alias) = ?))
@@ -88,6 +88,7 @@ async function resolveLore(
   if (rows.length === 0) throw new Error(`Lore entity not found: "${identifier}"`);
   return {
     id: String(rows[0]["id"]),
+    slug: String(rows[0]["slug"] ?? ""),
     type: String(rows[0]["type"]),
     campaign_id: rows[0]["campaign_id"] != null ? String(rows[0]["campaign_id"]) : null,
   };
@@ -96,15 +97,19 @@ async function resolveLore(
 interface CanonicalPair { fromId: string; toId: string; direction?: CompassPoint; orderKind?: OrderKind }
 
 function canonicalizePair(
-  fromId: string, toId: string, dimension: ProximityDimension,
+  from: { id: string; slug: string }, to: { id: string; slug: string },
+  dimension: ProximityDimension,
   direction: CompassPoint | undefined, orderKind: OrderKind | undefined,
 ): CanonicalPair {
   if (dimension === "space") {
-    const swap = fromId > toId;
-    return { fromId: swap ? toId : fromId, toId: swap ? fromId : toId, direction: swap && direction ? invertDirection(direction) : direction };
+    // Order spatial pairs by slug (human-meaningful and stable) so (A,B) and
+    // (B,A) collapse to one edge; fall back to id when slugs tie. Entity ids are
+    // UUIDs, so ordering by id would be effectively random.
+    const swap = from.slug !== to.slug ? from.slug > to.slug : from.id > to.id;
+    return { fromId: swap ? to.id : from.id, toId: swap ? from.id : to.id, direction: swap && direction ? invertDirection(direction) : direction };
   }
   const swap = orderKind === "after";
-  return { fromId: swap ? toId : fromId, toId: swap ? fromId : toId, orderKind: "before" };
+  return { fromId: swap ? to.id : from.id, toId: swap ? from.id : to.id, orderKind: "before" };
 }
 
 const SPATIAL_OK_TYPES = new Set(["place", "faction"]);
@@ -131,7 +136,7 @@ export async function linkProximity(campaignPath: string, input: LinkProximityIn
     const fromRow = await resolveLore(conn, input.from, ctx.campaignId);
     const toRow = await resolveLore(conn, input.to, ctx.campaignId);
     if (fromRow.id === toRow.id) throw new Error("Cannot link an entity to itself");
-    const canonical = canonicalizePair(fromRow.id, toRow.id, input.dimension, input.direction, input.order_kind);
+    const canonical = canonicalizePair(fromRow, toRow, input.dimension, input.direction, input.order_kind);
     const now = input._created_at ?? new Date().toISOString();
     const metadataJson = JSON.stringify(input.metadata ?? {});
 

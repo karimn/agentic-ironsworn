@@ -314,7 +314,10 @@ export async function upsertLore(
     if (existingRow !== null) {
       updated = true;
       entityId = existingRow.id;
-      entitySlug = existingRow.slug;
+      // Refresh the slug to track the (possibly renamed) canonical, so the entity
+      // resolves by its current slug. The old slug is retained as an alias below.
+      const oldSlug = existingRow.slug;
+      entitySlug = slugify(input.canonical);
 
       // Merge aliases: preserve old aliases, move old canonical to aliases on rename
       const oldCanonical = existingRow.canonical;
@@ -330,9 +333,9 @@ export async function upsertLore(
         acc.push(name);
       };
       for (const a of oldAliases) push(a);
-      // Also add the old slug as an alias for resolution backwards-compat
-      if (entitySlug.length > 0 && entitySlug !== slugify(input.canonical)) {
-        push(entitySlug);
+      // Keep the old slug resolvable when a rename changes it (no-op otherwise).
+      if (oldSlug.length > 0 && oldSlug !== entitySlug) {
+        push(oldSlug);
       }
       if (oldCanonical.length > 0 && oldCanonical.toLowerCase() !== input.canonical.toLowerCase()) {
         push(oldCanonical);
@@ -358,14 +361,10 @@ export async function upsertLore(
         ? input.id
         : slugify(input.canonical);
 
+      // The slug lives in the slug column and is matched there during resolution;
+      // it is not duplicated into aliases. aliases holds alternative *names* only.
       const seen = new Set<string>();
       mergedAliases = [];
-      // Include the slug as an alias for backwards-compat resolution
-      const slgKey = entitySlug.toLowerCase();
-      if (slgKey.length > 0 && slgKey !== input.canonical.toLowerCase()) {
-        seen.add(slgKey);
-        mergedAliases.push(entitySlug);
-      }
       for (const a of incomingAliases) {
         const key = a.toLowerCase();
         if (key.length === 0 || key === input.canonical.toLowerCase()) continue;

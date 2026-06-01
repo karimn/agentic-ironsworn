@@ -190,10 +190,13 @@ async function initDb(ctx: WorldContext): Promise<DuckDBInstance> {
     // -----------------------------------------------------------------------
     await conn.run(`
       CREATE TABLE IF NOT EXISTS lore_communities (
-        id           UUID PRIMARY KEY,
+        -- Community ids are stable sha256-hash hex strings (see stableCommunityId),
+        -- not UUIDs; member_ids mixes entity UUIDs (level 0) with child community
+        -- hash ids (higher levels). Both are therefore TEXT, never UUID.
+        id           TEXT PRIMARY KEY,
         level        INTEGER NOT NULL,
-        parent_id    UUID,
-        member_ids   UUID[] NOT NULL DEFAULT [],
+        parent_id    TEXT,
+        member_ids   TEXT[] NOT NULL DEFAULT [],
         member_count INTEGER NOT NULL,
         summary      TEXT NOT NULL DEFAULT '',
         embedding    FLOAT[768],

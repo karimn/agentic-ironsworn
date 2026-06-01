@@ -556,9 +556,11 @@ export async function migrateToWorldDb(
           const updatedAt = String(comm["updated_at"] ?? now);
           const memberCount = Number(comm["member_count"] ?? newMemberIds.length);
 
+          // lore_communities.member_ids is TEXT[] (community ids are hash strings,
+          // not UUIDs; level-0 members are entity UUIDs stored as text).
           const memberIdsLiteral = newMemberIds.length > 0
-            ? `[${newMemberIds.map((id) => `'${id}'`).join(",")}]::UUID[]`
-            : `[]::UUID[]`;
+            ? `[${newMemberIds.map((id) => `'${id}'`).join(",")}]::TEXT[]`
+            : `[]::TEXT[]`;
 
           const embRaw = comm["embedding"];
           if (embRaw != null && Array.isArray(embRaw)) {

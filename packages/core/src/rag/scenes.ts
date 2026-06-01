@@ -5,6 +5,14 @@ import { getWorldDb, openWorldWriteConn, peekWorldDb, getWorldEmbedding } from "
 // NOTE: Local DB plumbing (initDb, getDb, openWriteConn, getEmbedding from old scenes.duckdb)
 // has been removed. All reads/writes now target world.duckdb via getWorldDb(ctx).
 
+// scenes.id / scene_beats.scene_id are UUID columns. DuckDB throws a conversion
+// error when a non-UUID string is compared against them, so callers that accept
+// an externally-supplied id must treat a non-UUID value as "no such row".
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(s: string): boolean {
+  return UUID_RE.test(s);
+}
+
 export interface Scene {
   id: string;
   text: string;
@@ -115,6 +123,7 @@ export async function getScene(
   id: string,
   opts?: { include_beats?: boolean },
 ): Promise<Scene | null> {
+  if (!isUuid(id)) return null;
   const ctx = await resolveWorldContext(campaignPath);
   const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
@@ -191,6 +200,7 @@ export async function updateScene(
 }
 
 export async function deleteScene(campaignPath: string, id: string): Promise<void> {
+  if (!isUuid(id)) return;
   const ctx = await resolveWorldContext(campaignPath);
   const instance = await getWorldDb(ctx);
   const conn = await openWorldWriteConn(instance);
@@ -207,6 +217,7 @@ export async function recordBeats(
   beats: BeatInput[],
 ): Promise<void> {
   if (beats.length === 0) return;
+  if (!isUuid(sceneId)) throw new Error(`Scene not found: ${sceneId}`);
   const ctx = await resolveWorldContext(campaignPath);
   const [embeddings, instance] = await Promise.all([
     Promise.all(beats.map((b) => getWorldEmbedding(b.text))),
@@ -243,6 +254,7 @@ export async function recordBeat(
   sceneId: string,
   beat: BeatInput,
 ): Promise<number> {
+  if (!isUuid(sceneId)) throw new Error(`Scene not found: ${sceneId}`);
   const ctx = await resolveWorldContext(campaignPath);
   const instance = await getWorldDb(ctx);
   const checkConn = await instance.connect();
