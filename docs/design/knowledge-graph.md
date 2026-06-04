@@ -87,8 +87,9 @@ issue.
 ## Schema (after #166)
 
 The schema collapses the current three stores (`lore.duckdb`,
-`scenes.duckdb`, `npcs/*.json`) into one world DB. See #166 for the full
-migration. Core shape:
+`scenes.duckdb`, `npcs/*.json`) into one world DB. **Implemented in
+PR #169** — see [`world-db.md`](world-db.md) for the as-built schema,
+visibility predicate, and migration. Core shape:
 
 ```sql
 entities(
