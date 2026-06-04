@@ -358,11 +358,9 @@
       \ is greater than 0, suffer -1 momentum in exchange for +1 health.\n  * Embrace\
       \ the pain: Take +1 momentum."
     weak_hit: On a weak hit, you press on.
-    miss: 'On a miss, also suffer -1 momentum. If you are at 0 health, you must mark
-      wounded or maimed (if currently unmarked) or roll on the following table.
-
-
-      {{table:classic/oracles/moves/endure_harm}}'
+    miss: On a miss, also suffer -1 momentum. If you are at 0 health, you must mark
+      wounded or maimed (if currently unmarked) or roll on the Endure Harm oracle
+      table.
 - name: Face Death
   trigger: When you are brought to the brink of death, and glimpse the world beyond...
   stat_options:
@@ -408,11 +406,9 @@
       \ is greater than 0, suffer -1 momentum in exchange for +1 spirit\n  * Embrace\
       \ the darkness: Take +1 momentum"
     weak_hit: On a weak hit, you press on.
-    miss: 'On a miss, also suffer -1 momentum. If you are at 0 spirit, you must mark
-      shaken or corrupted (if currently unmarked) or roll on the following table.
-
-
-      {{table:classic/oracles/moves/endure_stress}}'
+    miss: On a miss, also suffer -1 momentum. If you are at 0 spirit, you must mark
+      shaken or corrupted (if currently unmarked) or roll on the Endure Stress oracle
+      table.
 - name: Face Desolation
   trigger: When you are brought to the brink of desolation...
   stat_options:
