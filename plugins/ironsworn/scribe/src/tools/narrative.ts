@@ -118,7 +118,7 @@ export function register(server: McpServer, campaignPath: string): void {
     "update_scene",
     "Update an existing scene record. Only provided fields are changed. Use append_beats to add new beats without replacing existing ones.",
     {
-      id: z.string().describe("ID of the scene to update"),
+      scene_id: z.string().describe("ID of the scene to update"),
       summary: z.string().optional().describe("New summary text (replaces existing)"),
       kind: z.string().optional().describe("New kind of scene"),
       npcs: z.array(z.string()).optional().describe("NPC names to verify are recorded"),
@@ -130,23 +130,23 @@ export function register(server: McpServer, campaignPath: string): void {
         "Fiction/RP quality feedback to set or replace on this scene"
       ),
     },
-    async ({ id, summary, kind, npcs, lore_ids, append_beats, quality_notes }) => {
+    async ({ scene_id, summary, kind, npcs, lore_ids, append_beats, quality_notes }) => {
       try {
-        const existing = await getScene(campaignPath, id);
+        const existing = await getScene(campaignPath, scene_id);
         if (existing === null) {
           return {
-            content: [{ type: "text", text: `Error: Scene not found: ${id}` }],
+            content: [{ type: "text", text: `Error: Scene not found: ${scene_id}` }],
             isError: true,
           };
         }
-        await updateScene(campaignPath, id, { summary, kind, quality_notes });
+        await updateScene(campaignPath, scene_id, { summary, kind, quality_notes });
         if (append_beats && append_beats.length > 0) {
-          await recordBeats(campaignPath, id, append_beats as BeatInput[]);
+          await recordBeats(campaignPath, scene_id, append_beats as BeatInput[]);
         }
         recordMutation(campaignPath);
         const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, id, warnings, stubbed }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id: scene_id, warnings, stubbed }) }],
         };
       } catch (e) {
         return {
@@ -230,21 +230,21 @@ export function register(server: McpServer, campaignPath: string): void {
     "delete_scene",
     "Delete a scene record by ID",
     {
-      id: z.string().describe("ID of the scene to delete"),
+      scene_id: z.string().describe("ID of the scene to delete"),
     },
-    async ({ id }) => {
+    async ({ scene_id }) => {
       try {
-        const existing = await getScene(campaignPath, id);
+        const existing = await getScene(campaignPath, scene_id);
         if (existing === null) {
           return {
-            content: [{ type: "text", text: `Error: Scene not found: ${id}` }],
+            content: [{ type: "text", text: `Error: Scene not found: ${scene_id}` }],
             isError: true,
           };
         }
-        await deleteScene(campaignPath, id);
+        await deleteScene(campaignPath, scene_id);
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, id }) }],
+          content: [{ type: "text", text: JSON.stringify({ ok: true, id: scene_id }) }],
         };
       } catch (e) {
         return {
