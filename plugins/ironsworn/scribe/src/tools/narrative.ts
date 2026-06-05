@@ -83,7 +83,8 @@ export function register(server: McpServer, campaignPath: string): void {
     "record_scene",
     "Record a scene summary into the scene journal. Optionally include beats — ordered narrative units capturing the full texture of the scene.",
     {
-      summary: z.string().describe("Scene summary text to record"),
+      text: z.string().optional().describe("Scene prose text to record (preferred — mirrors the 'text' field used by record_beat)"),
+      summary: z.string().optional().describe("Scene prose text to record (alias for 'text' for backward compatibility; 'text' takes precedence if both are provided)"),
       kind: z.string().optional().describe("Kind of scene (e.g. 'combat', 'exploration', 'social')"),
       npcs: z.array(z.string()).optional().describe("NPC names introduced in this scene to verify are recorded"),
       lore_ids: z.array(z.string()).optional().describe("Lore entity IDs or canonical names introduced in this scene to verify are recorded"),
@@ -97,9 +98,16 @@ export function register(server: McpServer, campaignPath: string): void {
         "Optional fiction/RP quality feedback for this scene (e.g. 'Combat felt dangerous — layered pressure worked well', 'Complication theme was repetitive'). Captured for GM improvement and included in semantic search."
       ),
     },
-    async ({ summary, kind, npcs, lore_ids, complication_theme, beats, quality_notes }) => {
+    async ({ text, summary, kind, npcs, lore_ids, complication_theme, beats, quality_notes }) => {
+      const resolvedSummary = text ?? summary;
+      if (!resolvedSummary) {
+        return {
+          content: [{ type: "text", text: "Error: 'text' (or 'summary') is required" }],
+          isError: true,
+        };
+      }
       try {
-        const id = await recordScene(campaignPath, summary, kind, complication_theme, beats as BeatInput[] | undefined, quality_notes);
+        const id = await recordScene(campaignPath, resolvedSummary, kind, complication_theme, beats as BeatInput[] | undefined, quality_notes);
         recordMutation(campaignPath);
         const { warnings, stubbed } = await buildSceneWarnings(campaignPath, npcs, lore_ids);
         return {
@@ -119,7 +127,8 @@ export function register(server: McpServer, campaignPath: string): void {
     "Update an existing scene record. Only provided fields are changed. Use append_beats to add new beats without replacing existing ones.",
     {
       scene_id: z.string().describe("ID of the scene to update"),
-      summary: z.string().optional().describe("New summary text (replaces existing)"),
+      text: z.string().optional().describe("New scene prose text (preferred — mirrors the 'text' field used by record_beat)"),
+      summary: z.string().optional().describe("New scene prose text (alias for 'text' for backward compatibility; 'text' takes precedence if both are provided)"),
       kind: z.string().optional().describe("New kind of scene"),
       npcs: z.array(z.string()).optional().describe("NPC names to verify are recorded"),
       lore_ids: z.array(z.string()).optional().describe("Lore entity IDs to verify are recorded"),
@@ -130,7 +139,8 @@ export function register(server: McpServer, campaignPath: string): void {
         "Fiction/RP quality feedback to set or replace on this scene"
       ),
     },
-    async ({ scene_id, summary, kind, npcs, lore_ids, append_beats, quality_notes }) => {
+    async ({ scene_id, text, summary, kind, npcs, lore_ids, append_beats, quality_notes }) => {
+      const resolvedSummary = text ?? summary;
       try {
         const existing = await getScene(campaignPath, scene_id);
         if (existing === null) {
@@ -139,7 +149,7 @@ export function register(server: McpServer, campaignPath: string): void {
             isError: true,
           };
         }
-        await updateScene(campaignPath, scene_id, { summary, kind, quality_notes });
+        await updateScene(campaignPath, scene_id, { summary: resolvedSummary, kind, quality_notes });
         if (append_beats && append_beats.length > 0) {
           await recordBeats(campaignPath, scene_id, append_beats as BeatInput[]);
         }
