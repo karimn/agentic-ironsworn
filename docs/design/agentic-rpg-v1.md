@@ -1228,6 +1228,16 @@ Tracked separately. Major pieces:
 - **OQ11** What shape should the future alternate UI take (Electron,
   Tauri, web app, native mobile)? Out of scope for v1.0; flagged so
   that runtime decisions don't accidentally constrain it.
+  - **Candidate substrate:** [Hermes Agent](https://hermes-agent.nousresearch.com/)
+    (Nous Research, MIT) is a general-purpose agent runtime that solves
+    multi-platform dispatch (Discord/Slack/Telegram/WhatsApp/Signal/
+    Email/CLI), persistent memory + auto-generated skills, subagent
+    parallelization, sandboxed tool execution, and natural-language
+    scheduled automations out of the box. Adopting it would be a
+    frontend-level decision; our runtime stays domain-pure. Most
+    immediately interesting bits for us are multi-platform play
+    (Ironsworn over Discord) and scheduled automations (between-session
+    world clocks, faction turns — the sandbox-campaign future work).
 - **OQ12** Does Bun's `peerDependencies` handling produce clear-enough
   error messages for non-developer users when a peer constraint isn't
   satisfied (e.g., a setting requires a system the user hasn't
