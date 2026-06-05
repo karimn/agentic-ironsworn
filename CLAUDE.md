@@ -16,6 +16,8 @@ bun run tsc --noEmit            # typecheck
 bun run src/server.ts           # start MCP server locally (from scribe/)
 # one-time legacy → world.duckdb migration:
 bun run plugins/ironsworn/scribe/src/migrate.ts [campaignPath]
+# package plugin for marketplace distribution (resolves workspace:* dep):
+bash plugins/ironsworn/scripts/pack-plugin.sh [output-dir]
 ```
 
 ## Architecture

@@ -273,16 +273,21 @@ export function register(server: McpServer, campaignPath: string): void {
 
         // Issue #2: auto-create a matching progress track for vow threads
         let track: ProgressTrack | undefined;
-        if (kind === "vow" && rank !== undefined) {
-          const character = await loadCharacter(campaignPath);
-          track = { name: title, rank: rank as ProgressTrack["rank"], kind: "vow", ticks: 0, status: "active" };
-          character.progressTracks.push(track);
-          await saveCharacter(campaignPath, character);
+        let warning: string | undefined;
+        if (kind === "vow") {
+          if (rank !== undefined) {
+            const character = await loadCharacter(campaignPath);
+            track = { name: title, rank: rank as ProgressTrack["rank"], kind: "vow", ticks: 0, status: "active" };
+            character.progressTracks.push(track);
+            await saveCharacter(campaignPath, character);
+          } else {
+            warning = "No progress track created — rank is required for vow threads. Call create_progress_track separately or re-open with a rank.";
+          }
         }
 
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrack: track ?? null }) }],
+          content: [{ type: "text", text: JSON.stringify({ ...thread, progressTrack: track ?? null, ...(warning ? { warning } : {}) }) }],
         };
       } catch (e) {
         return {

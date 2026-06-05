@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { getNpc, upsertNpc, npcFilePath, findStaleNpcs, getNpcLastUpdated, listNpcs, writeNpcRaw } from "./npcs.js";
+import { getLore } from "../rag/lore.js";
 
 let campaignDir: string;
 
@@ -55,6 +56,21 @@ describe("upsertNpc", () => {
     await upsertNpc(campaignDir, "Stranger");
     const content = await getNpc(campaignDir, "Stranger");
     expect(content).toContain("(none)");
+  });
+
+  // issue #162: summary must include the NPC name so search_lore(name) can find the entity
+  it("stores the NPC name in the entity summary", async () => {
+    await upsertNpc(campaignDir, "Serin", "A shady merchant.", "Useful but untrustworthy");
+    const entity = await getLore(campaignDir, "Serin");
+    expect(entity).not.toBeNull();
+    expect(entity!.summary).toContain("Serin");
+  });
+
+  it("uses just the name as summary when no description or impression provided", async () => {
+    await upsertNpc(campaignDir, "Anonymous");
+    const entity = await getLore(campaignDir, "Anonymous");
+    expect(entity).not.toBeNull();
+    expect(entity!.summary).toBe("Anonymous");
   });
 });
 

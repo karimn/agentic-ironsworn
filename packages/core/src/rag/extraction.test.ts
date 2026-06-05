@@ -422,3 +422,42 @@ describe("extractLoreFromScene — beats fallback", () => {
     expect(capturedSceneText).toBe("The ironmaster forges a blade in silence.");
   });
 });
+
+// ---------------------------------------------------------------------------
+// issue #161: _makeDefaultExtractor strips markdown code fences
+// ---------------------------------------------------------------------------
+
+describe("_makeDefaultExtractor — fence stripping", () => {
+  function makeMockClient(responseText: string): import("./communities.js").AnthropicLike {
+    return {
+      messages: {
+        create: async () => ({
+          content: [{ type: "text", text: responseText }],
+        }),
+      },
+    };
+  }
+
+  const validResult = { entities: [], relations: [] };
+  const validJson = JSON.stringify(validResult);
+
+  it("parses bare JSON without code fence", async () => {
+    const extractor = _makeDefaultExtractor(makeMockClient(validJson));
+    const result = await extractor("scene text", []);
+    expect(result).toEqual(validResult);
+  });
+
+  it("strips ```json ... ``` fence and parses", async () => {
+    const fenced = "```json\n" + validJson + "\n```";
+    const extractor = _makeDefaultExtractor(makeMockClient(fenced));
+    const result = await extractor("scene text", []);
+    expect(result).toEqual(validResult);
+  });
+
+  it("strips plain ``` ... ``` fence and parses", async () => {
+    const fenced = "```\n" + validJson + "\n```";
+    const extractor = _makeDefaultExtractor(makeMockClient(fenced));
+    const result = await extractor("scene text", []);
+    expect(result).toEqual(validResult);
+  });
+});

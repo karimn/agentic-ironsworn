@@ -195,17 +195,25 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizePath(path: string): string[] {
+  // Accept both dot notation (a.b.c) and bracket notation (a[1].b or a[1][2])
+  return path
+    .replace(/\[(\d+)\]/g, ".$1")
+    .split(".")
+    .filter((p) => p.length > 0);
+}
+
 function setNestedField(obj: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split(".");
+  const parts = normalizePath(path);
   let current: Record<string, unknown> = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
+    const part = parts[i]!;
     if (current[part] === undefined || current[part] === null || typeof current[part] !== "object") {
       throw new Error(`Path segment "${part}" does not exist or is not an object`);
     }
     current = current[part] as Record<string, unknown>;
   }
-  current[parts[parts.length - 1]] = value;
+  current[parts[parts.length - 1]!] = value;
 }
 
 async function mutate(
@@ -412,6 +420,32 @@ export async function closeTrack(
       throw new Error(`Progress track not found: "${trackName}"`);
     }
     track.status = "fulfilled";
+  });
+}
+
+export async function addAsset(
+  campaignPath: string,
+  assetName: string,
+  numAbilities: number,
+  unlockedAbilityIndex?: number,
+): Promise<MutationResult> {
+  return mutate(campaignPath, "addAsset", (char) => {
+    const existing = char.assets.find(
+      (a) => a.name.toLowerCase() === assetName.toLowerCase(),
+    );
+    if (existing) {
+      throw new Error(`Asset "${assetName}" already exists on this character`);
+    }
+    const abilities = Array.from({ length: numAbilities }, () => false);
+    if (unlockedAbilityIndex !== undefined) {
+      if (unlockedAbilityIndex < 0 || unlockedAbilityIndex >= numAbilities) {
+        throw new Error(
+          `Ability index ${unlockedAbilityIndex} out of range (asset has ${numAbilities} abilities)`,
+        );
+      }
+      abilities[unlockedAbilityIndex] = true;
+    }
+    char.assets.push({ name: assetName, abilities });
   });
 }
 
