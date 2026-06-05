@@ -5,7 +5,8 @@
   "scripts": {
     "start": "bun run src/server.ts",
     "sheet": "bun run ../scripts/sheet.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pack": "bash ../scripts/pack-plugin.sh"
   },
   "dependencies": {
     "@agentic-rpg/core": "workspace:*",
