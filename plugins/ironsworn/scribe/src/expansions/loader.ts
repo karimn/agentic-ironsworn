@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { loadCharacter, saveCharacter, appendJournal, type Character } from "../state/character.js";
 import { roll } from "@agentic-rpg/core";
-import { getLoreDb } from "@agentic-rpg/core";
+import { getWorldDb, resolveWorldContext } from "@agentic-rpg/core";
 import { runDbMigrations, runCharacterMigrations, type DbMigration, type CharacterMigration } from "@agentic-rpg/core";
+import type { DuckDBInstance } from "@duckdb/node-api";
 
 export type { DbMigration, CharacterMigration };
 
@@ -28,7 +29,14 @@ export interface ExpansionContext {
   saveCharacter(campaignPath: string, char: Character): Promise<void>;
   appendJournal: typeof appendJournal;
   roll(notation: string): { rolls: number[]; total: number };
-  getLoreDb: typeof getLoreDb;
+  /**
+   * Open (or return the cached) world DB instance for the given campaign path.
+   * Resolves WorldContext internally — expansions do not need to import world-db.ts.
+   * Replaces the former getLoreDb which opened the now-stale lore.duckdb.
+   */
+  getWorldDb(campaignPath: string): Promise<DuckDBInstance>;
+  /** Resolve world context without opening the DB (useful for getting campaignId / worldRoot). */
+  resolveWorldContext: typeof resolveWorldContext;
   runDbMigrations(conn: unknown, migrations: DbMigration[]): Promise<void>;
   runCharacterMigrations: typeof runCharacterMigrations;
 }
@@ -250,7 +258,13 @@ export async function loadExpansions(
         saveCharacter,
         appendJournal,
         roll,
-        getLoreDb,
+        // Resolve world context and return the world DB instance.
+        // This replaces the former getLoreDb which opened the stale lore.duckdb.
+        getWorldDb: async (cp: string) => {
+          const worldCtx = await resolveWorldContext(cp);
+          return getWorldDb(worldCtx);
+        },
+        resolveWorldContext,
         // conn is typed as `unknown` on ExpansionContext so expansions don't
         // need to import DuckDB types. Cast it here for the internal runner.
         runDbMigrations: (conn, migrations) =>

@@ -143,6 +143,48 @@ describe("buildSceneWarnings", () => {
 });
 
 // ---------------------------------------------------------------------------
+// issue #164: open_thread vow + no rank warning
+// ---------------------------------------------------------------------------
+
+describe("open_thread — vow without rank warning", () => {
+  let server: McpServer;
+  let client: Client;
+
+  beforeEach(async () => {
+    server = new McpServer({ name: "test", version: "0.0.1" });
+    register(server, campaignDir);
+    client = new Client({ name: "test-client", version: "0.0.1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+  });
+
+  it("returns a warning when kind=vow but rank is omitted", async () => {
+    const result = await client.callTool({
+      name: "open_thread",
+      arguments: { title: "Avenge the Fallen", kind: "vow" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.progressTrack).toBeNull();
+    expect(typeof parsed.warning).toBe("string");
+    expect(parsed.warning).toContain("rank");
+  });
+
+  it("creates a progress track and no warning when rank is provided", async () => {
+    if (!(await ollamaAvailable())) return;
+    const result = await client.callTool({
+      name: "open_thread",
+      arguments: { title: "Iron Oath", kind: "vow", rank: "dangerous" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.progressTrack).not.toBeNull();
+    expect(parsed.warning).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // record_beat tool
 // ---------------------------------------------------------------------------
 

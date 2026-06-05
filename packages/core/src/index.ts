@@ -13,17 +13,36 @@ export { runDbMigrations, runCharacterMigrations } from "./migrations/index.js";
 export type { DbMigration, CharacterMigration } from "./migrations/index.js";
 export { LORE_MIGRATIONS } from "./migrations/lore.js";
 export { SCENES_MIGRATIONS } from "./migrations/scenes.js";
+export { WORLD_MIGRATIONS } from "./migrations/world.js";
+export { migrateToWorldDb } from "./migrations/world-migrate.js";
+export type { MigrateOptions, MigrateReport } from "./migrations/world-migrate.js";
 
 // RAG — lore DB
 export { getLoreDb, openLoreWriteConn, getLoreEmbedding, peekLoreDb } from "./rag/lore-db.js";
 
+// RAG — world DB
+export { getWorldDb, peekWorldDb, openWorldWriteConn, getWorldEmbedding } from "./rag/world-db.js";
+export type { WorldContext } from "./rag/world-db.js";
+
+// World context + world.json helpers
+export {
+  resolveWorldContext,
+  loadWorldJson,
+  writeWorldJson,
+  assertEmbeddingPin,
+  ensureWorldJson,
+  CURRENT_WORLD_SCHEMA_VERSION,
+  DEFAULT_EMBEDDING_PIN,
+} from "./world.js";
+export type { EmbeddingPin, WorldJson } from "./world.js";
+
 // RAG — lore
-export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, LORE_TYPES } from "./rag/lore.js";
+export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, canonizeEntity, decanonizeEntity, canonizeRelation, decanonizeRelation, LORE_TYPES } from "./rag/lore.js";
 export type { LoreType, ProvenanceInput, ProvenanceEntry, LoreRelation, LoreEntity, LinkLoreInput, UpsertLoreInput, UpsertLoreResult, LoreSearchHit, LoreGraph, LoreEntityExport, LoreRelationExport } from "./rag/lore.js";
 
 // RAG — scenes
-export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications} from "./rag/scenes.js";
-export type { Scene, BeatInput, Beat, BeatSearchResult, BeatExport, SceneExport, RecentSceneSummary, ComplicationScene, BeatKind } from "./rag/scenes.js";
+export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs, exportSceneEntityRefs } from "./rag/scenes.js";
+export type { Scene, BeatInput, Beat, BeatSearchResult, BeatExport, SceneExport, RecentSceneSummary, ComplicationScene, BeatKind, SceneEntityRefExport } from "./rag/scenes.js";
 
 // RAG — communities
 export { stableCommunityId, clusterGraph, recomputeCommunities, listCommunities, getCommunity, searchCommunities, _makeDefaultSummarizer } from "./rag/communities.js";

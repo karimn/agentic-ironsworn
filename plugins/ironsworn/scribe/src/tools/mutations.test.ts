@@ -846,3 +846,158 @@ describe("recommit_vow", () => {
     expect(text).toMatch(/not active/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// issue #163: override bracket notation
+// ---------------------------------------------------------------------------
+
+describe("override bracket notation", () => {
+  it("accepts bracket notation for array indices", async () => {
+    const result = await client.callTool({
+      name: "override",
+      arguments: { path: "progressTracks[0].status", value: "fulfilled" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    const charFile = await readFile(join(campaignDir, "character.json"), "utf8");
+    const char = JSON.parse(charFile);
+    expect(char.progressTracks[0].status).toBe("fulfilled");
+  });
+
+  it("dot notation still works", async () => {
+    const result = await client.callTool({
+      name: "override",
+      arguments: { path: "progressTracks.0.status", value: "forsaken" },
+    });
+    expect(result.isError).not.toBe(true);
+    const charFile = await readFile(join(campaignDir, "character.json"), "utf8");
+    const char = JSON.parse(charFile);
+    expect(char.progressTracks[0].status).toBe("forsaken");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #174: add_asset tool
+// ---------------------------------------------------------------------------
+
+describe("add_asset", () => {
+  it("adds a new asset to the character", async () => {
+    const result = await client.callTool({
+      name: "add_asset",
+      arguments: { asset_name: "Infiltrator", num_abilities: 3, unlocked_ability_index: 0 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.asset.name).toBe("Infiltrator");
+    expect(parsed.asset.abilities).toEqual([true, false, false]);
+  });
+
+  it("rejects duplicate asset", async () => {
+    await client.callTool({
+      name: "add_asset",
+      arguments: { asset_name: "Blade", num_abilities: 3 },
+    });
+    const result = await client.callTool({
+      name: "add_asset",
+      arguments: { asset_name: "Blade", num_abilities: 3 },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/already exists/);
+  });
+
+  it("adds asset with all abilities locked when no index given", async () => {
+    const result = await client.callTool({
+      name: "add_asset",
+      arguments: { asset_name: "Scout", num_abilities: 3 },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.asset.abilities).toEqual([false, false, false]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #159: undo_last after forsake_vow
+// ---------------------------------------------------------------------------
+
+describe("undo_last after forsake_vow", () => {
+  it("restores character state and reopens thread", async () => {
+    // Set spirit=5 so stress doesn't bottom out
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({ ...CHARACTER_WITH_TRACKS, spirit: 5 }),
+    );
+
+    // Create a vow (also opens a thread via auto-open)
+    await client.callTool({
+      name: "create_progress_track",
+      arguments: { name: "Avenge the Fallen", rank: "dangerous", kind: "vow" },
+    });
+
+    // Forsake it
+    await client.callTool({
+      name: "forsake_vow",
+      arguments: { track_name: "Avenge the Fallen" },
+    });
+
+    // Verify it's forsaken and spirit reduced
+    const charBefore = JSON.parse(await readFile(join(campaignDir, "character.json"), "utf8"));
+    expect(charBefore.progressTracks.find((t: { name: string }) => t.name === "Avenge the Fallen").status).toBe("forsaken");
+    expect(charBefore.spirit).toBe(3); // 5 - 2 (dangerous)
+
+    // Undo
+    const undoResult = await client.callTool({ name: "undo_last", arguments: {} });
+    expect(undoResult.isError).not.toBe(true);
+    const parsed = JSON.parse((undoResult.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.threadReopened).toBe(true);
+
+    // Verify track is active again and spirit restored
+    const charAfter = JSON.parse(await readFile(join(campaignDir, "character.json"), "utf8"));
+    const track = charAfter.progressTracks.find((t: { name: string }) => t.name === "Avenge the Fallen");
+    expect(track.status).toBe("active");
+    expect(charAfter.spirit).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue #165: restore_vow tool
+// ---------------------------------------------------------------------------
+
+describe("restore_vow", () => {
+  it("restores a forsaken vow atomically", async () => {
+    await writeFile(
+      join(campaignDir, "character.json"),
+      JSON.stringify({
+        ...CHARACTER_WITH_TRACKS,
+        spirit: 5,
+        progressTracks: [
+          { name: "Iron Oath", rank: "dangerous", kind: "vow", ticks: 10, status: "forsaken" },
+        ],
+      }),
+    );
+
+    const result = await client.callTool({
+      name: "restore_vow",
+      arguments: { track_name: "Iron Oath" },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.track.status).toBe("active");
+    expect(parsed.spiritRestored).toBe(2);
+  });
+
+  it("rejects non-forsaken tracks", async () => {
+    const result = await client.callTool({
+      name: "restore_vow",
+      arguments: { track_name: "Remove Caldren from Holtfen" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toMatch(/not forsaken/);
+  });
+});

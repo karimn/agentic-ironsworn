@@ -9,7 +9,8 @@ import {
   type LoreType,
   type LoreSearchHit,
 } from "./lore.js";
-import { getLoreDb, openLoreWriteConn } from "./lore-db.js";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 import { getScene, exportScenes } from "./scenes.js";
 
 export interface ExtractedEntity {
@@ -81,8 +82,9 @@ async function writeExtractionLog(
   campaignPath: string,
   report: ExtractionReport,
 ): Promise<void> {
-  const instance = await getLoreDb(campaignPath);
-  const conn = await openLoreWriteConn(instance);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
   try {
     await conn.run(
       `INSERT INTO lore_extraction_log
@@ -109,7 +111,8 @@ async function writeExtractionLog(
 }
 
 async function getLoggedSceneIds(campaignPath: string): Promise<Set<string>> {
-  const instance = await getLoreDb(campaignPath);
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
   const conn = await instance.connect();
   try {
     const rows = (
@@ -161,7 +164,7 @@ export async function extractLoreFromScene(
       metadata["needs_review"] = true;
     }
 
-    await upsertLore(campaignPath, {
+    const upsertResult = await upsertLore(campaignPath, {
       ...(isExisting ? { id: topHit.id } : {}),
       canonical: isExisting ? topHit.canonical : entity.canonical,
       type: entity.type,
@@ -176,7 +179,10 @@ export async function extractLoreFromScene(
       },
     });
 
-    if (isExisting) {
+    // Count what actually happened: even when the vector pre-check (isExisting)
+    // misses, upsertLore still dedups by exact canonical/alias, so trust its
+    // result rather than the cosine guess.
+    if (upsertResult.updated) {
       report.entities_updated++;
     } else {
       report.entities_created++;
@@ -293,7 +299,7 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
       messages: [{ role: "user", content: userPrompt }],
     });
 
-    const text = response.content
+    let text = response.content
       .flatMap((b) =>
         b.type === "text" && typeof b.text === "string" ? [b.text] : [],
       )
@@ -303,6 +309,10 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
     if (text.length === 0) {
       throw new Error("Empty extraction response from Anthropic");
     }
+
+    // Strip markdown code fences if the model wrapped the JSON.
+    const fenceMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+    if (fenceMatch) text = fenceMatch[1]!.trim();
 
     const parsed = JSON.parse(text) as ExtractionResult;
     parsed.entities = parsed.entities.filter((e) =>

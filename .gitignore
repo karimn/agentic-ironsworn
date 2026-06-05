@@ -2,3 +2,4 @@ LocalPreferences.toml
 .worktrees/
 .claude/worktrees/
 campaigns/
+node_modules/
