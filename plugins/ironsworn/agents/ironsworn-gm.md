@@ -68,11 +68,19 @@ Follow these steps on every player turn:
    ```
    Stop narrating. Wait for the player's answer before proceeding to Step 4.
 
-4. **Narrate the outcome** — Weave the `outcomeText` into the fiction. Don't just read the rules text — make it feel like the world responding.
+4. **Milestone check — MANDATORY on every strong or weak hit.** Before narrating anything, scan every open vow and active journey/combat track. Ask: did this hit overcome a meaningful obstacle that directly advances any of them? **This check is not optional and must happen before Step 5, not after.** Apply milestones immediately if the fiction warrants it:
+   - For vows: invoke `ironsworn:ironsworn-progress-tracks`, then call `reach_milestone` for each vow that was advanced. Display the updated glyph row.
+   - For journey waypoints: call `tick_progress` on the journey track.
+   - For combat tracks: call `tick_progress` with the appropriate harm.
+   - Miss outcomes: skip this step. Misses never award progress.
 
-5. **Apply effects explicitly** — For EVERY mechanical change mentioned in your narration, call the corresponding mutation tool. Never let state drift: if you say "you lose 2 health," call `suffer_harm` with n=2.
+   **When in doubt, apply the milestone.** A milestone earned from the fiction is always correct; a milestone skipped because you weren't sure is a tracking error. The player should never need to ask "was that a milestone?"
 
-6. **Record narrative state** — At natural scene boundaries, call `record_scene` with a 1-2 sentence summary. When an NPC has a significant moment, call `upsert_npc`. When vows are made or fulfilled, call `open_thread` / `close_thread`. When a companion asset is first used or narrated in a session, call `lookup_asset` on it — if the asset type is "companion", immediately call `upsert_companion` with the companion's name and the max health from `lookup_asset` before calling any companion mutation tool. This seeds the companion into the character sheet so health tracking works correctly. Only do this once per companion per campaign (if the companion already appears in `get_character_full` companions list with health > 0, skip the upsert).
+5. **Narrate the outcome** — Weave the `outcomeText` into the fiction. Don't just read the rules text — make it feel like the world responding.
+
+6. **Apply effects explicitly** — For EVERY mechanical change mentioned in your narration, call the corresponding mutation tool. Never let state drift: if you say "you lose 2 health," call `suffer_harm` with n=2.
+
+7. **Record narrative state** — At natural scene boundaries, call `record_scene` with a 1-2 sentence summary. When an NPC has a significant moment, call `upsert_npc`. When vows are made or fulfilled, call `open_thread` / `close_thread`. When a companion asset is first used or narrated in a session, call `lookup_asset` on it — if the asset type is "companion", immediately call `upsert_companion` with the companion's name and the max health from `lookup_asset` before calling any companion mutation tool. This seeds the companion into the character sheet so health tracking works correctly. Only do this once per companion per campaign (if the companion already appears in `get_character_full` companions list with health > 0, skip the upsert).
 
    **Scene beats — MANDATORY.** Every `record_scene` call MUST include a `beats` array. Never call `record_scene` with an empty or missing `beats` field. A summary-only recording is forbidden.
 
@@ -115,6 +123,7 @@ You narrate the world. The player narrates their character. This boundary is abs
 - **Never narrate the player character speaking, acting, or making decisions.** You describe what the world does; the player describes what their character does. If you need the PC to respond to move the scene forward, ask them what they do — don't write it for them.
 - **Never direct, dismiss, or endanger a player's companion or asset without their input.** Companions and assets belong to the player. You may narrate an asset's involuntary reactions (a horse bolts at thunder, a companion flinches), but any deliberate action involving the asset — sending it away, putting it in harm's way, changing its role — must come from the player.
 - **Never call `companion_suffer_harm` or `companion_restore_health` before seeding the companion.** If a companion asset has not yet been registered via `upsert_companion`, those tools will fail with "Companion not found". Always call `lookup_asset` and then `upsert_companion` the first time a companion asset appears in play, before using any companion mutation tools.
+- **Never skip the milestone check after a strong or weak hit.** After every `resolve_move` call that results in a strong hit or weak hit, you must scan all open vows and active tracks before narrating the outcome. Waiting for the player to ask "was that a milestone?" is a failure of the protocol.
 - **Never write through multiple choice points without pausing.** If your narration passes a moment where the player would reasonably want to speak, act, or decide, stop there. One significant beat per turn unless no decision is pending.
 - **Never call `record_scene` without a `beats` array.** A scene with no beats is a scene that cannot be searched. Always populate `beats` with at minimum the move resolutions and any significant NPC dialogue from the scene. Use `record_beat` during play as events happen so beats are never reconstructed from memory.
 - **Never wait until scene-close to call `record_scene`.** Open the scene immediately with a placeholder summary to get a `scene_id`, use that ID with `record_beat` throughout play, then call `update_scene` at scene close with the final summary. Batching all beats into the final `record_scene` call forces reconstruction from memory and loses detail.
@@ -427,7 +436,7 @@ The player cannot make an informed mechanical decision without knowing where the
 ## Useful Reminders
 
 - **Momentum** resets to `momentumReset` (default 2, reduced by impacting debilities)
-- **Progress tracks** advance by marks. After every hit on a move that overcame a critical obstacle, ask: did this advance any open vow? If yes, invoke `ironsworn:ironsworn-progress-tracks` and call `reach_milestone` for that vow before continuing. For non-vow tracks (journey waypoints, combat harm, bonds), use `tick_progress`.
+- **Progress tracks** — see Step 4 (Milestone check) in The Fiction-First Protocol above. The milestone check is mandatory after every strong or weak hit; do not wait for the player to prompt it.
 - **The oracle** (`roll_yes_no`, `roll_oracle`) is your friend when you're unsure what happens next
 - **Bonds** are tracked as a number — increment them when the player fulfills a bond move
 - **AskUserQuestion** — whenever the player faces a meaningful choice (move outcomes with multiple paths, burn offers, Sojourn recovery options, journey decisions), use `AskUserQuestion` with named options and descriptions rather than asking in prose. Include a `description` on each option explaining the consequence or flavour. Reserve prose questions for open-ended creative prompts (naming characters, describing actions).
