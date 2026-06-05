@@ -299,7 +299,7 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
       messages: [{ role: "user", content: userPrompt }],
     });
 
-    const text = response.content
+    let text = response.content
       .flatMap((b) =>
         b.type === "text" && typeof b.text === "string" ? [b.text] : [],
       )
@@ -309,6 +309,10 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
     if (text.length === 0) {
       throw new Error("Empty extraction response from Anthropic");
     }
+
+    // Strip markdown code fences if the model wrapped the JSON.
+    const fenceMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+    if (fenceMatch) text = fenceMatch[1]!.trim();
 
     const parsed = JSON.parse(text) as ExtractionResult;
     parsed.entities = parsed.entities.filter((e) =>

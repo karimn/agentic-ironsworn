@@ -19,6 +19,7 @@ import {
   companionSufferHarm,
   companionRestoreHealth,
   upsertCompanion,
+  addAsset,
   upgradeAsset,
   closeTrack,
   Character,
@@ -29,7 +30,7 @@ import { tickProgress, vowXp, TICKS_PER_MARK, STRESS_BY_RANK, RANK_LADDER } from
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { recordMutation } from "@agentic-rpg/core";
-import { openThread, closeThread, loadThreads } from "../state/threads.js";
+import { openThread, closeThread, loadThreads, saveThreads } from "../state/threads.js";
 
 function characterDigest(char: Character) {
   const activeDebilities = Object.fromEntries(
@@ -511,6 +512,95 @@ export function register(server: McpServer, campaignPath: string): void {
   );
 
   server.tool(
+    "restore_vow",
+    [
+      "Atomically reverse a forsake_vow — use when undo_last is unavailable or fails.",
+      "",
+      "Atomically: sets track status back to 'active', restores spirit by the rank's stress amount",
+      "(troublesome=1, dangerous=2, formidable=3, extreme=4, epic=5),",
+      "and re-opens the matching thread if it was closed with a 'Forsaken' resolution.",
+    ].join("\n"),
+    {
+      track_name: z.string().describe("Name of the forsaken vow track to restore (case-insensitive)"),
+    },
+    async ({ track_name }) => {
+      try {
+        const character = await loadCharacter(campaignPath);
+        const idx = character.progressTracks.findIndex(
+          (t) => t.name.toLowerCase() === track_name.toLowerCase(),
+        );
+        if (idx === -1) {
+          return {
+            content: [{ type: "text", text: `Error: Progress track not found: "${track_name}"` }],
+            isError: true,
+          };
+        }
+        const track = character.progressTracks[idx]!;
+        if (track.kind !== "vow") {
+          return {
+            content: [{ type: "text", text: `Error: restore_vow applies to vow tracks only. Track "${track.name}" is kind="${track.kind}".` }],
+            isError: true,
+          };
+        }
+        if (track.status !== "forsaken") {
+          return {
+            content: [{ type: "text", text: `Error: Track "${track.name}" is not forsaken (status: ${track.status})` }],
+            isError: true,
+          };
+        }
+
+        const stressAmount = STRESS_BY_RANK[track.rank];
+        const before = structuredClone(character);
+        track.status = "active";
+        character.spirit = Math.min(5, character.spirit + stressAmount);
+        await saveCharacter(campaignPath, character);
+
+        let threadReopened = false;
+        const threads = await loadThreads(campaignPath);
+        const closedMatch = threads.find(
+          (t) =>
+            t.title.toLowerCase() === track_name.toLowerCase() &&
+            t.status === "closed" &&
+            (t.resolution === "Forsaken" || (t.resolution ?? "").startsWith("Forsaken:")),
+        );
+        if (closedMatch) {
+          closedMatch.status = "open";
+          delete closedMatch.closedAt;
+          delete closedMatch.resolution;
+          await saveThreads(campaignPath, threads);
+          threadReopened = true;
+        }
+
+        await appendJournal(campaignPath, {
+          timestamp: new Date().toISOString(),
+          kind: "restoreVow",
+          before,
+          after: await loadCharacter(campaignPath),
+        });
+        recordMutation(campaignPath);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              ok: true,
+              track: character.progressTracks[idx],
+              spiritRestored: stressAmount,
+              spirit: character.spirit,
+              threadReopened,
+            }),
+          }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "recommit_vow",
     [
       "Recommit to a vow after a Fulfill Your Vow miss (RAW: 'You recommit').",
@@ -752,7 +842,7 @@ export function register(server: McpServer, campaignPath: string): void {
 
   server.tool(
     "undo_last",
-    "Undo the last character mutation by restoring from the journal",
+    "Undo the last character mutation by restoring from the journal. For forsake_vow mutations, also reopens the matching thread.",
     {},
     async () => {
       try {
@@ -776,12 +866,58 @@ export function register(server: McpServer, campaignPath: string): void {
           };
         }
 
-        const lastLine = lines[lines.length - 1]!;
-        const entry = JSON.parse(lastLine) as { before: Character; after: Character };
+        // Walk backwards to find the last parseable entry.
+        let entry: { kind?: string; before: Character; after: Character } | null = null;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            entry = JSON.parse(lines[i]!) as { kind?: string; before: Character; after: Character };
+            break;
+          } catch {
+            // Skip malformed lines and try the previous one.
+          }
+        }
+        if (!entry) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ ok: false, message: "No valid journal entry found to undo" }) }],
+          };
+        }
+
         await saveCharacter(campaignPath, entry.before);
+
+        // For forsake_vow, also reopen the thread that was closed.
+        let threadReopened = false;
+        if (entry.kind === "forsakeVow") {
+          const forsakenTrack = entry.after.progressTracks.find(
+            (t) => t.status === "forsaken" &&
+              entry!.before.progressTracks.find(
+                (b) => b.name === t.name && b.status === "active",
+              ),
+          );
+          if (forsakenTrack) {
+            const threads = await loadThreads(campaignPath);
+            const closedThread = threads.find(
+              (t) => t.title.toLowerCase() === forsakenTrack.name.toLowerCase() && t.status === "closed",
+            );
+            if (closedThread) {
+              closedThread.status = "open";
+              delete closedThread.closedAt;
+              delete closedThread.resolution;
+              await saveThreads(campaignPath, threads);
+              threadReopened = true;
+            }
+          }
+        }
+
         recordMutation(campaignPath);
         return {
-          content: [{ type: "text", text: JSON.stringify({ ok: true, restored: characterDigest(entry.before) }) }],
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              ok: true,
+              restored: characterDigest(entry.before),
+              ...(threadReopened ? { threadReopened: true } : {}),
+            }),
+          }],
         };
       } catch (e) {
         return {
@@ -899,6 +1035,33 @@ export function register(server: McpServer, campaignPath: string): void {
         recordMutation(campaignPath);
         return {
           content: [{ type: "text", text: JSON.stringify({ ok: true, experience: result.after.experience }) }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "add_asset",
+    "Add a new asset to the character sheet. Use when purchasing an asset the character does not yet own.",
+    {
+      asset_name: z.string().describe("Name of the asset to add (e.g. 'Infiltrator', 'Hound')"),
+      num_abilities: z.coerce.number().int().min(1).max(5).describe("Total number of abilities this asset has"),
+      unlocked_ability_index: z.coerce.number().int().min(0).optional().describe("Zero-based index of the first ability to unlock immediately (omit to add all abilities locked)"),
+    },
+    async ({ asset_name, num_abilities, unlocked_ability_index }) => {
+      try {
+        const result = await addAsset(campaignPath, asset_name, num_abilities, unlocked_ability_index);
+        recordMutation(campaignPath);
+        const asset = result.after.assets.find(
+          (a) => a.name.toLowerCase() === asset_name.toLowerCase(),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ok: true, asset }) }],
         };
       } catch (e) {
         return {
