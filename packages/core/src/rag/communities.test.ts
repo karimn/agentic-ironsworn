@@ -14,6 +14,8 @@ import {
   type SummarizerInput,
 } from "./communities.js";
 import { upsertLore, linkLore, getLore } from "./lore.js";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 
 let _ollamaReady: boolean | null = null;
 async function ollamaAvailable(): Promise<boolean> {
@@ -302,8 +304,13 @@ describe("recomputeCommunities", () => {
       skipEmbeddings: true,
     });
 
-    // Some clusters were unchanged (the X-triangle should be one of them).
-    expect(second.unchanged).toBeGreaterThan(0);
+    // The X-triangle has identical members and must NOT be re-summarized. It may
+    // land in `updated` rather than `unchanged`: adding Q changes its sibling and
+    // therefore the member-derived root id, which re-points the X-triangle's
+    // parent — a pointer update, not a re-summarization. The real contract is
+    // that not every community is re-summarized.
+    expect(second.unchanged + second.updated).toBeGreaterThan(0);
+    expect(second.llm_calls).toBeLessThan(second.communities_total);
     // At least one community changed, so created > 0.
     expect(second.created).toBeGreaterThan(0);
   });
@@ -330,13 +337,13 @@ describe("recomputeCommunities", () => {
     // a tiny graph in a fresh campaign isn't possible — instead we count on
     // recompute vs. the existing communities. Simulate "graph shrinks" by
     // wiping all entities directly. That'll force community deletion.
-    // We use a helper: open the lore DB and TRUNCATE entities + relations.
-    const { getLoreDb, openLoreWriteConn } = await import("./lore-db.js");
-    const inst = await getLoreDb(campaignDir);
-    const conn = await openLoreWriteConn(inst);
+    // We use a helper: open the world DB and DELETE entities + relations.
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
     try {
-      await conn.run(`DELETE FROM lore_entities`);
-      await conn.run(`DELETE FROM lore_relations`);
+      await conn.run(`DELETE FROM entities`);
+      await conn.run(`DELETE FROM relations`);
     } finally {
       conn.closeSync();
     }
@@ -583,16 +590,17 @@ describe("searchCommunities", () => {
   it("excludes rows with NULL embeddings", async () => {
     // Seed one community with NULL embedding directly via SQL. searchCommunities
     // should filter it out regardless of what the query embedding looks like.
-    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
-    const inst = await getDb(campaignDir);
-    const conn = await openLoreWriteConn(inst);
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
+    const nullEmbedId = crypto.randomUUID();
     try {
       const now = new Date().toISOString();
       await conn.run(
         `INSERT INTO lore_communities
-           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-         VALUES ('c-null', 0, NULL, []::TEXT[], 0, 'null embed', NULL, '{}', ?, ?)`,
-        [now, now],
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+         VALUES (?, 0, NULL, []::TEXT[], 0, 'null embed', NULL, '{}', ?, ?, ?)`,
+        [nullEmbedId, ctx.campaignId, now, now],
       );
     } finally {
       conn.closeSync();
@@ -601,15 +609,15 @@ describe("searchCommunities", () => {
     const stubEmbedder = async (_text: string): Promise<number[]> =>
       new Array(768).fill(0.1);
     const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
-    expect(hits.find((h) => h.id === "c-null")).toBeUndefined();
+    expect(hits.find((h) => h.id === nullEmbedId)).toBeUndefined();
   });
 
   it("ranks hits by cosine similarity (closest first)", async () => {
     // Seed three communities with orthogonal unit vectors. The query vector
     // will be aligned with one of them, so that one must come first.
-    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
-    const inst = await getDb(campaignDir);
-    const conn = await openLoreWriteConn(inst);
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
 
     // Build a 768-dim unit vector with a 1.0 at `hotIdx`, zeros elsewhere.
     const unit = (hotIdx: number): number[] => {
@@ -621,19 +629,23 @@ describe("searchCommunities", () => {
     const middle = unit(400);  // orthogonal
     const far = unit(760);     // orthogonal
 
+    const nearId = crypto.randomUUID();
+    const middleId = crypto.randomUUID();
+    const farId = crypto.randomUUID();
+
     const lit = (vec: number[]): string => `[${vec.join(",")}]::FLOAT[768]`;
     const now = new Date().toISOString();
     try {
-      for (const [id, vec] of [
-        ["c-near", near],
-        ["c-middle", middle],
-        ["c-far", far],
-      ] as const) {
+      for (const [id, vec, label] of [
+        [nearId, near, "near"],
+        [middleId, middle, "middle"],
+        [farId, far, "far"],
+      ] as [string, number[], string][]) {
         await conn.run(
           `INSERT INTO lore_communities
-             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(vec)}, '{}', ?, ?)`,
-          [id, `summary for ${id}`, now, now],
+             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(vec)}, '{}', ?, ?, ?)`,
+          [id, `summary for ${label}`, ctx.campaignId, now, now],
         );
       }
     } finally {
@@ -644,15 +656,15 @@ describe("searchCommunities", () => {
     const hits = await searchCommunities(campaignDir, "anything", 5, stubEmbedder);
 
     expect(hits.length).toBe(3);
-    expect(hits[0].id).toBe("c-near");
+    expect(hits[0].id).toBe(nearId);
     // Near must strictly outscore the others
     expect(hits[0].score).toBeGreaterThan(hits[1].score);
   });
 
   it("honors k and caps it at 100", async () => {
-    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
-    const inst = await getDb(campaignDir);
-    const conn = await openLoreWriteConn(inst);
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
 
     const unit = (hotIdx: number): number[] => {
       const v = new Array(768).fill(0);
@@ -667,9 +679,9 @@ describe("searchCommunities", () => {
       for (let i = 0; i < 7; i++) {
         await conn.run(
           `INSERT INTO lore_communities
-             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(unit(i))}, '{}', ?, ?)`,
-          [`c-${i}`, `summary ${i}`, now, now],
+             (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+           VALUES (?, 0, NULL, []::TEXT[], 0, ?, ${lit(unit(i))}, '{}', ?, ?, ?)`,
+          [crypto.randomUUID(), `summary ${i}`, ctx.campaignId, now, now],
         );
       }
     } finally {
@@ -688,9 +700,9 @@ describe("searchCommunities", () => {
   });
 
   it("ranks flat across hierarchy levels (leaf and parent can both appear)", async () => {
-    const { getLoreDb: getDb, openLoreWriteConn } = await import("./lore-db.js");
-    const inst = await getDb(campaignDir);
-    const conn = await openLoreWriteConn(inst);
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
 
     const unit = (hotIdx: number): number[] => {
       const v = new Array(768).fill(0);
@@ -701,18 +713,20 @@ describe("searchCommunities", () => {
     const now = new Date().toISOString();
 
     // Seed a leaf and a parent rollup whose embeddings are both close to the query.
+    const rootId = crypto.randomUUID();
+    const leafId = crypto.randomUUID();
     try {
       await conn.run(
         `INSERT INTO lore_communities
-           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-         VALUES ('leaf', 0, 'root', ['a','b']::TEXT[], 2, 'leaf summary', ${lit(unit(3))}, '{}', ?, ?)`,
-        [now, now],
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+         VALUES (?, 1, NULL, []::TEXT[], 2, 'root summary', ${lit(unit(3))}, '{}', ?, ?, ?)`,
+        [rootId, ctx.campaignId, now, now],
       );
       await conn.run(
         `INSERT INTO lore_communities
-           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, created_at, updated_at)
-         VALUES ('root', 1, NULL, ['leaf']::TEXT[], 2, 'root summary', ${lit(unit(3))}, '{}', ?, ?)`,
-        [now, now],
+           (id, level, parent_id, member_ids, member_count, summary, embedding, metadata, campaign_id, created_at, updated_at)
+         VALUES (?, 0, ?, []::TEXT[], 2, 'leaf summary', ${lit(unit(3))}, '{}', ?, ?, ?)`,
+        [leafId, rootId, ctx.campaignId, now, now],
       );
     } finally {
       conn.closeSync();

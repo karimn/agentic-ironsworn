@@ -6,6 +6,10 @@ import {
   searchLore,
   linkLore,
   getLoreGraph,
+  canonizeEntity,
+  decanonizeEntity,
+  canonizeRelation,
+  decanonizeRelation,
   LORE_TYPES,
   type LoreType,
 } from "../rag/lore.js";
@@ -40,8 +44,119 @@ export function register(server: McpServer, campaignPath: string): void {
     .describe("Source of this fact (manual, scene, document, extraction). Defaults to 'manual' if omitted.");
 
   server.tool(
+    "upsert_entity",
+    "Create or update any world entity (place, person, faction, material, concept, creature, event, truth, thread). On rename, the old canonical is appended to aliases. Supersedes upsert_npc and upsert_lore.",
+    {
+      canonical: z.string().describe("Current display name"),
+      type: z.enum(LORE_TYPES).describe("Entity type"),
+      summary: z.string().describe("Prose description; will be embedded for semantic search"),
+      content: z.record(z.string(), z.unknown()).optional().describe("Flexible JSON properties"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe("GraphRAG metadata: community ids, scores, etc."),
+      aliases: z.array(z.string()).optional().describe("Additional aliases to merge in"),
+      provenance: provenanceSchema.optional(),
+    },
+    async (input) => {
+      try {
+        const result = await upsertLore(campaignPath, {
+          ...input,
+          type: input.type as LoreType,
+        });
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "canonize_entity",
+    "Promote an entity to world canon (campaign_id = NULL); visible to all sibling campaigns. Reversible via decanonize_entity.",
+    {
+      identifier: z.string().describe("ID, canonical name, slug, or alias of the entity to canonize"),
+    },
+    async ({ identifier }) => {
+      try {
+        const result = await canonizeEntity(campaignPath, identifier);
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "decanonize_entity",
+    "Move a world-canon entity back into a specific campaign (campaign_id = into_campaign). Reverses canonize_entity.",
+    {
+      identifier: z.string().describe("ID, canonical name, slug, or alias of the entity to decanonize"),
+      into_campaign: z.string().describe("The campaign ID to assign the entity to"),
+    },
+    async ({ identifier, into_campaign }) => {
+      try {
+        const result = await decanonizeEntity(campaignPath, identifier, into_campaign);
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "canonize_relation",
+    "Promote a relation to world canon (campaign_id = NULL); visible to all sibling campaigns. Reversible via decanonize_relation.",
+    {
+      relation_id: z.string().describe("UUID of the relation (from link_lore result.relation_id)"),
+    },
+    async ({ relation_id }) => {
+      try {
+        await canonizeRelation(campaignPath, relation_id);
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify({ ok: true, relation_id }) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "decanonize_relation",
+    "Move a world-canon relation back into a specific campaign. Reverses canonize_relation.",
+    {
+      relation_id: z.string().describe("UUID of the relation to decanonize"),
+      into_campaign: z.string().describe("The campaign ID to assign the relation to"),
+    },
+    async ({ relation_id, into_campaign }) => {
+      try {
+        await decanonizeRelation(campaignPath, relation_id, into_campaign);
+        recordMutation(campaignPath);
+        return { content: [{ type: "text", text: JSON.stringify({ ok: true, relation_id, into_campaign }) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
     "upsert_lore",
-    "Create or update a lore entity. On rename (changed canonical), the old name is automatically appended to aliases.",
+    "Create or update a lore entity. On rename (changed canonical), the old name is automatically appended to aliases. (alias of upsert_entity; kept one release)",
     {
       id: z.string().optional().describe("Stable ID; derived from canonical name if omitted"),
       canonical: z.string().describe("Current display name"),
@@ -74,10 +189,11 @@ export function register(server: McpServer, campaignPath: string): void {
     "Retrieve a lore entity by id, canonical name, or any alias (case-insensitive). Includes incoming and outgoing relations.",
     {
       identifier: z.string().describe("ID, canonical name, or alias"),
+      include_sibling_campaigns: z.boolean().optional().describe("When true, search across all campaigns in the world (default false)"),
     },
-    async ({ identifier }) => {
+    async ({ identifier, include_sibling_campaigns }) => {
       try {
-        const entity = await getLore(campaignPath, identifier);
+        const entity = await getLore(campaignPath, identifier, { includeSiblings: include_sibling_campaigns ?? false });
         return {
           content: [{ type: "text", text: JSON.stringify(entity) }],
         };
@@ -97,10 +213,11 @@ export function register(server: McpServer, campaignPath: string): void {
       query: z.string().describe("Search query"),
       type: z.enum(LORE_TYPES).optional().describe("Optional type filter"),
       k: z.coerce.number().int().positive().optional().describe("Number of results (default 5)"),
+      include_sibling_campaigns: z.boolean().optional().describe("When true, search across all campaigns in the world (default false)"),
     },
-    async ({ query, type, k }) => {
+    async ({ query, type, k, include_sibling_campaigns }) => {
       try {
-        const results = await searchLore(campaignPath, query, k ?? 5, type as LoreType | undefined);
+        const results = await searchLore(campaignPath, query, k ?? 5, type as LoreType | undefined, { includeSiblings: include_sibling_campaigns ?? false });
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
       } catch (e) {
         return {
@@ -122,10 +239,11 @@ export function register(server: McpServer, campaignPath: string): void {
     {
       query: z.string().describe("Search query"),
       k: z.coerce.number().int().positive().optional().describe("Number of results (default 5, capped at 100)"),
+      include_sibling_campaigns: z.boolean().optional().describe("When true, search across all campaigns in the world (default false)"),
     },
-    async ({ query, k }) => {
+    async ({ query, k, include_sibling_campaigns }) => {
       try {
-        const results = await searchCommunities(campaignPath, query, k);
+        const results = await searchCommunities(campaignPath, query, k, undefined, { includeSiblings: include_sibling_campaigns ?? false });
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
       } catch (e) {
         return {
@@ -167,10 +285,11 @@ export function register(server: McpServer, campaignPath: string): void {
     {
       identifier: z.string().describe("Root entity (id, canonical, or alias)"),
       depth: z.coerce.number().int().positive().optional().describe("Number of hops to traverse (default 1)"),
+      include_sibling_campaigns: z.boolean().optional().describe("When true, traverse across all campaigns in the world (default false)"),
     },
-    async ({ identifier, depth }) => {
+    async ({ identifier, depth, include_sibling_campaigns }) => {
       try {
-        const graph = await getLoreGraph(campaignPath, identifier, depth ?? 1);
+        const graph = await getLoreGraph(campaignPath, identifier, depth ?? 1, { includeSiblings: include_sibling_campaigns ?? false });
         return {
           content: [{ type: "text", text: JSON.stringify(graph) }],
         };

@@ -38,10 +38,14 @@ describe("lookupAsset", () => {
     expect(lookupAsset("slayer")).toBeDefined();
   });
 
-  it("companions have no health for Kindred (no health track)", () => {
+  it("companion carries its health track (Kindred)", () => {
     const asset = lookupAsset("Kindred");
     expect(asset).toBeDefined();
     expect(asset!.type).toBe("companion");
-    expect(asset!.health).toBeUndefined();
+    expect(asset!.health).toBe(4);
+  });
+
+  it("non-companion assets have no health track", () => {
+    expect(lookupAsset("Swordmaster")!.health).toBeUndefined();
   });
 });

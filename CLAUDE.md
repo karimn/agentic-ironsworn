@@ -4,14 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-All scribe commands run from `plugins/ironsworn/scribe/`:
+This is a Bun workspace with two packages: **`packages/core`** (`@agentic-rpg/core`
+— all persistence + rules logic) and **`plugins/ironsworn/scribe`** (the MCP
+server shim that wraps core). Run commands from whichever package you're touching:
 
 ```bash
-bun test                        # run all tests
+bun test                        # run all tests (in packages/core or scribe)
 bun test src/rules/dice.test.ts # run a single test file
 bun test --watch                # watch mode
 bun run tsc --noEmit            # typecheck
-bun run src/server.ts           # start MCP server locally
+bun run src/server.ts           # start MCP server locally (from scribe/)
+# one-time legacy → world.duckdb migration:
+bun run plugins/ironsworn/scribe/src/migrate.ts [campaignPath]
 ```
 
 ## Architecture
@@ -32,6 +36,11 @@ This repo ships a single Claude Code plugin: the **Ironsworn solo GM companion**
   - `SCRIBE_SUMMARY_MODEL` — optional model override for community summaries (default: `claude-haiku-4-5-20251001`)
 
 ### Scribe MCP server (`plugins/ironsworn/scribe/src/`)
+The persistence + rules logic lives in **`@agentic-rpg/core`**
+(`packages/core/src/`); the scribe package is a thin MCP layer that imports it.
+The tool modules below are MCP wrappers in `scribe/src/tools/` that call into
+core (`packages/core/src/tools/`, `rag/`, `rules/`, `state/`).
+
 Entry point: `server.ts`. Tools are registered from six modules:
 
 | Module | What it exposes |
@@ -43,24 +52,45 @@ Entry point: `server.ts`. Tools are registered from six modules:
 | `tools/lore.ts` | Knowledge graph CRUD, semantic search, and proximity edges (`link_proximity`, `proximity_distance`, `proximity_within`) |
 | `tools/campaign.ts` | Checkpoint, export/import |
 
-Supporting modules:
-- `state/` — JSON-backed persistence for character, NPCs, threads
-- `rag/scenes.ts` + `rag/lore.ts` — DuckDB + Ollama embedding stores
-- `rag/lore-db.ts` — shared DuckDB schema/connection + Ollama embedding client (used by `lore.ts` and `communities.ts`)
-- `rag/communities.ts` — GraphRAG community detection + Claude summarization
+Supporting modules (in `@agentic-rpg/core` unless noted):
+- `world.ts` — `world.json` I/O + embedding pin + `resolveWorldContext` (walks up from `SCRIBE_CAMPAIGN` to the world root, reads the active `campaign_id`)
+- `rag/world-db.ts` — the unified `world.duckdb` schema/connection + Ollama embedding client (the FK-backed, UUID-keyed store all reads/writes target)
+- `rag/scenes.ts` + `rag/lore.ts` — scene memory and the lore knowledge graph, both backed by `world.duckdb` with the `campaign_id` visibility filter
+- `rag/lore-db.ts` — legacy per-campaign `lore.duckdb` schema; retained for the migration's fixture/read path
+- `rag/communities.ts` — GraphRAG community detection + Claude summarization (clusters the visible subgraph)
 - `rag/proximity.ts` — weighted spatial/temporal proximity edges with Dijkstra distance + radius queries
 - `rag/extraction.ts` — LLM-driven entity/relation extraction from scenes into the lore graph
-- `rag/query.ts` — hybrid BM25 + vector search with Reciprocal Rank Fusion
+- `rag/query.ts` (in `scribe/`) — hybrid BM25 + vector search with Reciprocal Rank Fusion
+- `migrations/world-migrate.ts` — one-time legacy → `world.duckdb` migration (CLI: `scribe/src/migrate.ts`); see `docs/design/world-db.md`
 - `rules/` — pure Ironsworn logic (dice, moves, progress, assets, momentum, oracles)
-- `context/build.ts` — assembles GM session context from all sources
+- `state/` — JSON-backed persistence for character; NPCs and threads are now `entities` rows (`type='person'` / `type='thread'`)
+- `context/build.ts` (in `scribe/`) — assembles GM session context from all sources
 - `checkpoint.ts` — periodic DuckDB WAL flush (every 5 min or 20 writes)
 
+See **`docs/design/world-db.md`** for the world-DB model (shared canon vs.
+per-campaign overlay via a nullable `campaign_id`, the canonize ritual, and the
+migration path).
+
 ### Campaign data (lives outside this repo)
-A campaign lives in its own directory (default: `campaigns/default/`):
-- `character.json` — full character state
-- `scenes.duckdb` / `lore.duckdb` — DuckDB stores (require Ollama for embeddings)
-- `npcs/`, `threads/` — per-entity markdown/JSON files
-- `state-journal.jsonl` — append-only mutation audit log
+A **world** owns one `world.duckdb` shared by all its campaigns; the DB and
+`world.json` (schema version + embedding pin) live one level **above** the
+campaign folder:
+
+```
+<world-root>/
+  world.duckdb           # all tables, all campaigns, UUID-keyed
+  world.json             # schemaVersion + embedding pin + world name
+  campaigns/<id>/
+    campaign.json        # { "id", "name" } — the active campaign_id
+    character.json       # full character state
+    state-journal.jsonl  # append-only mutation audit log
+```
+
+`SCRIBE_CAMPAIGN` points at a campaign folder; the server walks up to find
+`world.duckdb`. NPCs and threads are no longer loose files — they are entities in
+`world.duckdb`. The pre-migration layout (`scenes.duckdb` / `lore.duckdb` /
+`npcs/` / `threads.yaml` inside the campaign folder) is migrated by
+`scribe migrate-to-world-db` and moved aside to `*.legacy`.
 
 ## Schema migrations
 

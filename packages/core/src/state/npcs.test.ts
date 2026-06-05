@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { getNpc, upsertNpc, npcFilePath, findStaleNpcs, getNpcLastUpdated } from "./npcs.js";
+import { getNpc, upsertNpc, npcFilePath, findStaleNpcs, getNpcLastUpdated, listNpcs, writeNpcRaw } from "./npcs.js";
 
 let campaignDir: string;
 
@@ -134,5 +134,59 @@ describe("findStaleNpcs", () => {
   it("handles an empty NPC list gracefully", () => {
     const results = findStaleNpcs([], THRESHOLD);
     expect(results).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: entity-backed NPC tests (world.duckdb)
+// ---------------------------------------------------------------------------
+
+describe("listNpcs", () => {
+  it("returns empty object when no NPCs exist", async () => {
+    const npcs = await listNpcs(campaignDir);
+    expect(Object.keys(npcs)).toHaveLength(0);
+  });
+
+  it("returns all upserted NPCs keyed by slug filename", async () => {
+    await upsertNpc(campaignDir, "Iron Matron Sera", "Stern commander.", "Respected");
+    await upsertNpc(campaignDir, "Kira", "A fierce warrior.", "Trustworthy");
+    const npcs = await listNpcs(campaignDir);
+    const keys = Object.keys(npcs);
+    expect(keys.some((k) => k.includes("iron-matron-sera"))).toBe(true);
+    expect(keys.some((k) => k.includes("kira"))).toBe(true);
+    expect(Object.values(npcs).some((v) => v.includes("# Iron Matron Sera"))).toBe(true);
+    expect(Object.values(npcs).some((v) => v.includes("# Kira"))).toBe(true);
+  });
+
+  it("NPCs scoped to campaign — invisible to sibling campaign dir", async () => {
+    await upsertNpc(campaignDir, "Sera", "Campaign A NPC.", "Ally");
+    const dir2 = await mkdtemp(join(tmpdir(), "scribe-npcs-sibling-"));
+    try {
+      const npcsInDir2 = await listNpcs(dir2);
+      // Sera was created in campaignDir, should not appear in sibling dir
+      const found = Object.values(npcsInDir2).some((v) => v.includes("# Sera"));
+      expect(found).toBe(false);
+    } finally {
+      await rm(dir2, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("writeNpcRaw", () => {
+  it("parses heading and writes entity via upsertNpc", async () => {
+    const markdown = `# Aldric\n\n## 2024-01-01T00:00:00.000Z\n\n**Description:** A brave knight.\n**Impression:** Loyal\n`;
+    await writeNpcRaw(campaignDir, "aldric.md", markdown);
+    const content = await getNpc(campaignDir, "Aldric");
+    expect(content).not.toBeNull();
+    expect(content).toContain("# Aldric");
+    expect(content).toContain("A brave knight.");
+  });
+
+  it("falls back to filename when no heading present", async () => {
+    const markdown = `**Description:** Mysterious.\n**Impression:** Unknown\n`;
+    await writeNpcRaw(campaignDir, "unnamed-npc.md", markdown);
+    const content = await getNpc(campaignDir, "unnamed-npc");
+    expect(content).not.toBeNull();
+    expect(content).toContain("Mysterious.");
   });
 });

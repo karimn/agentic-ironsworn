@@ -95,7 +95,7 @@ jobs:
           echo "Ollama: $(curl -sf http://localhost:11434/api/tags 2>/dev/null | head -c 200 || echo 'not running')"
         continue-on-error: true
 
-      - name: Run tests
+      - name: Run scribe tests
         id: bun-tests
         working-directory: plugins/ironsworn/scribe
         continue-on-error: true
@@ -103,23 +103,44 @@ jobs:
         env:
           OLLAMA_BASE_URL: http://localhost:11434
 
+      # @agentic-rpg/core holds the persistence + rules logic; its tests need a
+      # live embedder, so they run here alongside scribe (and were previously not
+      # exercised by CI at all).
+      - name: Run core tests
+        id: core-tests
+        working-directory: packages/core
+        continue-on-error: true
+        run: bun test --timeout 60000 2>&1 | tee /tmp/core-test-output.txt
+        env:
+          OLLAMA_BASE_URL: http://localhost:11434
+
       - name: Test summary
         if: always()
         run: |
           {
-            echo "### Test Results (outcome: ${{ steps.bun-tests.outcome }})"
+            echo "### Scribe tests (outcome: ${{ steps.bun-tests.outcome }})"
             echo '```'
             cat /tmp/test-output.txt 2>/dev/null || echo "(no output captured)"
+            echo '```'
+            echo "### Core tests (outcome: ${{ steps.core-tests.outcome }})"
+            echo '```'
+            cat /tmp/core-test-output.txt 2>/dev/null || echo "(no output captured)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Assert tests passed
         if: always()
         run: |
+          failed=0
           if [ "${{ steps.bun-tests.outcome }}" != "success" ]; then
-            echo "bun test failed — see Test Results in step summary"
-            exit 1
+            echo "scribe bun test failed — see Test Results in step summary"
+            failed=1
           fi
+          if [ "${{ steps.core-tests.outcome }}" != "success" ]; then
+            echo "core bun test failed — see Test Results in step summary"
+            failed=1
+          fi
+          exit $failed
 
   version-bump:
     name: Plugin version bump

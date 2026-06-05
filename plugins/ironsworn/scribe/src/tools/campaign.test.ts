@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, rm, writeFile, readFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -101,7 +101,7 @@ describe("export_campaign", () => {
 
     const raw = await readFile(outputPath, "utf-8");
     const data = JSON.parse(raw) as Record<string, unknown>;
-    expect(data["version"]).toBe(2);
+    expect(data["version"]).toBe(3);
     expect(typeof data["exported_at"]).toBe("string");
     expect(data["character"]).toMatchObject({ name: "Kara" });
     expect(Array.isArray(data["threads"])).toBe(true);
@@ -109,6 +109,7 @@ describe("export_campaign", () => {
     expect(Array.isArray(data["lore_entities"])).toBe(true);
     expect(Array.isArray(data["lore_relations"])).toBe(true);
     expect(Array.isArray(data["scenes"])).toBe(true);
+    expect(Array.isArray(data["scene_entity_refs"])).toBe(true);
   });
 
   it("world-pack mode (include_scenes=false) produces empty scenes array", async () => {
@@ -127,10 +128,11 @@ describe("export_campaign", () => {
     expect(parseText<{ counts: Record<string, number> }>(result).counts.scenes).toBe(0);
   });
 
-  it("exports NPCs from the npcs/ directory", async () => {
+  it("exports NPCs from the entity store", async () => {
     await writeFile(join(campaignDir, "character.json"), JSON.stringify(BASE_CHARACTER));
-    await mkdir(join(campaignDir, "npcs"), { recursive: true });
-    await writeFile(join(campaignDir, "npcs", "aldric.md"), "# Aldric\nA blacksmith.");
+    // Use writeNpcRaw (which parses markdown and upserts an entity) to seed the NPC
+    const { writeNpcRaw } = await import("@agentic-rpg/core");
+    await writeNpcRaw(campaignDir, "aldric.md", "# Aldric\nA blacksmith.");
 
     const outputPath = join(exportDir, "export-npcs.json");
     await client.callTool({ name: "export_campaign", arguments: { output_path: outputPath } });
@@ -138,7 +140,10 @@ describe("export_campaign", () => {
     const raw = await readFile(outputPath, "utf-8");
     const data = JSON.parse(raw) as Record<string, unknown>;
     const npcs = data["npcs"] as Record<string, string>;
-    expect(npcs["aldric.md"]).toBe("# Aldric\nA blacksmith.");
+    // The exported NPC should have the Aldric heading in its markdown content
+    const aldricEntry = Object.values(npcs).find((v) => v.includes("# Aldric"));
+    expect(aldricEntry).toBeDefined();
+    expect(aldricEntry!).toContain("# Aldric");
   });
 
   it("succeeds even when character.json is absent (exports null character)", async () => {
@@ -239,8 +244,12 @@ describe("import_campaign", () => {
     const parsed = parseText<{ imported: Record<string, number> }>(result);
     expect(parsed.imported.npcs).toBe(1);
 
-    const npcContent = await readFile(join(campaignDir, "npcs", "aldric.md"), "utf-8");
-    expect(npcContent).toBe("# Aldric\nA blacksmith.");
+    // NOTE: NPCs are now stored in world.duckdb as person entities (not files).
+    // Verify via the entity store instead of file system.
+    const { getNpc } = await import("@agentic-rpg/core");
+    const npcContent = await getNpc(campaignDir, "Aldric");
+    expect(npcContent).not.toBeNull();
+    expect(npcContent!).toContain("# Aldric");
   });
 
   it("imports threads from a valid export", async () => {
@@ -312,6 +321,57 @@ describe("import_campaign", () => {
       arguments: { input_path: join(exportDir, "nonexistent.json") },
     });
     expect(result.isError).toBe(true);
+  });
+
+  it("accepts version 2 export (backward compat)", async () => {
+    // v2 export: no scene_entity_refs, version=2
+    const v2Export = {
+      version: 2,
+      exported_at: new Date().toISOString(),
+      character: BASE_CHARACTER,
+      threads: [],
+      npcs: {},
+      lore_entities: [],
+      lore_relations: [],
+      lore_proximity: [],
+      lore_provenance: [],
+      scenes: [],
+    };
+    const inputPath = join(exportDir, "v2.json");
+    await writeFile(inputPath, JSON.stringify(v2Export));
+
+    const result = await client.callTool({
+      name: "import_campaign",
+      arguments: { input_path: inputPath },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = parseText<{ ok: boolean; imported: Record<string, number> }>(result);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.imported.character).toBe(1);
+  });
+
+  it("accepts version 1 export (backward compat)", async () => {
+    // v1 export: no scene_entity_refs, no lore_proximity, version=1
+    const v1Export = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      character: BASE_CHARACTER,
+      threads: [],
+      npcs: {},
+      lore_entities: [],
+      lore_relations: [],
+      scenes: [],
+    };
+    const inputPath = join(exportDir, "v1.json");
+    await writeFile(inputPath, JSON.stringify(v1Export));
+
+    const result = await client.callTool({
+      name: "import_campaign",
+      arguments: { input_path: inputPath },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = parseText<{ ok: boolean; imported: Record<string, number> }>(result);
+    expect(parsed.ok).toBe(true);
   });
 
   it("preserves lore entity created_at on roundtrip export/import", async () => {
@@ -459,9 +519,113 @@ describe("import_campaign", () => {
       expect(importedProv[0].source_kind).toBe("document");
       expect(importedProv[0].source_id).toBe("doc-123");
       expect(importedProv[0].excerpt).toBe("From chapter 5");
-      expect(importedProv[0].confidence).toBe(0.95);
+      // confidence is stored in a single-precision FLOAT column, so 0.95 is not
+      // exactly representable — compare with tolerance rather than exact equality.
+      expect(importedProv[0].confidence).toBeCloseTo(0.95, 5);
     } finally {
       await rm(importDir, { recursive: true, force: true });
+    }
+  });
+
+  it("v3 round-trip: export v3 with scene_entity_refs, export shape is correct (SQL-only, no Ollama)", async () => {
+    // Insert entity + scene + ref directly via SQL so no Ollama is required
+    const { resolveWorldContext, getWorldDb, openWorldWriteConn } = await import("@agentic-rpg/core");
+    const ctx = await resolveWorldContext(campaignDir);
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
+    const fakeEmb = new Array(768).fill(0);
+    const embLit = `[${fakeEmb.join(",")}]::FLOAT[768]`;
+    const now = new Date().toISOString();
+    const entityId = crypto.randomUUID();
+    const sceneId = crypto.randomUUID();
+    try {
+      await conn.run(
+        `INSERT INTO entities (id, slug, canonical, aliases, type, summary, content, metadata, embedding, campaign_id, created_in_campaign, created_at, updated_at)
+         VALUES (?, 'the-hero', 'The Hero', []::TEXT[], 'person', 'Main character', '{}', '{}', ${embLit}, ?, ?, ?, ?)`,
+        [entityId, ctx.campaignId, ctx.campaignId, now, now],
+      );
+      await conn.run(
+        `INSERT INTO scenes (id, campaign_id, place_entity, text, embedding, timestamp, kind, complication_theme, quality_notes)
+         VALUES (?, ?, NULL, 'The hero enters the tavern.', ${embLit}, ?, 'scene', NULL, NULL)`,
+        [sceneId, ctx.campaignId, now],
+      );
+      await conn.run(
+        `INSERT INTO scene_entity_refs (scene_id, entity_id, role) VALUES (?, ?, 'present')`,
+        [sceneId, entityId],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    // Export — verify the v3 shape includes scene_entity_refs
+    const outputPath = join(exportDir, "v3-roundtrip.json");
+    const exportResult = await client.callTool({
+      name: "export_campaign",
+      arguments: { output_path: outputPath },
+    });
+    expect(exportResult.isError).not.toBe(true);
+    const exportSummary = parseText<{ counts: Record<string, number> }>(exportResult);
+    expect(exportSummary.counts.scene_entity_refs).toBe(1);
+
+    const raw = await readFile(outputPath, "utf-8");
+    const exportData = JSON.parse(raw) as Record<string, unknown>;
+    expect(exportData["version"]).toBe(3);
+    expect(Array.isArray(exportData["scene_entity_refs"])).toBe(true);
+    const refs = exportData["scene_entity_refs"] as Array<Record<string, unknown>>;
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!["scene_id"]).toBe(sceneId);
+    expect(refs[0]!["entity_id"]).toBe(entityId);
+    expect(refs[0]!["role"]).toBe("present");
+  });
+
+  it("v3 import: scene_entity_refs are written even when scenes array is empty (SQL-only, no Ollama)", async () => {
+    // Craft a v3 payload with no scenes/entities (avoids Ollama for embeddings)
+    // but with scene_entity_refs populated. scene_entity_refs has no FK constraints,
+    // so setSceneEntityRefs can insert rows for any UUID pair.
+    const entityId = crypto.randomUUID();
+    const sceneId = crypto.randomUUID();
+    const payload = {
+      version: 3,
+      exported_at: new Date().toISOString(),
+      character: null,
+      threads: [],
+      npcs: {},
+      lore_entities: [],
+      lore_relations: [],
+      lore_proximity: [],
+      lore_provenance: [],
+      scenes: [],
+      scene_entity_refs: [{ scene_id: sceneId, entity_id: entityId, role: "present" }],
+    };
+    const outputPath = join(exportDir, "v3-refs-only.json");
+    await writeFile(outputPath, JSON.stringify(payload), "utf-8");
+
+    // Import into a fresh tmpdir (independent world, no UUID conflicts)
+    const importCampaignDir = await mkdtemp(join(tmpdir(), "scribe-v3-import-"));
+    try {
+      const importServer = new McpServer({ name: "test-v3-refs", version: "0.0.1" });
+      register(importServer, importCampaignDir);
+      const importClient = new Client({ name: "import-client-v3-refs", version: "0.0.1" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await importServer.connect(st);
+      await importClient.connect(ct);
+
+      const importResult = await importClient.callTool({
+        name: "import_campaign",
+        arguments: { input_path: outputPath },
+      });
+      expect(importResult.isError).not.toBe(true);
+      const importCounts = parseText<{ imported: Record<string, number> }>(importResult).imported;
+      expect(importCounts.scene_entity_refs).toBe(1);
+
+      // Verify the ref was persisted
+      const { getSceneEntityRefs } = await import("@agentic-rpg/core");
+      const importedRefs = await getSceneEntityRefs(importCampaignDir, sceneId);
+      expect(importedRefs).toHaveLength(1);
+      expect(importedRefs[0]!.entity_id).toBe(entityId);
+      expect(importedRefs[0]!.role).toBe("present");
+    } finally {
+      await rm(importCampaignDir, { recursive: true, force: true });
     }
   });
 

@@ -10,7 +10,7 @@ import {
   type LinkProximityInput,
   linkProximity,
 } from "./proximity.js";
-import { upsertLore } from "./lore.js";
+import { upsertLore, looksLikeUuid } from "./lore.js";
 
 describe("constants", () => {
   it("exposes the two dimensions", () => {
@@ -167,7 +167,7 @@ describe("linkProximity — write path", () => {
     expect(result.dimension).toBe("space");
     expect(result.updated).toBe(false);
     expect(result.warnings).toEqual([]);
-    expect(result.id).toMatch(/^prox-/);
+    expect(looksLikeUuid(result.id)).toBe(true);
   });
 
   it("re-linking the same pair updates the row, not duplicates", async () => {
@@ -357,10 +357,10 @@ describe("proximityWithin", () => {
 
     const { proximityWithin } = await import("./proximity.js");
     const within = await proximityWithin(campaignDir, "A", 1.5, "space");
-    const ids = within.map((n) => n.id);
-    expect(ids).toContain("a");
-    expect(ids).toContain("b");
-    expect(ids).not.toContain("c");
+    const canonicals = within.map((n) => n.canonical);
+    expect(canonicals).toContain("A");
+    expect(canonicals).toContain("B");
+    expect(canonicals).not.toContain("C");
   });
 
   it("returns results sorted ascending by distance", async () => {
@@ -394,9 +394,9 @@ describe("proximityWithin", () => {
 
     const { proximityWithin } = await import("./proximity.js");
     const within = await proximityWithin(campaignDir, "Holtfen", 1, "space");
-    const stone = within.find((n) => n.id === "hinge-stone");
+    const stone = within.find((n) => n.canonical === "Hinge Stone");
     expect(stone).toBeDefined();
-    expect(stone!.canonical).toBe("Hinge Stone");
+    expect(looksLikeUuid(stone!.id)).toBe(true);
     expect(stone!.type).toBe("place");
   });
 });
