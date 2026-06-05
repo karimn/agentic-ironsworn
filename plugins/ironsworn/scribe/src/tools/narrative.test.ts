@@ -271,3 +271,102 @@ describe("record_beat tool", () => {
     expect(text).toContain("non-existent-id");
   });
 });
+
+// ---------------------------------------------------------------------------
+// update_scene tool
+// ---------------------------------------------------------------------------
+
+describe("update_scene tool", () => {
+  let server: McpServer;
+  let client: Client;
+
+  beforeEach(async () => {
+    server = new McpServer({ name: "test", version: "0.0.1" });
+    register(server, campaignDir);
+    client = new Client({ name: "test-client", version: "0.0.1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+  });
+
+  it("accepts scene_id parameter (not id) and updates the scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "Original summary.", "exploration");
+
+    const result = await client.callTool({
+      name: "update_scene",
+      arguments: { scene_id: sceneId, summary: "Updated summary." },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.id).toBe(sceneId);
+
+    const scene = await getScene(campaignDir, sceneId);
+    expect(scene).not.toBeNull();
+    expect(scene!.text).toBe("Updated summary.");
+  });
+
+  it("returns error for unknown scene_id", async () => {
+    if (!(await ollamaAvailable())) return;
+    // Initialize the DB
+    await recordScene(campaignDir, "Placeholder to init DB.");
+
+    const result = await client.callTool({
+      name: "update_scene",
+      arguments: { scene_id: "non-existent-id", summary: "Should fail." },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toContain("non-existent-id");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// delete_scene tool
+// ---------------------------------------------------------------------------
+
+describe("delete_scene tool", () => {
+  let server: McpServer;
+  let client: Client;
+
+  beforeEach(async () => {
+    server = new McpServer({ name: "test", version: "0.0.1" });
+    register(server, campaignDir);
+    client = new Client({ name: "test-client", version: "0.0.1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+  });
+
+  it("accepts scene_id parameter (not id) and deletes the scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    const sceneId = await recordScene(campaignDir, "A scene to be deleted.", "exploration");
+
+    const result = await client.callTool({
+      name: "delete_scene",
+      arguments: { scene_id: sceneId },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.id).toBe(sceneId);
+
+    const scene = await getScene(campaignDir, sceneId);
+    expect(scene).toBeNull();
+  });
+
+  it("returns error for unknown scene_id", async () => {
+    if (!(await ollamaAvailable())) return;
+    // Initialize the DB
+    await recordScene(campaignDir, "Placeholder to init DB.");
+
+    const result = await client.callTool({
+      name: "delete_scene",
+      arguments: { scene_id: "non-existent-id" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toContain("non-existent-id");
+  });
+});
