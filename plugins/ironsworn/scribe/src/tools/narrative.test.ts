@@ -185,6 +185,73 @@ describe("open_thread — vow without rank warning", () => {
 });
 
 // ---------------------------------------------------------------------------
+// record_scene tool — text / summary aliasing
+// ---------------------------------------------------------------------------
+
+describe("record_scene tool", () => {
+  let server: McpServer;
+  let client: Client;
+
+  beforeEach(async () => {
+    server = new McpServer({ name: "test", version: "0.0.1" });
+    register(server, campaignDir);
+    client = new Client({ name: "test-client", version: "0.0.1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+  });
+
+  it("accepts 'text' parameter and records the scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    const result = await client.callTool({
+      name: "record_scene",
+      arguments: { text: "The forest is quiet after the battle.", kind: "exploration", npcs: [], lore_ids: [] },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(typeof parsed.id).toBe("string");
+  });
+
+  it("accepts legacy 'summary' parameter and records the scene", async () => {
+    if (!(await ollamaAvailable())) return;
+    const result = await client.callTool({
+      name: "record_scene",
+      arguments: { summary: "A scene recorded with the old parameter name.", kind: "social", npcs: [], lore_ids: [] },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    expect(typeof parsed.id).toBe("string");
+  });
+
+  it("'text' takes precedence over 'summary' when both are provided", async () => {
+    if (!(await ollamaAvailable())) return;
+    const result = await client.callTool({
+      name: "record_scene",
+      arguments: { text: "text wins", summary: "summary loses", npcs: [], lore_ids: [] },
+    });
+    expect(result.isError).not.toBe(true);
+    const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
+    expect(parsed.ok).toBe(true);
+    const scene = await getScene(campaignDir, parsed.id);
+    expect(scene!.text).toBe("text wins");
+  });
+
+  it("returns an error when neither 'text' nor 'summary' is provided", async () => {
+    if (!(await ollamaAvailable())) return;
+    await recordScene(campaignDir, "init");
+    const result = await client.callTool({
+      name: "record_scene",
+      arguments: { kind: "exploration", npcs: [], lore_ids: [] },
+    });
+    expect(result.isError).toBe(true);
+    const body = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(body).toContain("required");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // record_beat tool
 // ---------------------------------------------------------------------------
 
