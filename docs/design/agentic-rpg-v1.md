@@ -1,8 +1,11 @@
 # Agentic RPG v1.0 — Design Spec
 
 Status: design spec. Replaces ad-hoc evolution from v0.x. Companion to
-#166 (unified world DB) and `knowledge-graph.md` (KG framing). This is
-the architectural target; migration from v0.x is tracked separately.
+[`world-db.md`](world-db.md) (the unified world DB as built in #166 /
+PR #169) and [`knowledge-graph.md`](knowledge-graph.md) (KG framing).
+This is the architectural target; migration from v0.x is tracked
+separately, and the "Migration from v0.x" section below marks what has
+already landed.
 
 ## What we're building
 
@@ -442,18 +445,34 @@ the rest of this doc is path-agnostic.
 
 ## World DB design (per #166)
 
+> **Implemented.** #166 landed in PR #169 on the current DuckDB
+> substrate. The detailed design-of-record — concrete schema, the
+> visibility predicate, the canonize ritual, the migration path, and
+> the tool surface as built — is **[`docs/design/world-db.md`](world-db.md)**.
+> The summary below is the high-level shape; `world-db.md` is
+> authoritative for implementation detail.
+
 - One world DB per world (one file in Path B; one container volume in
-  Path A).
+  Path A). The shipped substrate is a single **`world.duckdb`** living
+  one level above the campaign folder, with `world.json` alongside it.
 - All entities, relations, and scenes in one store. NPCs collapse into
   `entities` with `type='person'`. Threads collapse into `entities`
   with `type='thread'`.
 - `campaign_id` (Path B) / `group_id` (Path A's Graphiti) as the
   partition column; NULL = world canon, visible to all campaigns.
 - **Visibility filter on every read**: `campaign_id IS NULL OR campaign_id = current`.
+  Vector search applies it *before* ranking so a sibling campaign's
+  row can't leak into top-k.
 - **Promotion to canon is one column flip** — no export pipeline.
+  Implemented as `canonize_entity` / `canonize_relation` (and the
+  `decanonize_*` inverses) — entities and relations are canonized
+  independently.
 - Scenes are always campaign-owned; they reference a shared `place_entity`
   so two campaigns can record different scenes at the same location with
   shared geometry (proximity edges, place metadata).
+- Per-campaign overlay relations anchor on the **PC entity** (the
+  `type='person'` row for the character) — resolves OQ6. The mechanism
+  is reserved; #166 does not yet build overlay-producing features.
 
 ## Module contracts
 
@@ -559,14 +578,21 @@ Per "one tool per query pattern, not per concept" (start-from-scratch).
 
 **KG tools (system-agnostic, in core):**
 
-- `recall(query, kind?, near?, limit?)` — subsumes v0.x
-  `search_lore` / `get_npc` / `get_thread` / `search_scenes`
-- `record_scene(summary, beats, place_entity, refs)`
-- `upsert_entity(kind, name, summary, metadata)` — replaces v0.x
-  `upsert_npc` / `upsert_lore`
-- `link(from, to, label, metadata?)` — replaces v0.x `link_lore`
-- `canonize(entity_id)` / `decanonize(entity_id, into_campaign)`
-- `extract_session_lore()` — batch extraction from recent scenes
+- `recall(query, kind?, near?, limit?)` — *target.* Subsumes
+  `search_lore` / `get_npc` / `get_thread` / `search_scenes`. **Not yet
+  built** — #169 kept the separate v0.x grounding reads (now
+  visibility-filtered, with an `include_sibling_campaigns` opt-in). The
+  `recall` unification is its own follow-up.
+- `record_scene(summary, beats, place_entity, refs)` — *shipped (#169):*
+  resolves names to entity UUIDs, auto-stubs unknowns as campaign-scoped
+  entities, writes `scene_entity_refs`.
+- `upsert_entity(kind, name, summary, metadata)` — *shipped (#169);*
+  `upsert_npc` / `upsert_lore` kept as one-release aliases.
+- `link(from, to, label, metadata?)` — replaces v0.x `link_lore`.
+- `canonize_entity(id)` / `canonize_relation(id)` and the
+  `decanonize_*(id, into_campaign)` inverses — *shipped (#169).* Entities
+  and relations canonize independently.
+- `extract_session_lore()` — batch extraction from recent scenes.
 
 **Player-directive tools (system-agnostic, in core):**
 
@@ -614,19 +640,26 @@ A world is a Bun project directory. Layout:
 
 ```
 worlds/<world>/
-  package.json            # declares which content packages are in play
-  bun.lock                # exact resolved versions, by Bun
-  node_modules/           # installed content packages
+  package.json            # declares which content packages are in play  [target; not in #169]
+  bun.lock                # exact resolved versions, by Bun              [target; not in #169]
+  node_modules/           # installed content packages                   [target; not in #169]
   world.json              # { name, schemaVersion, embedding, kgPath, axioms, tone }
   world.db / world.bundle # the KG (file in Path B, container volume in Path A)
-  preferences.md          # world-level player directives ("/remember" target)
+  preferences.md          # world-level player directives ("/remember" target)  [target]
   campaigns/
     <campaign>/
       campaign.json       # campaign id, name, character schema version
       character.json      # character state (shape from the active system package)
       state-journal.jsonl # append-only audit log of mutations
-      preferences.md      # campaign-level player directives ("/remember" target)
+      preferences.md      # campaign-level player directives ("/remember" target)  [target]
 ```
+
+> **As shipped in #169** the world root holds `world.duckdb` +
+> `world.json` (`{ name, schemaVersion, embedding }`) and `campaigns/<id>/`.
+> The Bun-project framing (`package.json`, `bun.lock`, `node_modules`),
+> `preferences.md`, and the `kgPath` / `axioms` / `tone` keys on
+> `world.json` are still target-state — they land with the workspace
+> extraction, the `/remember` move, and the Path A/B spike respectively.
 
 `package.json` is the source of truth for what content is loaded. Bun
 resolves versions, writes `bun.lock`. The runtime reads `package.json`
@@ -1067,17 +1100,24 @@ in one world, with shared world canon).
 
 ## Migration from v0.x
 
-Tracked separately. Major pieces:
+Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed):
 
-1. Refactor the public repo into a Bun workspace monorepo:
+1. 🚧 Refactor the public repo into a Bun workspace monorepo:
    `packages/core` + `packages/system-ironsworn` +
    `packages/setting-ironlands` + `packages/craft-default`. The CC
    plugin shrinks to just the runtime shim (MCP wiring, default
    skills, slash commands); all logic and content moves into npm
    packages under the `@agentic-rpg/*` scope.
-2. Resolve #166: unify lore.duckdb + scenes.duckdb + npcs/*.json into
-   one world DB; introduce `campaign_id` column.
-3. Implement the Path A vs Path B spike; commit to one.
+   *#169 extracted `@agentic-rpg/core` (all persistence + rules logic)
+   and reduced the scribe package to an MCP shim. The
+   system/setting/craft package splits remain.*
+2. ✅ Resolve #166 (PR #169): unify lore.duckdb + scenes.duckdb +
+   npcs/*.json into one `world.duckdb`; introduce `campaign_id` column;
+   embedding-model pin in `world.json`; CLI-gated migration. See
+   `docs/design/world-db.md`.
+3. Implement the Path A vs Path B spike; commit to one. *(#166 shipped
+   on the current DuckDB substrate — effectively Path B with DuckDB;
+   the spike decides whether to port.)*
 4. Implement the setting-seed-at-world-init mechanism; package the
    Ironlands canon as `@agentic-rpg/setting-ironlands`. Verify a fresh
    world with no setting installed boots cleanly with no seed.
@@ -1172,7 +1212,9 @@ Tracked separately. Major pieces:
   versions are loaded) is Bun's responsibility.
 - **D16** Embedding model mismatch on world load is a hard refuse,
   with a re-embed migration offered. Vector retrieval is silently
-  wrong otherwise; this can't be left implicit.
+  wrong otherwise; this can't be left implicit. *Implemented in #169:
+  `world.json` pins `{ model, version, dim }`; the server refuses to
+  start on mismatch.*
 - **D27** Migrations are the only "compatibility contract" the
   runtime enforces. Each migration is version-tagged
   (`fromVersion`/`toVersion`); the migration runner walks from the
@@ -1220,9 +1262,10 @@ Tracked separately. Major pieces:
 - **OQ5** A canonize ritual UX: slash command, end-of-session prompt,
   or implicit on high-confidence extraction. Probably explicit slash
   command. Settle when implementing.
-- **OQ6** Should overlay-state relations anchor on the PC entity or on
-  a synthetic `party` entity? PC is simpler; `party` generalizes to
-  multi-PC parties (OQ4). Default to PC.
+- ~~**OQ6** Should overlay-state relations anchor on the PC entity or on
+  a synthetic `party` entity?~~ **Resolved (#169):** anchors on the PC
+  entity. A `party` generalization is deferred with multi-PC support
+  (OQ4).
 - **OQ7** Should `tick` events be pub/sub or polled? Default to
   polling for v1.0.
 - **OQ11** What shape should the future alternate UI take (Electron,
