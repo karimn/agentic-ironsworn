@@ -118,7 +118,10 @@ export async function upsertNpc(
     let history: NpcHistoryEntry[];
     let entityId: string;
     const slug = slugify(name);
-    const summary = `${desc} ${imp}`.trim();
+    // Always include the name in the summary so name-based search_lore queries find this NPC.
+    // Extra detail from description/impression improves semantic recall for content searches.
+    const summaryParts = [name, ...(description ? [description] : []), ...(impression ? [impression] : [])];
+    const summary = summaryParts.join(": ");
     const embedding = await _safeEmbedding(summary);
     const embeddingLiteral = `[${embedding.join(",")}]::FLOAT[768]`;
 
