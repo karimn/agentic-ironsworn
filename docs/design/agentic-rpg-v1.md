@@ -105,7 +105,173 @@ PC/party-specific overlay state, package the result as a setting
 module. The Zura world that grew from one campaign becomes a setting
 others can seed new worlds from.
 
-## Four levels of modularity
+## v1 sequencing — coherence is the critical path
+
+The rest of this document describes a target *architecture*. This
+section describes the v1 *build order*, and corrects a sequencing
+mistake the rest of the doc encodes implicitly.
+
+### The mistake to correct
+
+The doc is heavy on platform: four modularity levels, npm packaging,
+licensing boundaries, paid-content stacks, frontend inventories,
+hex-crawl extension points. All defensible as "don't preclude it" —
+but the actual purpose of the system is **a storyteller that maintains
+a coherent knowledge graph of a world**. Platform design is easier to
+write down (schemas and packaging are decidable) so it accumulated more
+ink. Coherence design is empirical and harder to specify, so it ended
+up as carried-forward v0.x code and open questions.
+
+For v1, the order has to invert: storyteller coherence first, platform
+work behind it.
+
+### Why coherence is the hard problem
+
+Storage isn't the hard part. The world DB (#166, landed in #169) gives
+us a place to put facts — necessary, not sufficient. The actual failure
+modes for a storyteller, several already observable in Zura play:
+
+1. **Extraction quality.** If `extract_session_lore` produces
+   near-duplicates, mis-typed relations, or misses load-bearing facts,
+   the graph is noise with provenance. Highest-leverage component;
+   currently treated as carry-forward.
+2. **Temporal truth.** Who's alive *now*? Who holds the post *now*?
+   `knowledge-graph.md` explicitly defers bi-temporal validity ("until
+   NPC churn forces it"). For a storyteller this is wrong — narrating a
+   dead NPC as alive is the canonical coherence failure.
+3. **Retrieval at the right moment.** The fiction-grounding protocol
+   relies on the agent remembering to ground before invention. The
+   harder version — surfacing what the agent didn't know to ask for —
+   is unaddressed.
+4. **Contradiction detection.** Nothing checks a new claim against
+   existing canon at write time. The canonize ritual is the human
+   backstop, which is right; the graph itself could flag conflicts
+   instead of silently absorbing both versions.
+
+Mechanics is acknowledged as not the hard problem, and we already aren't
+reinventing there — #169 ships `gen-assets-from-datasworn.ts`, so rules
+come from Datasworn rather than hand-transcription. That's the right
+pattern: rules are commodity data plus pure functions.
+
+### v1 priorities, in order
+
+1. **Graphiti spike (gating decision).** Promote OQ1 from open question
+   to the *first* decision. Feed the Zura corpus into Graphiti +
+   FalkorDB, evaluate against current scribe on retrieval quality and
+   temporal handling. The outcome reshapes everything downstream — so
+   it has to land before more is built on the current substrate. See
+   "Step 1: Graphiti spike (handoff-ready)" below for a self-contained
+   scope another session can run with.
+2. **Extraction evaluation harness.** Build a fixed set of Zura scenes
+   with known-correct entities and relations, scored on every prompt
+   or model change. Without this, extraction quality is vibes.
+   Required regardless of which way the Graphiti spike resolves.
+3. **Temporal truth.** Reverse the bi-temporal deferral in
+   `knowledge-graph.md`. If the Graphiti spike adopts Graphiti, bi-
+   temporal edges come for free. If it doesn't, add lightweight
+   `supersedes` edges (already filed as OQ2 in `knowledge-graph.md`)
+   plus an "as-of" filter on grounding reads.
+4. **Write-time contradiction surfacing.** On `upsert_entity` /
+   `link`, run a similarity check against existing canon and flag
+   apparent contradictions (different summary for an existing alias;
+   a relation that conflicts with one already on the graph) for the
+   canonize ritual to adjudicate. Don't reject — surface.
+5. **Retrieval discipline.** Tighten the fiction-grounding protocol
+   into a hard tool-use pattern, not a prompt convention. Read tools
+   return entity refs plus *what the agent should re-read before
+   narrating* (e.g., "you fetched X but didn't fetch X's recent
+   scenes — call recall first").
+6. **Then the platform work.** System / setting / craft package
+   splits, npm distribution, paid stacks, alt-frontend candidates,
+   future-proofing extension points. Keep the boundaries the doc
+   already establishes (they cost little in code); defer the
+   generality (the loaders, the marketplace story, the hex-crawl
+   modules). One system, one world, one player. Packaging serves a
+   future that storyteller quality has to earn first.
+
+### Step 1: Graphiti spike (handoff-ready)
+
+This is intentionally scoped to be picked up by another session
+without further context from this conversation. Briefing:
+
+> **Goal.** Decide whether to replace scribe's `rag/` layer
+> (extraction, lore graph, scene retrieval, community detection,
+> proximity) with [Graphiti](https://github.com/getzep/graphiti)
+> backed by [FalkorDB](https://www.falkordb.com/). Outcome is a
+> recommendation with evidence, not a migration.
+>
+> **Why we're considering it.** Graphiti is purpose-built for
+> agent-narrative knowledge graphs: bi-temporal edges, alias
+> resolution, group_id partitioning (≈ our `campaign_id`), LLM
+> extraction prompts iterated against orders of magnitude more
+> transcripts than ours. If retrieval and temporal handling beat
+> what we ship today, most of `packages/core/src/rag/` becomes
+> deletable and OQ2 (`supersedes` edges) resolves for free.
+>
+> **Inputs.**
+> - The Zura corpus (`/home/karimn/rpg/zura-ironsworn/` or the
+>   equivalent — a real, mature world DB with ~hundreds of scenes
+>   and entities).
+> - Current scribe `rag/` code as the baseline:
+>   `packages/core/src/rag/{lore,scenes,extraction,communities,
+>   proximity,query}.ts`.
+> - `docs/design/world-db.md` for our schema and visibility model.
+> - `docs/design/knowledge-graph.md` for the explicit Q1–Q6 the
+>   graph must answer.
+>
+> **Method.**
+> 1. Stand up FalkorDB locally (single Docker container).
+> 2. Feed Graphiti the Zura scene corpus via its ingestion API,
+>    one campaign at a time, using `group_id = <campaign-id>` to
+>    mirror our partitioning.
+> 3. Implement six representative queries (Q1–Q6 from
+>    `knowledge-graph.md`) against both Graphiti and current scribe.
+> 4. Score side-by-side on:
+>    - Retrieval relevance (human judgment on top-k for the same
+>      query, 20 query samples).
+>    - Alias resolution (does Graphiti correctly merge "Lona" /
+>      "the healer Lona" / "Lona of Caldren"? Does ours?).
+>    - Temporal correctness (manufacture a "the Magistrate was
+>      deposed in scene 47" case; query "who is the current
+>      Magistrate" — does each system answer correctly?).
+>    - Extraction quality (Graphiti's prompts vs. ours on the same
+>      raw scene text — entity count, relation correctness,
+>      false positives).
+>    - Operational complexity (install, run, observe, debug).
+>
+> **Deliverable.** A markdown report at
+> `docs/spikes/2026-XX-graphiti.md` with:
+> - The scoring matrix
+> - 3–5 concrete query examples showing the comparison
+> - A recommendation: adopt / hybrid / reject, with reasoning
+> - If "adopt": a sketched migration path (which `rag/*.ts`
+>   modules become Graphiti calls, which stay; how `world.duckdb`
+>   coexists or retires)
+> - If "reject": what specifically didn't work, so we don't keep
+>   wondering
+>
+> **Out of scope.** Actually implementing the migration. This is a
+> decision-grade spike, not a refactor. Time-box: 1–2 days of
+> focused work.
+
+That's the whole brief. Hand it to another session and step 1 starts
+without you in the loop.
+
+### What this section does not change
+
+- The world DB design (#166) stays. The Graphiti spike *might*
+  recommend replacing it; if so, the schema we built is a clean
+  reference for the migration, and the visibility model carries over
+  to Graphiti's `group_id`.
+- The runtime/frontend split (D20–D21) stays. The storyteller-quality
+  improvements all happen inside the runtime.
+- Platform sections don't get deleted; they get *demoted*. The
+  modularity boundaries (system / setting / craft / world) are sound
+  and cost little to maintain. The packaging machinery, marketplace
+  story, and hex-crawl extension points wait until storyteller
+  quality earns the right to scale.
+
+
 
 v1.0 separates four concerns that v0.x conflated. Each is independently
 authored, distributed, and licensed:
