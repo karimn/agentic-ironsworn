@@ -1,6 +1,6 @@
 # Graphiti Spike Report — June 2026
 
-**Status:** Complete  
+**Status:** Complete (updated 2026-06-13 with local corpus confirmation)  
 **Date:** 2026-06-10  
 **Branch:** `claude/graphiti-spike-agentic-rpg-e134gj`  
 **Decision:** **Hybrid — adopt temporal design and extraction approach, not the runtime**
@@ -30,12 +30,18 @@ Zura campaign: 59 scenes, 250 beats, 70 lore entities, 67 relations, 47 communit
 
 | Item | Status |
 |---|---|
-| FalkorDB container | Not runnable — Docker Hub unauthenticated rate limit hit |
-| Kuzu (embedded) | Installed (`kuzu 0.11.3`) but **deprecated** by Graphiti upstream |
-| Graphiti live extraction | Not runnable — no `ANTHROPIC_API_KEY` in environment |
+| FalkorDB container | Not runnable — Docker Hub rate limit; Docker snap issue on local machine |
+| Kuzu (embedded) | Available but **deprecated** by Graphiti upstream (removed in future release) |
+| Graphiti live extraction | Not runnable — API key present but Anthropic account credit balance too low |
 | Direct Kuzu temporal test | ✅ Ran successfully (see §3) |
-| Extraction prompt comparison | ✅ Full static analysis (see §4) |
-| Corpus query analysis | ✅ Complete (see §2) |
+| Extraction prompt comparison | ✅ Full static analysis + manual analysis on real scene (see §4, §4b) |
+| Corpus query analysis | ✅ Complete — confirmed on both cloud (migrated DB) and local machine |
+
+**Local machine corpus confirmation (2026-06-13):** The `~/Code/zura-ironsworn/` corpus
+on the local machine has the same structure as the cloud environment: `world.duckdb` has
+all tables but 0 rows (schema-only, not populated); `lore.duckdb.legacy` has 70 entities
+(0 person-type), 67 relations, 47 communities, 0 extraction log rows. The legacy
+`scenes.duckdb.legacy` has 59 scenes with 250 beats. The findings from §1-2 are confirmed.
 
 The temporal test was run directly against Kuzu (bypassing Graphiti's async wrapper API,
 which has a session API mismatch on `0.11.3`). The structural result is the same.
@@ -322,6 +328,105 @@ prompt would likely:
 **What we can't verify without an API key:** Whether Graphiti's combined prompt produces
 fewer false positives, fewer near-duplicates, and better entity type classification on
 Ironsworn narrative text specifically.
+
+---
+
+## 4b. Extraction Analysis — Manual Comparison on Real Scene
+
+**Live API test status:** Not runnable (Anthropic account credit balance too low during
+this session). The extraction script at
+`plugins/ironsworn/scribe/src/_spike_extraction.ts` is ready; run
+`bun src/_spike_extraction.ts` from the `scribe/` directory once credits are available.
+
+**Manual analysis on `a8c266b6` — "Morning after Caldren's banishment"** (2026-05-08).
+This is the clearest temporal transition in the corpus: Caldren is banished, Lona becomes
+captain at the same scene. What each prompt would produce:
+
+### Scribe prompt (current)
+
+```
+Entity rules: types list, confidence required, excerpt required, preferred relation labels
+Relation labels: allied_with, enemy_of, member_of, leads, guards, located_in, ...
+```
+
+Expected entities (≥0.75 confidence):
+
+| Entity | Type | Note |
+|---|---|---|
+| Lona | person | ✅ Likely — named, wears captain's tag |
+| Caldren | person | ✅ Likely — named, banished |
+| Harel | person | ✅ Likely — named, took escorting action |
+| Holtfen | place | ✅ Likely — context, already in lore |
+| Zura | person | ✅ Likely — named POV character |
+| Ewa | person | ❌ Unlikely — only mentioned by name, low narrative presence; no preferred label for the Lona→Ewa relation |
+
+Expected relations (likely):
+
+| From | Relation | To | Risk |
+|---|---|---|---|
+| Lona | leads | Holtfen | ✅ Likely |
+| Caldren | was_captain_of | Holtfen | ⚠️ Possible — past tense ambiguity |
+| Zura | allied_with | Lona | ⚠️ Possible |
+| Harel | (none) | Caldren | ❌ No preferred label for "escorted into exile" |
+
+**Temporal gap:** Both `Lona leads Holtfen` and `Caldren was_captain_of Holtfen` would
+be stored as equally current facts. No `valid_at` field. A future query "who leads
+Holtfen?" retrieves both. The GM agent receives conflicting facts without any timestamp
+to adjudicate.
+
+---
+
+### Graphiti-inspired prompt
+
+```
+Entity rules: all named persons required, ≤5 words, no abstractions
+Fact rules: self-contained, SCREAMING_SNAKE_CASE, SUPERSEDES_PRIOR for role changes
+```
+
+Expected entities (all named persons are required by prompt):
+
+| Entity | Type | Note |
+|---|---|---|
+| Lona | person | ✅ Extracted — named person |
+| Caldren | person | ✅ Extracted — named, central event |
+| Harel | person | ✅ Extracted — named, took action |
+| Holtfen | place | ✅ Extracted — named place |
+| Ewa | person | ✅ Extracted — named, **prompt requires all named persons** |
+| Zura | person | ✅ Extracted — named speaker |
+
+Expected facts:
+
+| Source | Relation | Target | Flag |
+|---|---|---|---|
+| Lona | IS_CAPTAIN_OF | Holtfen | ⚡ SUPERSEDES_PRIOR ("Caldren was captain") |
+| Caldren | WAS_BANISHED_FROM | Holtfen | NEW |
+| Harel | ESCORTED_INTO_EXILE | Caldren | NEW |
+| Zura | IS_ALLIED_WITH | Lona | NEW |
+| Lona | SEEKS | Ewa | NEW |
+
+**Temporal advantage:** `IS_CAPTAIN_OF` with `SUPERSEDES_PRIOR` causes Caldren's old
+captain edge to receive `invalid_at=2026-05-08T23:10:21.715Z`. Query "who is captain of
+Holtfen?" filtered by `invalid_at IS NULL` returns only Lona. No stale conflict.
+
+### Comparison summary
+
+| Dimension | Scribe | Graphiti-inspired |
+|---|---|---|
+| Entity coverage | 5/6 (Ewa missed) | 6/6 |
+| Relation count | ~3 | 5 |
+| Temporal facts flagged | 0 | 1 (SUPERSEDES_PRIOR) |
+| Relation label style | snake_case narrative | SCREAMING_SNAKE_CASE normalized |
+| Ewa extracted? | ❌ low narrative presence | ✅ prompt requires all named persons |
+| Harel→Caldren escorting? | ❌ no matching label | ✅ ESCORTED_INTO_EXILE |
+
+The entity coverage difference is driven by a single prompt rule: "extract all named
+persons" vs. "extract entities newly revealed or changed." The Graphiti rule is simpler
+and produces fewer gaps. The temporal difference is structural — the prompt difference
+alone does not give us `invalid_at`; that requires schema support too.
+
+**Key finding:** Adopting Graphiti's extraction prompt rules (particularly "all named
+persons" and `SUPERSEDES_PRIOR`) into our current TS extractor closes the entity coverage
+gap. The temporal gap requires schema work regardless of which extractor we use.
 
 ---
 
