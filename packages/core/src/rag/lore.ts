@@ -45,6 +45,8 @@ export interface LoreRelation {
   entity: { id: string; canonical: string; type: LoreType };
   notes?: string;
   metadata: Record<string, unknown>;
+  valid_at?: string;
+  invalid_at?: string;
 }
 
 export interface LoreEntity {
@@ -69,6 +71,8 @@ export interface LinkLoreInput {
   notes?: string;
   metadata?: Record<string, unknown>;
   provenance?: ProvenanceInput;
+  valid_at?: string;
+  invalid_at?: string;
   _created_at?: string;
   _skipRecordingProvenance?: boolean;
 }
@@ -536,9 +540,10 @@ export async function linkLore(
     } else {
       relationId = crypto.randomUUID();
       await conn.run(
-        `INSERT INTO relations (id, from_entity, to_entity, label, notes, metadata, campaign_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [relationId, fromId, toId, input.relation, input.notes ?? null, metadataJson, relationCampaignId, now],
+        `INSERT INTO relations (id, from_entity, to_entity, label, notes, metadata, campaign_id, valid_at, invalid_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [relationId, fromId, toId, input.relation, input.notes ?? null, metadataJson, relationCampaignId,
+         input.valid_at ?? null, input.invalid_at ?? null, now],
       );
     }
 
@@ -594,12 +599,14 @@ export async function getLoreGraph(
                FROM relations r
                JOIN entities fe ON fe.id = r.from_entity AND (fe.campaign_id IS NULL OR fe.campaign_id = ?)
                JOIN entities te ON te.id = r.to_entity AND (te.campaign_id IS NULL OR te.campaign_id = ?)
-               WHERE r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders})`;
+               WHERE (r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders}))
+                 AND r.invalid_at IS NULL`;
         relParams = [ctx.campaignId, ctx.campaignId, ...params, ...params];
       } else {
         relSql = `SELECT r.id AS rel_id, r.from_entity AS from_id, r.to_entity AS to_id, r.label AS relation, r.notes, r.metadata
                FROM relations r
-               WHERE r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders})`;
+               WHERE (r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders}))
+                 AND r.invalid_at IS NULL`;
         relParams = [...params, ...params];
       }
 
@@ -678,37 +685,40 @@ export async function getLore(
     if (rows.length === 0) return null;
     const entity = rowToEntity(rows[0]);
 
-    // Load relations — join with visible entities on both sides
+    // Load relations — join with visible entities on both sides.
+    // invalid_at IS NULL filters to current (non-superseded) facts only.
     let outgoing;
     let incoming;
     if (!includeSiblings) {
       outgoing = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
          FROM relations r
          JOIN entities e ON e.id = r.to_entity AND (e.campaign_id IS NULL OR e.campaign_id = ?)
-         WHERE r.from_entity = ?`,
+         WHERE r.from_entity = ? AND r.invalid_at IS NULL`,
         [ctx.campaignId, entity.id],
       );
       incoming = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
          FROM relations r
          JOIN entities e ON e.id = r.from_entity AND (e.campaign_id IS NULL OR e.campaign_id = ?)
-         WHERE r.to_entity = ?`,
+         WHERE r.to_entity = ? AND r.invalid_at IS NULL`,
         [ctx.campaignId, entity.id],
       );
     } else {
       outgoing = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
-         FROM relations r JOIN entities e ON e.id = r.to_entity WHERE r.from_entity = ?`,
+         FROM relations r JOIN entities e ON e.id = r.to_entity
+         WHERE r.from_entity = ? AND r.invalid_at IS NULL`,
         [entity.id],
       );
       incoming = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
-         FROM relations r JOIN entities e ON e.id = r.from_entity WHERE r.to_entity = ?`,
+         FROM relations r JOIN entities e ON e.id = r.from_entity
+         WHERE r.to_entity = ? AND r.invalid_at IS NULL`,
         [entity.id],
       );
     }
@@ -721,6 +731,8 @@ export async function getLore(
         entity: { id: String(row["other_id"]), canonical: String(row["other_canonical"]), type: String(row["other_type"]) as LoreType },
         notes: row["notes"] ? String(row["notes"]) : undefined,
         metadata: parseJsonObject(row["metadata"]),
+        valid_at: row["valid_at"] ? String(row["valid_at"]) : undefined,
+        invalid_at: row["invalid_at"] ? String(row["invalid_at"]) : undefined,
       });
     }
     for (const row of incoming.getRowObjectsJS() as Record<string, unknown>[]) {
@@ -730,6 +742,8 @@ export async function getLore(
         entity: { id: String(row["other_id"]), canonical: String(row["other_canonical"]), type: String(row["other_type"]) as LoreType },
         notes: row["notes"] ? String(row["notes"]) : undefined,
         metadata: parseJsonObject(row["metadata"]),
+        valid_at: row["valid_at"] ? String(row["valid_at"]) : undefined,
+        invalid_at: row["invalid_at"] ? String(row["invalid_at"]) : undefined,
       });
     }
     entity.relations = relations;
@@ -792,6 +806,8 @@ export interface LoreRelationExport {
   notes?: string;
   metadata: Record<string, unknown>;
   campaign_id: string | null;
+  valid_at: string | null;
+  invalid_at: string | null;
   created_at: string;
 }
 
@@ -813,7 +829,7 @@ export async function exportLore(
 
     const relRows = (await conn.runAndReadAll(
       `SELECT id, from_entity AS from_id, to_entity AS to_id, label AS relation,
-              notes, metadata, campaign_id, created_at
+              notes, metadata, campaign_id, valid_at, invalid_at, created_at
        FROM relations
        WHERE campaign_id IS NULL OR campaign_id = ?
        ORDER BY created_at`,
@@ -843,6 +859,8 @@ export async function exportLore(
         notes: r["notes"] != null ? String(r["notes"]) : undefined,
         metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
         campaign_id: r["campaign_id"] != null ? String(r["campaign_id"]) : null,
+        valid_at: r["valid_at"] != null ? String(r["valid_at"]) : null,
+        invalid_at: r["invalid_at"] != null ? String(r["invalid_at"]) : null,
         created_at: String(r["created_at"]),
       })),
     };

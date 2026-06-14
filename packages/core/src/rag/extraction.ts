@@ -208,6 +208,7 @@ export async function extractLoreFromScene(
       to: toEntity.id,
       relation: rel.relation,
       notes: rel.notes,
+      valid_at: scene.timestamp,
       provenance: {
         source_kind: "extraction",
         source_id: sceneId,
