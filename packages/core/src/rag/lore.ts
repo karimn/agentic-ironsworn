@@ -556,6 +556,30 @@ export async function linkLore(
   }
 }
 
+/** Mark all active matching relations as invalidated at the given timestamp. */
+export async function invalidateRelations(
+  campaignPath: string,
+  fromId: string,
+  toId: string,
+  label: string,
+  invalidAt: string,
+): Promise<void> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    await conn.run(
+      `UPDATE relations SET invalid_at = ?
+       WHERE from_entity = ? AND to_entity = ? AND label = ?
+         AND invalid_at IS NULL
+         AND (campaign_id IS NULL OR campaign_id = ?)`,
+      [invalidAt, fromId, toId, label, ctx.campaignId],
+    );
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export interface LoreGraph {
   root: LoreEntity;
   nodes: LoreEntity[];

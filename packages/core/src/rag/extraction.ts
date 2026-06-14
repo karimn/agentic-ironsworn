@@ -4,6 +4,7 @@ import {
   upsertLore,
   searchLore,
   linkLore,
+  invalidateRelations,
   getLore,
   LORE_TYPES,
   type LoreType,
@@ -27,6 +28,7 @@ export interface ExtractedRelation {
   to: string;
   relation: string;
   notes?: string;
+  supersedes?: boolean;
   excerpt: string;
   confidence: number;
 }
@@ -203,6 +205,16 @@ export async function extractLoreFromScene(
       continue;
     }
 
+    if (rel.supersedes && scene.timestamp) {
+      await invalidateRelations(
+        campaignPath,
+        fromEntity.id,
+        toEntity.id,
+        rel.relation,
+        scene.timestamp,
+      );
+    }
+
     await linkLore(campaignPath, {
       from: fromEntity.id,
       to: toEntity.id,
@@ -262,7 +274,7 @@ const DEFAULT_EXTRACTION_MODEL =
   process.env["SCRIBE_SUMMARY_MODEL"] ?? "claude-haiku-4-5-20251001";
 
 const EXTRACTION_SYSTEM_PROMPT =
-  "You are extracting lore from a solo RPG campaign scene. " +
+  "You are a knowledge-graph extractor for a solo RPG campaign. " +
   "Return ONLY valid JSON matching the requested schema. No prose, no markdown fences.";
 
 export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
@@ -276,20 +288,33 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
 
     const userPrompt =
       `Scene text:\n${sceneText}\n\n` +
-      `Existing lore entities for dedup (id|canonical|type|summary):\n${existingContext}\n\n` +
-      `Extract entities and relations newly revealed or changed in this scene.\n` +
-      `Entity types allowed: ${LORE_TYPES.join(", ")}.\n` +
-      `Preferred relation labels (use these or a close variant): ` +
-      `allied_with, enemy_of, member_of, leads, guards, located_in, created_by, corrupts, bound_to, seeks, opposes.\n` +
-      `For each item, provide the exact excerpt supporting it and a confidence 0.0–1.0.\n` +
-      `Confidence reflects how clearly the scene establishes this fact.\n\n` +
+      `Existing lore entities (id|canonical|type|summary):\n${existingContext}\n\n` +
+      `Extract only what is newly established or explicitly changed in this scene.\n\n` +
+      `ENTITY RULES:\n` +
+      `- canonical: specific noun phrase, ≤5 words (e.g. "Ashfen Market Quarter" not "the market")\n` +
+      `- type: one of ${LORE_TYPES.join(", ")}\n` +
+      `- summary: one self-contained sentence using the canonical name, not pronouns\n` +
+      `- aliases: other names used in the scene for the same entity\n` +
+      `- Do NOT extract: player character stats or moves, emotional states, implied facts\n` +
+      `  ("X is alive"), setting-generic entities ("a guard", "some merchants"), anything\n` +
+      `  already captured in the existing entities list above\n\n` +
+      `RELATION RULES:\n` +
+      `- relation: SCREAMING_SNAKE_CASE, verb-first (e.g. LEADS, GUARDS, MEMBER_OF, ALLIED_WITH,\n` +
+      `  ENEMY_OF, LOCATED_IN, CREATED_BY, BOUND_TO, SEEKS, OPPOSES, HOLDS_TITLE, SERVES,\n` +
+      `  KILLED_BY, TAGGED_AS — invent a clear verb label if none of these fit)\n` +
+      `- notes: one self-contained sentence elaborating the relation\n` +
+      `- supersedes: true ONLY when this relation explicitly replaces a prior known state\n` +
+      `  (a title stripped, an alliance broken, a location changed); false otherwise\n` +
+      `- Do NOT extract: player character as from-entity unless a new named relationship is\n` +
+      `  established, generic spatial relations ("X is in the room"), duplicate relations\n` +
+      `  already present in existing entities\n\n` +
       `Return ONLY this JSON object:\n` +
       `{\n` +
       `  "entities": [\n` +
       `    { "canonical": string, "type": string, "summary": string, "aliases": string[], "excerpt": string, "confidence": number }\n` +
       `  ],\n` +
       `  "relations": [\n` +
-      `    { "from": string, "to": string, "relation": string, "notes": string, "excerpt": string, "confidence": number }\n` +
+      `    { "from": string, "to": string, "relation": string, "notes": string, "supersedes": boolean, "excerpt": string, "confidence": number }\n` +
       `  ]\n` +
       `}`;
 
