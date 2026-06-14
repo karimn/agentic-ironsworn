@@ -67,6 +67,9 @@ export type Extractor = (
 
 const DEDUP_SIMILARITY_THRESHOLD = 0.92;
 
+// nomic-embed-text rejects inputs beyond ~6500 chars; cap conservatively.
+const MAX_EMBED_CHARS = 6000;
+
 function buildSceneText(scene: Awaited<ReturnType<typeof getScene>>): string {
   if (!scene) return "";
   if (scene.beats && scene.beats.length > 0) {
@@ -78,6 +81,11 @@ function buildSceneText(scene: Awaited<ReturnType<typeof getScene>>): string {
       .join("\n");
   }
   return scene.text;
+}
+
+function buildEmbedText(scene: Awaited<ReturnType<typeof getScene>>): string {
+  const text = buildSceneText(scene);
+  return text.length > MAX_EMBED_CHARS ? text.slice(0, MAX_EMBED_CHARS) : text;
 }
 
 async function writeExtractionLog(
@@ -140,7 +148,7 @@ export async function extractLoreFromScene(
   }
 
   const sceneText = buildSceneText(scene);
-  const existingEntities = await searchLore(campaignPath, sceneText, 10);
+  const existingEntities = await searchLore(campaignPath, buildEmbedText(scene), 10);
   const result = await extractor(sceneText, existingEntities);
 
   const report: ExtractionReport = {
@@ -320,7 +328,7 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
 
     const response = await client.messages.create({
       model: DEFAULT_EXTRACTION_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -336,9 +344,10 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
       throw new Error("Empty extraction response from Anthropic");
     }
 
-    // Strip markdown code fences if the model wrapped the JSON.
-    const fenceMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-    if (fenceMatch) text = fenceMatch[1]!.trim();
+    // Extract first JSON object from the response, tolerating surrounding prose
+    // or markdown fences the model may add despite the system prompt.
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) text = jsonMatch[0];
 
     const parsed = JSON.parse(text) as ExtractionResult;
     parsed.entities = parsed.entities.filter((e) =>
