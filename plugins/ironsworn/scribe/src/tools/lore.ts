@@ -4,6 +4,7 @@ import {
   upsertLore,
   getLore,
   searchLore,
+  searchLoreGraphiti,
   linkLore,
   getLoreGraph,
   canonizeEntity,
@@ -219,7 +220,16 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ query, type, k, include_sibling_campaigns }) => {
       try {
-        const results = await searchLore(campaignPath, query, k ?? 5, type as LoreType | undefined, { includeSiblings: include_sibling_campaigns ?? false });
+        const limit = k ?? 5;
+        // Graphiti path: temporal + semantic search over FalkorDB (when configured).
+        // Falls back to DuckDB if FalkorDB is unavailable or returns nothing.
+        if (!type && !include_sibling_campaigns) {
+          const graphitiHits = await searchLoreGraphiti(campaignPath, query, limit);
+          if (graphitiHits !== undefined) {
+            return { content: [{ type: "text", text: JSON.stringify(graphitiHits) }] };
+          }
+        }
+        const results = await searchLore(campaignPath, query, limit, type as LoreType | undefined, { includeSiblings: include_sibling_campaigns ?? false });
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
       } catch (e) {
         return {

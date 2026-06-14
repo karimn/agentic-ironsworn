@@ -485,6 +485,58 @@ export async function searchLore(
   }
 }
 
+/**
+ * Search lore via graphiti-ts + FalkorDB (temporal, semantic).
+ * Falls back to undefined when FalkorDB is not configured or returns no results.
+ * Maps graphiti EntityEdge facts → LoreSearchHit for backward compatibility.
+ */
+export async function searchLoreGraphiti(
+  campaignPath: string,
+  query: string,
+  k = 5,
+): Promise<LoreSearchHit[] | undefined> {
+  if (!process.env["FALKORDB_HOST"]) return undefined;
+  try {
+    const { searchGraphiti } = await import("./graphiti-adapter.js");
+    const ctx = await resolveWorldContext(campaignPath);
+    const results = await searchGraphiti(ctx.worldRoot, ctx.campaignId, query, { limit: k });
+
+    const hits: LoreSearchHit[] = [];
+
+    // Map edges (fact statements) to LoreSearchHit
+    for (const edge of results.edges) {
+      const inferredType = LORE_TYPES.includes(edge.name?.toLowerCase() as LoreType)
+        ? (edge.name.toLowerCase() as LoreType)
+        : "concept";
+      hits.push({
+        id: edge.uuid,
+        slug: edge.uuid,
+        canonical: edge.name,
+        type: inferredType,
+        summary: edge.fact,
+        score: 0.9,
+      });
+    }
+
+    // Map nodes (entities) to LoreSearchHit
+    for (const node of results.nodes) {
+      const label = node.labels.find((l) => LORE_TYPES.includes(l.toLowerCase() as LoreType));
+      hits.push({
+        id: node.uuid,
+        slug: node.uuid,
+        canonical: node.name,
+        type: (label?.toLowerCase() as LoreType | undefined) ?? "concept",
+        summary: node.summary,
+        score: 0.85,
+      });
+    }
+
+    return hits.length > 0 ? hits.slice(0, k) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function linkLore(
   campaignPath: string,
   input: LinkLoreInput,
