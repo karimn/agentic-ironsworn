@@ -558,6 +558,13 @@ Setup: Docker container (FalkorDB/Neo4j) + Python venv + graphiti-core
 Language bridge: TypeScript → Python call interface needed
 ```
 
+**graphiti-ts (TypeScript port):** `github.com/2b3pro/graphiti-ts` — forked to
+`github.com/karimn/graphiti-ts` (commit `6921fe1`). Feature-complete for our use case,
+Anthropic-native, Bun-native, bi-temporal edges, MinHash dedup, community detection,
+FalkorDB + Neo4j backends. Pre-release (v0.1.0, not on npm). If adopted, eliminates the
+Python sidecar entirely — same language stack as scribe. Install options: `file:` path
+after local clone, or publish from the fork to npm. See §9 Phase 4 for the wiring plan.
+
 **Critical finding: Kuzu is deprecated.** The only embedded backend (Kuzu) is deprecated
 as of Graphiti 0.29.x with a deprecation warning: "The Kuzu backend is deprecated and
 will be removed in a future release — the upstream Kuzu project is no longer maintained.
