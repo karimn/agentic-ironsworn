@@ -537,6 +537,65 @@ export async function searchLoreGraphiti(
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Retrieve a lore entity from graphiti by UUID.
+ * Returns null when FalkorDB is not configured or the identifier isn't a UUID.
+ * Tries edge lookup first (search_lore returns edge UUIDs), then node lookup.
+ */
+export async function getLoreGraphiti(
+  campaignPath: string,
+  identifier: string,
+): Promise<LoreEntity | null> {
+  if (!process.env["FALKORDB_HOST"] || !UUID_RE.test(identifier)) return null;
+  try {
+    const { getGraphitiEdge, getGraphitiNode } = await import("./graphiti-adapter.js");
+    const ctx = await resolveWorldContext(campaignPath);
+
+    const edge = await getGraphitiEdge(ctx.worldRoot, ctx.campaignId, identifier);
+    if (edge !== null) {
+      return {
+        id: edge.uuid,
+        slug: edge.uuid,
+        canonical: edge.name,
+        aliases: [],
+        type: "concept",
+        summary: edge.fact,
+        content: {},
+        metadata: {},
+        campaign_id: ctx.campaignId,
+        created_in_campaign: ctx.campaignId,
+        relations: [],
+        community_id: null,
+      } satisfies LoreEntity;
+    }
+
+    const node = await getGraphitiNode(ctx.worldRoot, ctx.campaignId, identifier);
+    if (node !== null) {
+      const label = node.labels.find((l) => LORE_TYPES.includes(l.toLowerCase() as LoreType));
+      return {
+        id: node.uuid,
+        slug: node.uuid,
+        canonical: node.name,
+        aliases: [],
+        type: (label?.toLowerCase() as LoreType | undefined) ?? "concept",
+        summary: node.summary,
+        content: {},
+        metadata: {},
+        campaign_id: ctx.campaignId,
+        created_in_campaign: ctx.campaignId,
+        relations: [],
+        community_id: null,
+      } satisfies LoreEntity;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function linkLore(
   campaignPath: string,
   input: LinkLoreInput,

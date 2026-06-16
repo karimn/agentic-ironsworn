@@ -179,6 +179,99 @@ export interface GraphitiNodeResult {
   group_id: string;
 }
 
+/**
+ * Look up a single Entity node by UUID, searching the campaign group then default_db.
+ * Returns null if not found in either graph.
+ */
+export async function getGraphitiNode(
+  worldRoot: string,
+  campaignId: string,
+  uuid: string,
+): Promise<GraphitiNodeResult | null> {
+  const host = process.env["FALKORDB_HOST"] ?? "localhost";
+  const port = parseInt(process.env["FALKORDB_PORT"] ?? "6379", 10);
+  const client = await createFalkorClientAdapter({ host, port });
+
+  const groups = [campaignGroup(campaignId), "default_db"];
+  try {
+    for (const gid of groups) {
+      const graph = client.selectGraph(gid);
+      try {
+        const result = await graph.query(
+          `MATCH (n:Entity {uuid: $uuid})
+           RETURN n.uuid AS uuid, n.name AS name, n.summary AS summary,
+                  labels(n) AS labels, n.group_id AS group_id`,
+          { params: { uuid } },
+        );
+        if (result.data && result.data.length > 0) {
+          const r = result.data[0] as Record<string, unknown>;
+          return {
+            uuid: r["uuid"] as string,
+            name: r["name"] as string,
+            summary: (r["summary"] as string | null) ?? "",
+            labels: (r["labels"] as string[]) ?? [],
+            group_id: (r["group_id"] as string | null) ?? gid,
+          };
+        }
+      } catch {
+        // Graph may not exist yet; try next
+      }
+    }
+    return null;
+  } finally {
+    await client.close();
+  }
+}
+
+/**
+ * Look up a single EntityEdge by UUID, searching the campaign group then default_db.
+ * Returns null if not found.
+ */
+export async function getGraphitiEdge(
+  worldRoot: string,
+  campaignId: string,
+  uuid: string,
+): Promise<GraphitiEdgeResult | null> {
+  const host = process.env["FALKORDB_HOST"] ?? "localhost";
+  const port = parseInt(process.env["FALKORDB_PORT"] ?? "6379", 10);
+  const client = await createFalkorClientAdapter({ host, port });
+
+  const groups = [campaignGroup(campaignId), "default_db"];
+  try {
+    for (const gid of groups) {
+      const graph = client.selectGraph(gid);
+      try {
+        const result = await graph.query(
+          `MATCH (source:Entity)-[e:RELATES_TO {uuid: $uuid}]->(target:Entity)
+           RETURN e.uuid AS uuid, e.name AS name, e.fact AS fact,
+                  source.uuid AS source_node_uuid, target.uuid AS target_node_uuid,
+                  e.valid_at AS valid_at, e.invalid_at AS invalid_at,
+                  e.group_id AS group_id`,
+          { params: { uuid } },
+        );
+        if (result.data && result.data.length > 0) {
+          const r = result.data[0] as Record<string, unknown>;
+          return {
+            uuid: r["uuid"] as string,
+            name: r["name"] as string,
+            fact: (r["fact"] as string | null) ?? "",
+            source_node_uuid: r["source_node_uuid"] as string,
+            target_node_uuid: r["target_node_uuid"] as string,
+            valid_at: r["valid_at"] ? new Date(r["valid_at"] as string) : null,
+            invalid_at: r["invalid_at"] ? new Date(r["invalid_at"] as string) : null,
+            group_id: (r["group_id"] as string | null) ?? gid,
+          };
+        }
+      } catch {
+        // Graph may not exist yet; try next
+      }
+    }
+    return null;
+  } finally {
+    await client.close();
+  }
+}
+
 /** Ingest a scene as a graphiti episode, extracting entities and edges. */
 export async function ingestEpisode(input: GraphitiEpisodeInput): Promise<void> {
   const group = campaignGroup(input.campaignId);

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   upsertLore,
   getLore,
+  getLoreGraphiti,
   searchLore,
   searchLoreGraphiti,
   linkLore,
@@ -194,6 +195,11 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ identifier, include_sibling_campaigns }) => {
       try {
+        // Try graphiti first for UUID identifiers (returned by search_lore when graphiti is active).
+        const graphitiEntity = await getLoreGraphiti(campaignPath, identifier);
+        if (graphitiEntity !== null) {
+          return { content: [{ type: "text", text: JSON.stringify(graphitiEntity) }] };
+        }
         const entity = await getLore(campaignPath, identifier, { includeSiblings: include_sibling_campaigns ?? false });
         return {
           content: [{ type: "text", text: JSON.stringify(entity) }],
