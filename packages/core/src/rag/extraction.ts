@@ -4,14 +4,21 @@ import {
   upsertLore,
   searchLore,
   linkLore,
+  invalidateRelations,
   getLore,
   LORE_TYPES,
   type LoreType,
   type LoreSearchHit,
 } from "./lore.js";
+import { ingestEpisode } from "./graphiti-adapter.js";
 import { resolveWorldContext } from "../world.js";
 import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 import { getScene, exportScenes } from "./scenes.js";
+
+// When FALKORDB_HOST is set, extraction uses graphiti-ts instead of the
+// DuckDB LLM pipeline. The DuckDB entity/relation tables become a read-only
+// Phase-2 snapshot; new scenes are extracted into FalkorDB via graphiti.
+const GRAPHITI_ENABLED = Boolean(process.env["FALKORDB_HOST"]);
 
 export interface ExtractedEntity {
   canonical: string;
@@ -27,6 +34,7 @@ export interface ExtractedRelation {
   to: string;
   relation: string;
   notes?: string;
+  supersedes?: boolean;
   excerpt: string;
   confidence: number;
 }
@@ -65,6 +73,9 @@ export type Extractor = (
 
 const DEDUP_SIMILARITY_THRESHOLD = 0.92;
 
+// nomic-embed-text rejects inputs beyond ~6500 chars; cap conservatively.
+const MAX_EMBED_CHARS = 6000;
+
 function buildSceneText(scene: Awaited<ReturnType<typeof getScene>>): string {
   if (!scene) return "";
   if (scene.beats && scene.beats.length > 0) {
@@ -76,6 +87,11 @@ function buildSceneText(scene: Awaited<ReturnType<typeof getScene>>): string {
       .join("\n");
   }
   return scene.text;
+}
+
+function buildEmbedText(scene: Awaited<ReturnType<typeof getScene>>): string {
+  const text = buildSceneText(scene);
+  return text.length > MAX_EMBED_CHARS ? text.slice(0, MAX_EMBED_CHARS) : text;
 }
 
 async function writeExtractionLog(
@@ -129,16 +145,39 @@ export async function extractLoreFromScene(
   sceneId: string,
   opts?: ExtractOptions,
 ): Promise<ExtractionReport> {
-  const threshold = opts?.confidenceThreshold ?? 0.6;
-  const extractor = opts?.extractor ?? defaultExtractor;
-
   const scene = await getScene(campaignPath, sceneId, { include_beats: true });
   if (scene === null) {
     throw new Error(`Scene not found: ${sceneId}`);
   }
 
+  if (GRAPHITI_ENABLED && opts?.extractor === undefined) {
+    // Graphiti path: delegate to addEpisodeFull which handles extraction,
+    // entity dedup, and edge creation internally.
+    const ctx = await resolveWorldContext(campaignPath);
+    await ingestEpisode({
+      sceneId,
+      text: buildSceneText(scene),
+      timestamp: scene.timestamp,
+      campaignId: ctx.campaignId,
+      worldRoot: ctx.worldRoot,
+    });
+    const report: ExtractionReport = {
+      scene_id: sceneId,
+      entities_created: 0,
+      entities_updated: 0,
+      relations_created: 0,
+      skipped: 0,
+    };
+    await writeExtractionLog(campaignPath, report);
+    return report;
+  }
+
+  // DuckDB path (legacy or test override via opts.extractor).
+  const threshold = opts?.confidenceThreshold ?? 0.6;
+  const extractor = opts?.extractor ?? defaultExtractor;
+
   const sceneText = buildSceneText(scene);
-  const existingEntities = await searchLore(campaignPath, sceneText, 10);
+  const existingEntities = await searchLore(campaignPath, buildEmbedText(scene), 10);
   const result = await extractor(sceneText, existingEntities);
 
   const report: ExtractionReport = {
@@ -203,11 +242,22 @@ export async function extractLoreFromScene(
       continue;
     }
 
+    if (rel.supersedes && scene.timestamp) {
+      await invalidateRelations(
+        campaignPath,
+        fromEntity.id,
+        toEntity.id,
+        rel.relation,
+        scene.timestamp,
+      );
+    }
+
     await linkLore(campaignPath, {
       from: fromEntity.id,
       to: toEntity.id,
       relation: rel.relation,
       notes: rel.notes,
+      valid_at: scene.timestamp,
       provenance: {
         source_kind: "extraction",
         source_id: sceneId,
@@ -261,7 +311,7 @@ const DEFAULT_EXTRACTION_MODEL =
   process.env["SCRIBE_SUMMARY_MODEL"] ?? "claude-haiku-4-5-20251001";
 
 const EXTRACTION_SYSTEM_PROMPT =
-  "You are extracting lore from a solo RPG campaign scene. " +
+  "You are a knowledge-graph extractor for a solo RPG campaign. " +
   "Return ONLY valid JSON matching the requested schema. No prose, no markdown fences.";
 
 export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
@@ -275,26 +325,39 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
 
     const userPrompt =
       `Scene text:\n${sceneText}\n\n` +
-      `Existing lore entities for dedup (id|canonical|type|summary):\n${existingContext}\n\n` +
-      `Extract entities and relations newly revealed or changed in this scene.\n` +
-      `Entity types allowed: ${LORE_TYPES.join(", ")}.\n` +
-      `Preferred relation labels (use these or a close variant): ` +
-      `allied_with, enemy_of, member_of, leads, guards, located_in, created_by, corrupts, bound_to, seeks, opposes.\n` +
-      `For each item, provide the exact excerpt supporting it and a confidence 0.0–1.0.\n` +
-      `Confidence reflects how clearly the scene establishes this fact.\n\n` +
+      `Existing lore entities (id|canonical|type|summary):\n${existingContext}\n\n` +
+      `Extract only what is newly established or explicitly changed in this scene.\n\n` +
+      `ENTITY RULES:\n` +
+      `- canonical: specific noun phrase, ≤5 words (e.g. "Ashfen Market Quarter" not "the market")\n` +
+      `- type: one of ${LORE_TYPES.join(", ")}\n` +
+      `- summary: one self-contained sentence using the canonical name, not pronouns\n` +
+      `- aliases: other names used in the scene for the same entity\n` +
+      `- Do NOT extract: player character stats or moves, emotional states, implied facts\n` +
+      `  ("X is alive"), setting-generic entities ("a guard", "some merchants"), anything\n` +
+      `  already captured in the existing entities list above\n\n` +
+      `RELATION RULES:\n` +
+      `- relation: SCREAMING_SNAKE_CASE, verb-first (e.g. LEADS, GUARDS, MEMBER_OF, ALLIED_WITH,\n` +
+      `  ENEMY_OF, LOCATED_IN, CREATED_BY, BOUND_TO, SEEKS, OPPOSES, HOLDS_TITLE, SERVES,\n` +
+      `  KILLED_BY, TAGGED_AS — invent a clear verb label if none of these fit)\n` +
+      `- notes: one self-contained sentence elaborating the relation\n` +
+      `- supersedes: true ONLY when this relation explicitly replaces a prior known state\n` +
+      `  (a title stripped, an alliance broken, a location changed); false otherwise\n` +
+      `- Do NOT extract: player character as from-entity unless a new named relationship is\n` +
+      `  established, generic spatial relations ("X is in the room"), duplicate relations\n` +
+      `  already present in existing entities\n\n` +
       `Return ONLY this JSON object:\n` +
       `{\n` +
       `  "entities": [\n` +
       `    { "canonical": string, "type": string, "summary": string, "aliases": string[], "excerpt": string, "confidence": number }\n` +
       `  ],\n` +
       `  "relations": [\n` +
-      `    { "from": string, "to": string, "relation": string, "notes": string, "excerpt": string, "confidence": number }\n` +
+      `    { "from": string, "to": string, "relation": string, "notes": string, "supersedes": boolean, "excerpt": string, "confidence": number }\n` +
       `  ]\n` +
       `}`;
 
     const response = await client.messages.create({
       model: DEFAULT_EXTRACTION_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -310,9 +373,10 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
       throw new Error("Empty extraction response from Anthropic");
     }
 
-    // Strip markdown code fences if the model wrapped the JSON.
-    const fenceMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-    if (fenceMatch) text = fenceMatch[1]!.trim();
+    // Extract first JSON object from the response, tolerating surrounding prose
+    // or markdown fences the model may add despite the system prompt.
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) text = jsonMatch[0];
 
     const parsed = JSON.parse(text) as ExtractionResult;
     parsed.entities = parsed.entities.filter((e) =>

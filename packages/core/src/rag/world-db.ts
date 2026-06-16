@@ -87,6 +87,8 @@ async function initDb(ctx: WorldContext): Promise<DuckDBInstance> {
         metadata    TEXT NOT NULL DEFAULT '{}',
         embedding   FLOAT[768],
         campaign_id TEXT,
+        valid_at    TEXT,
+        invalid_at  TEXT,
         created_at  TEXT NOT NULL,
         UNIQUE (from_entity, to_entity, label, campaign_id)
       )

@@ -3,7 +3,9 @@ import { z } from "zod";
 import {
   upsertLore,
   getLore,
+  getLoreGraphiti,
   searchLore,
+  searchLoreGraphiti,
   linkLore,
   getLoreGraph,
   canonizeEntity,
@@ -193,6 +195,11 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ identifier, include_sibling_campaigns }) => {
       try {
+        // Try graphiti first for UUID identifiers (returned by search_lore when graphiti is active).
+        const graphitiEntity = await getLoreGraphiti(campaignPath, identifier);
+        if (graphitiEntity !== null) {
+          return { content: [{ type: "text", text: JSON.stringify(graphitiEntity) }] };
+        }
         const entity = await getLore(campaignPath, identifier, { includeSiblings: include_sibling_campaigns ?? false });
         return {
           content: [{ type: "text", text: JSON.stringify(entity) }],
@@ -219,7 +226,16 @@ export function register(server: McpServer, campaignPath: string): void {
     },
     async ({ query, type, k, include_sibling_campaigns }) => {
       try {
-        const results = await searchLore(campaignPath, query, k ?? 5, type as LoreType | undefined, { includeSiblings: include_sibling_campaigns ?? false });
+        const limit = k ?? 5;
+        // Graphiti path: temporal + semantic search over FalkorDB (when configured).
+        // Falls back to DuckDB if FalkorDB is unavailable or returns nothing.
+        if (!type && !include_sibling_campaigns) {
+          const graphitiHits = await searchLoreGraphiti(campaignPath, query, limit);
+          if (graphitiHits !== undefined) {
+            return { content: [{ type: "text", text: JSON.stringify(graphitiHits) }] };
+          }
+        }
+        const results = await searchLore(campaignPath, query, limit, type as LoreType | undefined, { includeSiblings: include_sibling_campaigns ?? false });
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
       } catch (e) {
         return {

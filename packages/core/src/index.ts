@@ -37,7 +37,7 @@ export {
 export type { EmbeddingPin, WorldJson } from "./world.js";
 
 // RAG — lore
-export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, canonizeEntity, decanonizeEntity, canonizeRelation, decanonizeRelation, LORE_TYPES } from "./rag/lore.js";
+export { slugify, recordProvenance, upsertLore, searchLore, searchLoreGraphiti, getLoreGraphiti, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, canonizeEntity, decanonizeEntity, canonizeRelation, decanonizeRelation, LORE_TYPES } from "./rag/lore.js";
 export type { LoreType, ProvenanceInput, ProvenanceEntry, LoreRelation, LoreEntity, LinkLoreInput, UpsertLoreInput, UpsertLoreResult, LoreSearchHit, LoreGraph, LoreEntityExport, LoreRelationExport } from "./rag/lore.js";
 
 // RAG — scenes

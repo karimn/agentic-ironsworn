@@ -45,6 +45,8 @@ export interface LoreRelation {
   entity: { id: string; canonical: string; type: LoreType };
   notes?: string;
   metadata: Record<string, unknown>;
+  valid_at?: string;
+  invalid_at?: string;
 }
 
 export interface LoreEntity {
@@ -69,6 +71,8 @@ export interface LinkLoreInput {
   notes?: string;
   metadata?: Record<string, unknown>;
   provenance?: ProvenanceInput;
+  valid_at?: string;
+  invalid_at?: string;
   _created_at?: string;
   _skipRecordingProvenance?: boolean;
 }
@@ -481,6 +485,117 @@ export async function searchLore(
   }
 }
 
+/**
+ * Search lore via graphiti-ts + FalkorDB (temporal, semantic).
+ * Falls back to undefined when FalkorDB is not configured or returns no results.
+ * Maps graphiti EntityEdge facts → LoreSearchHit for backward compatibility.
+ */
+export async function searchLoreGraphiti(
+  campaignPath: string,
+  query: string,
+  k = 5,
+): Promise<LoreSearchHit[] | undefined> {
+  if (!process.env["FALKORDB_HOST"]) return undefined;
+  try {
+    const { searchGraphiti } = await import("./graphiti-adapter.js");
+    const ctx = await resolveWorldContext(campaignPath);
+    const results = await searchGraphiti(ctx.worldRoot, ctx.campaignId, query, { limit: k });
+
+    const hits: LoreSearchHit[] = [];
+
+    // Map edges (fact statements) to LoreSearchHit
+    for (const edge of results.edges) {
+      const inferredType = LORE_TYPES.includes(edge.name?.toLowerCase() as LoreType)
+        ? (edge.name.toLowerCase() as LoreType)
+        : "concept";
+      hits.push({
+        id: edge.uuid,
+        slug: edge.uuid,
+        canonical: edge.name,
+        type: inferredType,
+        summary: edge.fact,
+        score: 0.9,
+      });
+    }
+
+    // Map nodes (entities) to LoreSearchHit
+    for (const node of results.nodes) {
+      const label = node.labels.find((l) => LORE_TYPES.includes(l.toLowerCase() as LoreType));
+      hits.push({
+        id: node.uuid,
+        slug: node.uuid,
+        canonical: node.name,
+        type: (label?.toLowerCase() as LoreType | undefined) ?? "concept",
+        summary: node.summary,
+        score: 0.85,
+      });
+    }
+
+    return hits.length > 0 ? hits.slice(0, k) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Retrieve a lore entity from graphiti by UUID.
+ * Returns null when FalkorDB is not configured or the identifier isn't a UUID.
+ * Tries edge lookup first (search_lore returns edge UUIDs), then node lookup.
+ */
+export async function getLoreGraphiti(
+  campaignPath: string,
+  identifier: string,
+): Promise<LoreEntity | null> {
+  if (!process.env["FALKORDB_HOST"] || !UUID_RE.test(identifier)) return null;
+  try {
+    const { getGraphitiEdge, getGraphitiNode } = await import("./graphiti-adapter.js");
+    const ctx = await resolveWorldContext(campaignPath);
+
+    const edge = await getGraphitiEdge(ctx.worldRoot, ctx.campaignId, identifier);
+    if (edge !== null) {
+      return {
+        id: edge.uuid,
+        slug: edge.uuid,
+        canonical: edge.name,
+        aliases: [],
+        type: "concept",
+        summary: edge.fact,
+        content: {},
+        metadata: {},
+        campaign_id: ctx.campaignId,
+        created_in_campaign: ctx.campaignId,
+        relations: [],
+        community_id: null,
+      } satisfies LoreEntity;
+    }
+
+    const node = await getGraphitiNode(ctx.worldRoot, ctx.campaignId, identifier);
+    if (node !== null) {
+      const label = node.labels.find((l) => LORE_TYPES.includes(l.toLowerCase() as LoreType));
+      return {
+        id: node.uuid,
+        slug: node.uuid,
+        canonical: node.name,
+        aliases: [],
+        type: (label?.toLowerCase() as LoreType | undefined) ?? "concept",
+        summary: node.summary,
+        content: {},
+        metadata: {},
+        campaign_id: ctx.campaignId,
+        created_in_campaign: ctx.campaignId,
+        relations: [],
+        community_id: null,
+      } satisfies LoreEntity;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function linkLore(
   campaignPath: string,
   input: LinkLoreInput,
@@ -536,9 +651,10 @@ export async function linkLore(
     } else {
       relationId = crypto.randomUUID();
       await conn.run(
-        `INSERT INTO relations (id, from_entity, to_entity, label, notes, metadata, campaign_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [relationId, fromId, toId, input.relation, input.notes ?? null, metadataJson, relationCampaignId, now],
+        `INSERT INTO relations (id, from_entity, to_entity, label, notes, metadata, campaign_id, valid_at, invalid_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [relationId, fromId, toId, input.relation, input.notes ?? null, metadataJson, relationCampaignId,
+         input.valid_at ?? null, input.invalid_at ?? null, now],
       );
     }
 
@@ -546,6 +662,30 @@ export async function linkLore(
       await recordProvenance(conn, "relation", relationId, input.provenance, now);
     }
     return { from_id: fromId, to_id: toId, relation: input.relation, relation_id: relationId };
+  } finally {
+    conn.closeSync();
+  }
+}
+
+/** Mark all active matching relations as invalidated at the given timestamp. */
+export async function invalidateRelations(
+  campaignPath: string,
+  fromId: string,
+  toId: string,
+  label: string,
+  invalidAt: string,
+): Promise<void> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    await conn.run(
+      `UPDATE relations SET invalid_at = ?
+       WHERE from_entity = ? AND to_entity = ? AND label = ?
+         AND invalid_at IS NULL
+         AND (campaign_id IS NULL OR campaign_id = ?)`,
+      [invalidAt, fromId, toId, label, ctx.campaignId],
+    );
   } finally {
     conn.closeSync();
   }
@@ -594,12 +734,14 @@ export async function getLoreGraph(
                FROM relations r
                JOIN entities fe ON fe.id = r.from_entity AND (fe.campaign_id IS NULL OR fe.campaign_id = ?)
                JOIN entities te ON te.id = r.to_entity AND (te.campaign_id IS NULL OR te.campaign_id = ?)
-               WHERE r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders})`;
+               WHERE (r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders}))
+                 AND r.invalid_at IS NULL`;
         relParams = [ctx.campaignId, ctx.campaignId, ...params, ...params];
       } else {
         relSql = `SELECT r.id AS rel_id, r.from_entity AS from_id, r.to_entity AS to_id, r.label AS relation, r.notes, r.metadata
                FROM relations r
-               WHERE r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders})`;
+               WHERE (r.from_entity IN (${placeholders}) OR r.to_entity IN (${placeholders}))
+                 AND r.invalid_at IS NULL`;
         relParams = [...params, ...params];
       }
 
@@ -678,37 +820,40 @@ export async function getLore(
     if (rows.length === 0) return null;
     const entity = rowToEntity(rows[0]);
 
-    // Load relations — join with visible entities on both sides
+    // Load relations — join with visible entities on both sides.
+    // invalid_at IS NULL filters to current (non-superseded) facts only.
     let outgoing;
     let incoming;
     if (!includeSiblings) {
       outgoing = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
          FROM relations r
          JOIN entities e ON e.id = r.to_entity AND (e.campaign_id IS NULL OR e.campaign_id = ?)
-         WHERE r.from_entity = ?`,
+         WHERE r.from_entity = ? AND r.invalid_at IS NULL`,
         [ctx.campaignId, entity.id],
       );
       incoming = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
          FROM relations r
          JOIN entities e ON e.id = r.from_entity AND (e.campaign_id IS NULL OR e.campaign_id = ?)
-         WHERE r.to_entity = ?`,
+         WHERE r.to_entity = ? AND r.invalid_at IS NULL`,
         [ctx.campaignId, entity.id],
       );
     } else {
       outgoing = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
-         FROM relations r JOIN entities e ON e.id = r.to_entity WHERE r.from_entity = ?`,
+         FROM relations r JOIN entities e ON e.id = r.to_entity
+         WHERE r.from_entity = ? AND r.invalid_at IS NULL`,
         [entity.id],
       );
       incoming = await conn.runAndReadAll(
-        `SELECT r.label AS relation, r.notes, r.metadata,
+        `SELECT r.label AS relation, r.notes, r.metadata, r.valid_at, r.invalid_at,
                 e.id AS other_id, e.canonical AS other_canonical, e.type AS other_type
-         FROM relations r JOIN entities e ON e.id = r.from_entity WHERE r.to_entity = ?`,
+         FROM relations r JOIN entities e ON e.id = r.from_entity
+         WHERE r.to_entity = ? AND r.invalid_at IS NULL`,
         [entity.id],
       );
     }
@@ -721,6 +866,8 @@ export async function getLore(
         entity: { id: String(row["other_id"]), canonical: String(row["other_canonical"]), type: String(row["other_type"]) as LoreType },
         notes: row["notes"] ? String(row["notes"]) : undefined,
         metadata: parseJsonObject(row["metadata"]),
+        valid_at: row["valid_at"] ? String(row["valid_at"]) : undefined,
+        invalid_at: row["invalid_at"] ? String(row["invalid_at"]) : undefined,
       });
     }
     for (const row of incoming.getRowObjectsJS() as Record<string, unknown>[]) {
@@ -730,6 +877,8 @@ export async function getLore(
         entity: { id: String(row["other_id"]), canonical: String(row["other_canonical"]), type: String(row["other_type"]) as LoreType },
         notes: row["notes"] ? String(row["notes"]) : undefined,
         metadata: parseJsonObject(row["metadata"]),
+        valid_at: row["valid_at"] ? String(row["valid_at"]) : undefined,
+        invalid_at: row["invalid_at"] ? String(row["invalid_at"]) : undefined,
       });
     }
     entity.relations = relations;
@@ -792,6 +941,8 @@ export interface LoreRelationExport {
   notes?: string;
   metadata: Record<string, unknown>;
   campaign_id: string | null;
+  valid_at: string | null;
+  invalid_at: string | null;
   created_at: string;
 }
 
@@ -813,7 +964,7 @@ export async function exportLore(
 
     const relRows = (await conn.runAndReadAll(
       `SELECT id, from_entity AS from_id, to_entity AS to_id, label AS relation,
-              notes, metadata, campaign_id, created_at
+              notes, metadata, campaign_id, valid_at, invalid_at, created_at
        FROM relations
        WHERE campaign_id IS NULL OR campaign_id = ?
        ORDER BY created_at`,
@@ -843,6 +994,8 @@ export async function exportLore(
         notes: r["notes"] != null ? String(r["notes"]) : undefined,
         metadata: JSON.parse(typeof r["metadata"] === "string" ? r["metadata"] : "{}") as Record<string, unknown>,
         campaign_id: r["campaign_id"] != null ? String(r["campaign_id"]) : null,
+        valid_at: r["valid_at"] != null ? String(r["valid_at"]) : null,
+        invalid_at: r["invalid_at"] != null ? String(r["invalid_at"]) : null,
         created_at: String(r["created_at"]),
       })),
     };
