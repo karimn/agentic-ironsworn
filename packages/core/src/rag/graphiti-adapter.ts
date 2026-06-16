@@ -107,24 +107,42 @@ export function getGraphiti(worldRoot: string): Promise<Graphiti> {
 /**
  * Ensure FalkorDB indices exist for the given group database.
  * FalkorDB uses a separate graph per group_id; each graph needs its own indices.
- * This is idempotent — safe to call multiple times.
+ * Creates a fresh driver scoped to the group rather than trying to access
+ * the Graphiti instance's internal driver (which is private).
  */
-async function ensureGroupIndices(graphiti: Graphiti, groupId: string): Promise<void> {
+async function ensureGroupIndices(groupId: string): Promise<void> {
   if (initializedGroups.has(groupId)) return;
 
-  // Temporarily point the driver at the group's database to build its indices.
-  const originalDriver = (graphiti as unknown as { driver: FalkorDriver }).driver;
-  const groupDriver = originalDriver.clone(groupId);
-  const groupGraphiti = new Graphiti({
-    driver: groupDriver,
-    // No LLM/embedder needed for index creation
-  });
+  const host = process.env["FALKORDB_HOST"] ?? "localhost";
+  const port = parseInt(process.env["FALKORDB_PORT"] ?? "6379", 10);
 
+  // FalkorDB requires a graph to have at least one node before indices can
+  // be created. Use graphiti-ts's FalkorClientAdapter to seed the graph.
+  const client = await createFalkorClientAdapter({ host, port });
+  const graph = client.selectGraph(groupId);
   try {
-    await groupGraphiti.buildIndicesAndConstraints(false);
-  } catch (e) {
-    const msg = (e as Error).message ?? "";
-    if (!msg.includes("already indexed") && !msg.includes("already exists")) throw e;
+    await graph.query("MERGE (:_init {_placeholder: true})");
+    const rangeIndexes = [
+      "CREATE INDEX FOR (n:Entity) ON (n.uuid)",
+      "CREATE INDEX FOR (n:Entity) ON (n.group_id)",
+      "CREATE INDEX FOR (n:Episodic) ON (n.uuid)",
+      "CREATE INDEX FOR (n:Episodic) ON (n.group_id)",
+      "CREATE INDEX FOR ()-[r:RELATES_TO]-() ON (r.uuid)",
+    ];
+    for (const q of rangeIndexes) {
+      try { await graph.query(q); } catch { /* already exists */ }
+    }
+    const fulltextIndexes = [
+      "CALL db.idx.fulltext.createNodeIndex('Entity', 'name')",
+      "CALL db.idx.fulltext.createNodeIndex('Episodic', 'name')",
+      "CALL db.idx.fulltext.createRelationshipIndex('RELATES_TO', 'name')",
+    ];
+    for (const q of fulltextIndexes) {
+      try { await graph.query(q); } catch { /* already exists */ }
+    }
+    // Leave the _init node — deleting all nodes in FalkorDB deletes the graph.
+  } finally {
+    await client.close();
   }
 
   initializedGroups.add(groupId);
@@ -163,9 +181,13 @@ export interface GraphitiNodeResult {
 
 /** Ingest a scene as a graphiti episode, extracting entities and edges. */
 export async function ingestEpisode(input: GraphitiEpisodeInput): Promise<void> {
-  const graphiti = await getGraphiti(input.worldRoot);
   const group = campaignGroup(input.campaignId);
-  await ensureGroupIndices(graphiti, group);
+  // The Graphiti instance's nodes/edges namespaces are tied to the initial
+  // driver database ("default_db"). That graph must exist even though we never
+  // write real data to it, because retrieveEpisodes uses it for context lookup.
+  await ensureGroupIndices("default_db");
+  await ensureGroupIndices(group);
+  const graphiti = await getGraphiti(input.worldRoot);
   await graphiti.addEpisodeFull({
     name: input.sceneId,
     episode_body: input.text,
