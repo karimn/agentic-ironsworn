@@ -212,26 +212,34 @@ export async function searchGraphiti(
   query: string,
   options?: { limit?: number; asOf?: Date },
 ): Promise<{ nodes: GraphitiNodeResult[]; edges: GraphitiEdgeResult[] }> {
+  const group = campaignGroup(campaignId);
+  // Ensure the campaign group is initialized even if ingestEpisode hasn't run yet.
+  await ensureGroupIndices("default_db");
+  await ensureGroupIndices(group);
   const graphiti = await getGraphiti(worldRoot);
   const groupIds = visibilityGroups(campaignId);
   const limit = options?.limit ?? 10;
 
-  const searchOpts = { group_ids: groupIds as string[], num_results: limit };
+  // FalkorDB multi-group routing only activates when group_ids.length > 1.
+  // With a single group, the query runs against the Graphiti instance's default
+  // database (default_db), missing the campaign data. Include default_db as a
+  // dummy second group to force per-group routing — it has no Entity nodes so
+  // it returns empty and gets merged with no effect.
+  const campaignGroupId = campaignGroup(campaignId);
+  const activeGroups = ["default_db", campaignGroupId];
+
+  const searchOpts = { group_ids: activeGroups, num_results: limit };
 
   if (options?.asOf !== undefined) {
     const edges = await graphiti.searchAsOf(query, options.asOf, searchOpts);
     return { nodes: [], edges: mapEdges(edges) };
   }
 
-  // Use edge-only search to avoid hitting community graphs that may not exist yet.
-  const [nodeResults, edgeResults] = await Promise.all([
-    graphiti.search(query, EDGE_HYBRID_SEARCH_RRF, searchOpts).catch(() => ({ nodes: [], edges: [] })),
-    graphiti.searchEdges(query, searchOpts).catch(() => []),
-  ]);
+  const edgeResults = await graphiti.searchEdges(query, searchOpts);
 
   return {
-    nodes: mapNodes((nodeResults.nodes ?? []) as NonNullable<SearchResults["nodes"]>),
-    edges: mapEdges(edgeResults as NonNullable<SearchResults["edges"]>),
+    nodes: [],
+    edges: mapEdges(edgeResults),
   };
 }
 
