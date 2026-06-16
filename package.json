@@ -2,6 +2,8 @@
   "private": true,
   "workspaces": [
     "packages/core",
+    "packages/graphiti-core",
+    "packages/graphiti-shared",
     "plugins/ironsworn/scribe"
   ]
 }
