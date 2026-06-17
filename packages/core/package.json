@@ -8,7 +8,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@graphiti/core": "workspace:*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@duckdb/node-api": "1.5.2-r.1",
     "@modelcontextprotocol/sdk": "^1.11.0",

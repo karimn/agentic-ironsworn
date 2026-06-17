@@ -155,13 +155,18 @@ pattern: rules are commodity data plus pure functions.
 
 ### v1 priorities, in order
 
-1. **Graphiti spike (gating decision).** Promote OQ1 from open question
+1. **Graphiti spike (gating decision).** ✅ **Resolved (2026-06-16): Path B.**
+   Promote OQ1 from open question
    to the *first* decision. Feed the Zura corpus into Graphiti +
    FalkorDB, evaluate against current scribe on retrieval quality and
    temporal handling. The outcome reshapes everything downstream — so
    it has to land before more is built on the current substrate. See
    "Step 1: Graphiti spike (handoff-ready)" below for a self-contained
-   scope another session can run with.
+   scope another session can run with. **Outcome:** rejected Path A
+   storage (FalkorDB is a mandatory server vs. Goal #1; Graphiti's only
+   embedded backend, Kuzu, is archived and deprecated by Graphiti) and
+   committed to Path B (DuckDB). Graphiti's *extraction approach* was
+   adopted into the DuckDB extractor. See `docs/spikes/2026-06-graphiti.md`.
 2. **Extraction evaluation harness.** Build a fixed set of Zura scenes
    with known-correct entities and relations, scored on every prompt
    or model change. Without this, extraction quality is vibes.
@@ -583,6 +588,12 @@ distribution on Bun, we get all of that for free.
 The CC plugin is just the runtime's installation vehicle.
 
 ## The KG layer — two paths, one spike to decide
+
+> **Resolved (2026-06-16): Path B (DuckDB).** The spike rejected Path A
+> storage and committed to the embedded store. Graphiti's extraction
+> approach was adopted into the DuckDB extractor. The two-path framing
+> below is retained as the design record. See
+> `docs/spikes/2026-06-graphiti.md`.
 
 (Per the architecture conversation; the start-from-scratch design.)
 
@@ -1281,9 +1292,10 @@ Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed):
    npcs/*.json into one `world.duckdb`; introduce `campaign_id` column;
    embedding-model pin in `world.json`; CLI-gated migration. See
    `docs/design/world-db.md`.
-3. Implement the Path A vs Path B spike; commit to one. *(#166 shipped
+3. ✅ Implement the Path A vs Path B spike; commit to one. *(#166 shipped
    on the current DuckDB substrate — effectively Path B with DuckDB;
-   the spike decides whether to port.)*
+   the spike decides whether to port.)* **Resolved 2026-06-16: committed
+   to Path B (DuckDB); Path A storage rejected.**
 4. Implement the setting-seed-at-world-init mechanism; package the
    Ironlands canon as `@agentic-rpg/setting-ironlands`. Verify a fresh
    world with no setting installed boots cleanly with no seed.
@@ -1368,7 +1380,11 @@ Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed):
 ### Storage
 
 - **D8** Path A (Graphiti + FalkorDB) vs Path B (SQLite + sqlite-vec)
-  decided by spike, not by argument. Default lean: Path A.
+  decided by spike, not by argument. **Decided (2026-06-16): Path B**
+  (embedded store, shipped as DuckDB). FalkorDB rejected (mandatory
+  server vs. Goal #1; Graphiti's embedded Kuzu backend archived &
+  deprecated). Graphiti's *extraction approach* adopted into the DuckDB
+  extractor; see `docs/spikes/2026-06-graphiti.md`.
 
 ### Versioning and migration
 
@@ -1416,6 +1432,7 @@ Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed):
 ## Open questions
 
 - **OQ1** Spike outcome (Path A vs Path B) — decides storage backend.
+  **Resolved (2026-06-16): Path B.**
 - **OQ2** Should `world.json` itself live in the KG as a single
   `type='world'` entity? Cleaner uniformity, but adds a special case to
   the visibility filter. Default: stays as a file. Revisit if it
