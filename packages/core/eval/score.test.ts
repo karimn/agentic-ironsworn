@@ -79,4 +79,20 @@ describe("matchEntities", () => {
     expect(m.pairs.length).toBe(1);
     expect(m.falsePositives.length).toBe(0);
   });
+
+  it("embedding fallback: claimed golden → near-duplicate, not false positive", async () => {
+    const emb = stubEmbedder({
+      "lona": [1, 0, 0],
+      "healer lona": [0.99, 0, 0],
+    });
+    const actual: ActualEntity[] = [
+      { canonical: "Lona", type: "creature", aliases: [] },
+      { canonical: "healer Lona", type: "creature", aliases: [] },
+    ];
+    const golden: GoldenEntity[] = [{ canonical: "Lona", type: "creature" }];
+    const m = await matchEntities(actual, golden, emb, 0.85);
+    expect(m.pairs.length).toBe(1);
+    expect(m.nearDuplicates.length).toBe(1);
+    expect(m.falsePositives.length).toBe(0);
+  });
 });

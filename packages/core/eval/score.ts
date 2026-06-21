@@ -83,7 +83,7 @@ export function cosine(a: number[], b: number[]): number {
 }
 
 function entityNames(e: ActualEntity | GoldenEntity): string[] {
-  return [e.canonical, ...((e.aliases ?? []) as string[])];
+  return [e.canonical, ...(e.aliases ?? [])];
 }
 
 function intersects(a: Set<string>, b: Set<string>): boolean {
