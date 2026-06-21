@@ -96,3 +96,126 @@ describe("matchEntities", () => {
     expect(m.falsePositives.length).toBe(0);
   });
 });
+
+import { scoreExtraction, type ActualState, type GoldenSet } from "./score.js";
+
+describe("scoreExtraction", () => {
+  const embedder: Embedder = async () => [1, 0, 0];
+
+  const golden: GoldenSet = {
+    entities: [
+      { canonical: "Lona", type: "creature", aliases: ["the healer Lona"] },
+      { canonical: "Caldren", type: "place" },
+      { canonical: "Thornwood", type: "faction" },
+    ],
+    relations: [
+      { from: "Lona", to: "Caldren", label: "LOCATED_IN" },
+      { from: "Lona", to: "Thornwood", label: "MEMBER_OF" },
+    ],
+  };
+
+  it("scores a perfect match as 1.0 across entity and relation F1", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+      ],
+      relations: [
+        { from: "Lona", to: "Caldren", label: "LOCATED_IN", invalidated: false },
+        { from: "Lona", to: "Thornwood", label: "SERVES", invalidated: false }, // synonym
+      ],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    expect(s.entity.f1).toBeCloseTo(1, 6);
+    expect(s.entity.typeAccuracy).toBeCloseTo(1, 6);
+    expect(s.relation.f1).toBeCloseTo(1, 6); // SERVES≈MEMBER_OF
+    expect(s.dedup.score).toBeCloseTo(1, 6);
+  });
+
+  it("drops entity recall on a missed golden entity", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+      ],
+      relations: [],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    expect(s.entity.recall).toBeCloseTo(2 / 3, 6);
+    expect(s.entity.precision).toBeCloseTo(1, 6);
+  });
+
+  it("drops entity precision on a hallucinated entity", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+        { canonical: "Dragon", type: "creature", aliases: [] },
+      ],
+      relations: [],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    expect(s.entity.precision).toBeCloseTo(3 / 4, 6);
+    expect(s.entity.recall).toBeCloseTo(1, 6);
+  });
+
+  it("drops type accuracy on a mistyped match", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "place", aliases: [] }, // wrong type
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+      ],
+      relations: [],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    expect(s.entity.f1).toBeCloseTo(1, 6);
+    expect(s.entity.typeAccuracy).toBeCloseTo(2 / 3, 6);
+  });
+
+  it("drops dedup score on a near-duplicate entity", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "the healer Lona", type: "creature", aliases: [] }, // dup of Lona via alias
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+      ],
+      relations: [],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    // 1 near-dup over 3 matched golden → 1 - 1/3
+    expect(s.dedup.score).toBeCloseTo(1 - 1 / 3, 6);
+  });
+
+  it("reports temporal correctness for invalidated relations", async () => {
+    const goldenT: GoldenSet = {
+      entities: [
+        { canonical: "Veil", type: "creature" },
+        { canonical: "Ashfen", type: "place" },
+      ],
+      relations: [
+        { from: "Veil", to: "Ashfen", label: "HOLDS_TITLE", invalidated: true },
+      ],
+    };
+    const actualGood: ActualState = {
+      entities: [
+        { canonical: "Veil", type: "creature", aliases: [] },
+        { canonical: "Ashfen", type: "place", aliases: [] },
+      ],
+      relations: [
+        { from: "Veil", to: "Ashfen", label: "HOLDS_TITLE", invalidated: true },
+      ],
+    };
+    const actualBad: ActualState = {
+      entities: actualGood.entities,
+      relations: [
+        { from: "Veil", to: "Ashfen", label: "HOLDS_TITLE", invalidated: false },
+      ],
+    };
+    expect((await scoreExtraction(actualGood, goldenT, embedder)).temporal).toEqual({ correct: 1, total: 1 });
+    expect((await scoreExtraction(actualBad, goldenT, embedder)).temporal).toEqual({ correct: 0, total: 1 });
+  });
+});

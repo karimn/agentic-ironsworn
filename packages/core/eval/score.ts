@@ -42,7 +42,7 @@ export interface EntityMatching {
   unmatchedGolden: GoldenEntity[];
 }
 
-const DEFAULT_SIM_THRESHOLD = 0.85;
+export const DEFAULT_SIM_THRESHOLD = 0.85;
 
 // Minimal, explicit relation-label synonym map. This is PART OF THE SPEC,
 // not a convenience knob: collapsing two labels here makes the score go up
@@ -156,4 +156,97 @@ export async function matchEntities(
 
   const unmatchedGolden = golden.filter((_g, i) => !claimed.has(i));
   return { pairs, nearDuplicates, falsePositives, unmatchedGolden };
+}
+
+export interface Scorecard {
+  entity: { precision: number; recall: number; f1: number; typeAccuracy: number };
+  relation: { precision: number; recall: number; f1: number };
+  dedup: { score: number };
+  temporal: { correct: number; total: number };
+}
+
+function f1(precision: number, recall: number): number {
+  if (precision + recall === 0) return 0;
+  return (2 * precision * recall) / (precision + recall);
+}
+
+export async function scoreExtraction(
+  actual: ActualState,
+  golden: GoldenSet,
+  embedder: Embedder,
+  threshold: number = DEFAULT_SIM_THRESHOLD,
+): Promise<Scorecard> {
+  const m = await matchEntities(actual.entities, golden.entities, embedder, threshold);
+
+  // --- Entity metrics ---
+  const matched = m.pairs.length;
+  const entityPrecision = actual.entities.length === 0 ? 0 : matched / actual.entities.length;
+  const entityRecall = golden.entities.length === 0 ? 0 : matched / golden.entities.length;
+  const typeMatches = m.pairs.filter((p) => norm(p.actual.type) === norm(p.golden.type)).length;
+  const typeAccuracy = matched === 0 ? 0 : typeMatches / matched;
+  // Clamp the floor: multiple near-dups per matched golden can drive the
+  // raw ratio above 1, which would make the score negative (nonsense).
+  const dedupScore = Math.max(0, 1 - m.nearDuplicates.length / Math.max(1, matched));
+
+  // --- Relation metrics ---
+  // Map each matched actual entity's names → its golden canonical, so actual
+  // relations can be expressed in golden terms before comparison.
+  const actualNameToGoldenCanonical = new Map<string, string>();
+  for (const p of m.pairs) {
+    for (const name of entityNames(p.actual)) {
+      actualNameToGoldenCanonical.set(norm(name), p.golden.canonical);
+    }
+  }
+
+  const relKey = (from: string, to: string, label: string): string =>
+    `${norm(from)} ${norm(to)} ${canonLabel(label)}`;
+
+  const goldenRelKeys = new Set(
+    golden.relations.map((r) => relKey(r.from, r.to, r.label)),
+  );
+
+  const matchedGoldenRel = new Set<string>();
+  let relTruePositives = 0;
+  for (const r of actual.relations) {
+    const gf = actualNameToGoldenCanonical.get(norm(r.from));
+    const gt = actualNameToGoldenCanonical.get(norm(r.to));
+    if (gf === undefined || gt === undefined) continue; // endpoint not matched
+    const key = relKey(gf, gt, r.label);
+    if (goldenRelKeys.has(key) && !matchedGoldenRel.has(key)) {
+      matchedGoldenRel.add(key);
+      relTruePositives++;
+    }
+  }
+  const relPrecision = actual.relations.length === 0 ? 0 : relTruePositives / actual.relations.length;
+  const relRecall = golden.relations.length === 0 ? 0 : relTruePositives / golden.relations.length;
+
+  // --- Temporal correctness ---
+  const invalidatedGolden = golden.relations.filter((r) => r.invalidated === true);
+  let temporalCorrect = 0;
+  for (const gr of invalidatedGolden) {
+    const want = relKey(gr.from, gr.to, gr.label);
+    const ok = actual.relations.some((r) => {
+      const gf = actualNameToGoldenCanonical.get(norm(r.from));
+      const gt = actualNameToGoldenCanonical.get(norm(r.to));
+      if (gf === undefined || gt === undefined) return false;
+      return relKey(gf, gt, r.label) === want && r.invalidated === true;
+    });
+    if (ok) temporalCorrect++;
+  }
+
+  return {
+    entity: {
+      precision: entityPrecision,
+      recall: entityRecall,
+      f1: f1(entityPrecision, entityRecall),
+      typeAccuracy,
+    },
+    relation: {
+      precision: relPrecision,
+      recall: relRecall,
+      f1: f1(relPrecision, relRecall),
+    },
+    dedup: { score: dedupScore },
+    temporal: { correct: temporalCorrect, total: invalidatedGolden.length },
+  };
 }
