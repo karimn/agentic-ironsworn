@@ -10,15 +10,9 @@ import {
   type LoreType,
   type LoreSearchHit,
 } from "./lore.js";
-import { ingestEpisode } from "./graphiti-adapter.js";
 import { resolveWorldContext } from "../world.js";
 import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 import { getScene, exportScenes } from "./scenes.js";
-
-// When FALKORDB_HOST is set, extraction uses graphiti-ts instead of the
-// DuckDB LLM pipeline. The DuckDB entity/relation tables become a read-only
-// Phase-2 snapshot; new scenes are extracted into FalkorDB via graphiti.
-const GRAPHITI_ENABLED = Boolean(process.env["FALKORDB_HOST"]);
 
 export interface ExtractedEntity {
   canonical: string;
@@ -148,28 +142,6 @@ export async function extractLoreFromScene(
   const scene = await getScene(campaignPath, sceneId, { include_beats: true });
   if (scene === null) {
     throw new Error(`Scene not found: ${sceneId}`);
-  }
-
-  if (GRAPHITI_ENABLED && opts?.extractor === undefined) {
-    // Graphiti path: delegate to addEpisodeFull which handles extraction,
-    // entity dedup, and edge creation internally.
-    const ctx = await resolveWorldContext(campaignPath);
-    await ingestEpisode({
-      sceneId,
-      text: buildSceneText(scene),
-      timestamp: scene.timestamp,
-      campaignId: ctx.campaignId,
-      worldRoot: ctx.worldRoot,
-    });
-    const report: ExtractionReport = {
-      scene_id: sceneId,
-      entities_created: 0,
-      entities_updated: 0,
-      relations_created: 0,
-      skipped: 0,
-    };
-    await writeExtractionLog(campaignPath, report);
-    return report;
   }
 
   // DuckDB path (legacy or test override via opts.extractor).

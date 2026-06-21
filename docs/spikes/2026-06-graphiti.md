@@ -1,11 +1,35 @@
 # Graphiti Spike Report — June 2026
 
-**Status:** Complete (updated 2026-06-13 with live extraction comparison)  
-**Date:** 2026-06-10, live test 2026-06-13  
+**Status:** Complete — final decision 2026-06-16 (see "Final decision" below)  
+**Date:** 2026-06-10, live test 2026-06-13, decided 2026-06-16  
 **Branch:** `claude/graphiti-spike-agentic-rpg-e134gj`  
-**Decision:** **Adopt extraction approach and temporal design; Python sidecar justified**
+**Decision:** **Reject Path A storage (FalkorDB); commit to Path B (DuckDB). Adopt Graphiti's extraction approach into the DuckDB extractor.**
 
 ---
+
+## Final decision (2026-06-16)
+
+After the hybrid graphiti-ts + FalkorDB backend was merged (PR #184, plugin
+v0.29.0) and exercised against the Zura corpus, we **rejected Path A storage and
+committed to Path B (DuckDB)**. The graphiti-ts/FalkorDB storage layer was removed
+in a surgical forward rollback (not a revert of #184 — the valuable Phase-1
+bi-temporal schema and Phase-2 extraction prompt were preserved). Three reasons:
+
+1. **FalkorDB is a mandatory server**, which violates v1 Goal #1 ("no external
+   service hard-required") for a solo-player Claude Code plugin.
+2. **No embedded backend survives.** Graphiti's only embedded driver, Kuzu, is
+   **archived** (`kuzudb/kuzu` `isArchived: true`, last release v0.11.3
+   2025-10-10) and **deprecated by Graphiti** itself. Its remaining backends
+   (Neo4j, FalkorDB, Neptune) are all servers.
+3. **Every Graphiti win is extraction logic, not storage** (see the §5 scoring
+   matrix). Graphiti wins on relation-label quality, temporal/supersedes, and
+   alias resolution; DuckDB wins on the scene/beat model, world-canon visibility,
+   proximity, ops simplicity, and staying in TypeScript. The valuable extraction
+   quality was already ported into the DuckDB extractor's prompt
+   (`_makeDefaultExtractor`, commit `d009938`), which carries no Graphiti/FalkorDB
+   dependency.
+
+The original analysis below is retained unchanged as the spike record.
 
 ## Summary
 

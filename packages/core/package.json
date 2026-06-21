@@ -8,7 +8,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@graphiti/core": "workspace:*",
     "@anthropic-ai/sdk": "^0.39.0",
     "@duckdb/node-api": "1.5.2-r.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
@@ -19,6 +18,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "@types/node": "^22.0.0",
     "@types/seedrandom": "^3.0.8",
     "typescript": "^5.8.0"
   }
