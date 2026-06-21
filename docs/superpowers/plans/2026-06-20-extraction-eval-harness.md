@@ -339,12 +339,15 @@ export interface EntityMatching {
 
 const DEFAULT_SIM_THRESHOLD = 0.85;
 
-// Minimal, explicit relation-label synonym map. Intentionally tiny; extend
-// only when a golden/actual label divergence is genuinely the same relation.
+// Minimal, explicit relation-label synonym map. This is PART OF THE SPEC,
+// not a convenience knob: collapsing two labels here makes the score go up
+// without the extractor improving, so every entry needs a one-line
+// justification and changes get the same review scrutiny as prompt changes.
+// Prefer fixing the extractor's label vocabulary over widening this map.
 const LABEL_SYNONYMS: Record<string, string> = {
-  SERVES: "MEMBER_OF",
+  SERVES: "MEMBER_OF", // extractor emits both for faction membership
   MEMBER_OF: "MEMBER_OF",
-  ALLY_OF: "ALLIED_WITH",
+  ALLY_OF: "ALLIED_WITH", // directional vs. symmetric phrasing of the same bond
   ALLIED_WITH: "ALLIED_WITH",
 };
 
@@ -654,7 +657,9 @@ export async function scoreExtraction(
   const entityRecall = golden.entities.length === 0 ? 0 : matched / golden.entities.length;
   const typeMatches = m.pairs.filter((p) => norm(p.actual.type) === norm(p.golden.type)).length;
   const typeAccuracy = matched === 0 ? 0 : typeMatches / matched;
-  const dedupScore = 1 - m.nearDuplicates.length / Math.max(1, matched);
+  // Clamp the floor: multiple near-dups per matched golden can drive the
+  // raw ratio above 1, which would make the score negative (nonsense).
+  const dedupScore = Math.max(0, 1 - m.nearDuplicates.length / Math.max(1, matched));
 
   // --- Relation metrics ---
   // Map each matched actual entity's names → its golden canonical, so actual
@@ -741,14 +746,16 @@ git commit -m "feat(eval): scoreExtraction — entity/relation/dedup/temporal me
 
 ### Task 4: `bootstrap.ts` — generate the golden draft from the Zura DB
 
-A manually-run script that reads a contiguous arc of scenes from the **private** Zura world DB, writes them to `fixtures/scenes.jsonl`, runs them through the pipeline in a throwaway DB, and emits `fixtures/golden.draft.yaml` for hand-curation. This is the only code that touches the private source; `run-eval.ts` never does.
+A manually-run script that reads an **explicitly selected, diversity-stratified set** of scenes from the **private** Zura world DB (scene IDs listed, in processing order, in a committed `fixtures/selection.txt`), writes them to `fixtures/scenes.jsonl`, runs them through the pipeline in a throwaway DB, and emits `fixtures/golden.draft.yaml` for hand-curation. This is the only code that touches the private source; `run-eval.ts` never does.
+
+The selection is an explicit ID list rather than a contiguous `ARC_START`/`ARC_COUNT` slice because the corpus is chosen for scene-shape and entity-type diversity (see the design spec's "Corpus selection"); a contiguous window would be one or two scene shapes. `selection.txt` preserves order so the supersedes sub-sequence's before-and-after process in sequence.
 
 **Files:**
 - Create: `packages/core/eval/bootstrap.ts`
 - Create: `packages/core/eval/fixtures/` (directory; created by the script)
 
 **Interfaces:**
-- Consumes: `exportScenes`, `getScene` (`../src/rag/scenes.js`); `extractLoreFromScene`, `_makeDefaultExtractor` (`../src/rag/extraction.js`); `exportLore` (`../src/rag/lore.js`); `recordScene` (`../src/rag/scenes.js`); `getWorldEmbedding` (`../src/rag/world-db.js`); `Anthropic` (`@anthropic-ai/sdk`); `stringify` (`yaml`).
+- Consumes: `getScene`, `recordScene` (`../src/rag/scenes.js`); `extractLoreFromScene`, `_makeDefaultExtractor` (`../src/rag/extraction.js`); `exportLore` (`../src/rag/lore.js`); `Anthropic` (`@anthropic-ai/sdk`); `stringify` (`yaml`); `readFile` (`node:fs/promises`, to read `fixtures/selection.txt`).
 - Produces (files, not code symbols): `fixtures/scenes.jsonl`, `fixtures/golden.draft.yaml`.
 
 - [ ] **Step 1: Implement `bootstrap.ts`**
@@ -756,23 +763,29 @@ A manually-run script that reads a contiguous arc of scenes from the **private**
 Create `packages/core/eval/bootstrap.ts`:
 
 ```ts
-// Manual-run helper: dump a contiguous arc of Zura scenes + a draft golden set.
+// Manual-run helper: dump a curated, diversity-stratified set of Zura
+// scenes + a draft golden set.
 //
 //   SOURCE_CAMPAIGN=/path/to/zura/campaigns/<id> \
-//   ARC_START=10 ARC_COUNT=14 \
 //   ANTHROPIC_API_KEY=... \
 //   bun run eval/bootstrap.ts
 //
+// Reads eval/fixtures/selection.txt: one scene ID per line, in processing
+// order (curator-authored by inspecting the Zura DB for scene-shape /
+// entity-type diversity + a contiguous supersedes sub-sequence). Lines
+// starting with '#' are comments.
+//
 // Outputs eval/fixtures/scenes.jsonl and eval/fixtures/golden.draft.yaml.
-// Hand-correct the draft into golden.yaml; commit scenes.jsonl + golden.yaml.
+// Hand-correct the draft into golden.yaml; commit selection.txt +
+// scenes.jsonl + golden.yaml.
 
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
 import Anthropic from "@anthropic-ai/sdk";
-import { exportScenes, getScene, recordScene } from "../src/rag/scenes.js";
+import { getScene, recordScene } from "../src/rag/scenes.js";
 import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extraction.js";
 import { exportLore } from "../src/rag/lore.js";
 
@@ -787,23 +800,24 @@ function reqEnv(name: string): string {
 
 async function main(): Promise<void> {
   const source = reqEnv("SOURCE_CAMPAIGN");
-  const arcStart = Number(process.env["ARC_START"] ?? "0");
-  const arcCount = Number(process.env["ARC_COUNT"] ?? "14");
   reqEnv("ANTHROPIC_API_KEY");
 
-  // 1. Pull all source scenes, order by timestamp, slice the arc.
-  const all = (await exportScenes(source)).sort((a, b) =>
-    String(a.timestamp).localeCompare(String(b.timestamp)),
-  );
-  const arc = all.slice(arcStart, arcStart + arcCount);
-  if (arc.length === 0) throw new Error("Arc slice is empty — check ARC_START/ARC_COUNT");
+  // 1. Read the curated, ordered scene-ID selection (skip blanks/comments).
+  const selectionPath = join(FIXTURES, "selection.txt");
+  const selectedIds = (await readFile(selectionPath, "utf8"))
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith("#"));
+  if (selectedIds.length === 0)
+    throw new Error(`No scene IDs in ${selectionPath} — author the selection first`);
 
-  // 2. Re-read each with beats and write scenes.jsonl (processing order).
+  // 2. Re-read each selected scene with beats, in selection order, and
+  //    write scenes.jsonl (processing order == selection order).
   await mkdir(FIXTURES, { recursive: true });
   const lines: string[] = [];
   const replay: { text: string; kind: string; beats: unknown[] }[] = [];
-  for (const s of arc) {
-    const full = await getScene(source, s.id, { include_beats: true });
+  for (const id of selectedIds) {
+    const full = await getScene(source, id, { include_beats: true });
     if (full === null) continue;
     const beats = (full.beats ?? []).map((b) => ({
       beat_index: b.beat_index,
@@ -811,13 +825,13 @@ async function main(): Promise<void> {
       speaker: b.speaker ?? null,
       text: b.text,
     }));
-    const record = { id: s.id, timestamp: full.timestamp, text: full.text, kind: full.kind, beats };
+    const record = { id, timestamp: full.timestamp, text: full.text, kind: full.kind, beats };
     lines.push(JSON.stringify(record));
     replay.push({ text: full.text, kind: full.kind, beats });
   }
   await writeFile(join(FIXTURES, "scenes.jsonl"), lines.join("\n") + "\n", "utf8");
 
-  // 3. Run the arc through a fresh pipeline (temperature 0) → draft golden.
+  // 3. Run the selected scenes through a fresh pipeline (temperature 0) → draft golden.
   const dir = await mkdtemp(join(tmpdir(), "eval-bootstrap-"));
   const extractor = _makeDefaultExtractor(
     new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] }) as never,
@@ -859,12 +873,11 @@ Expected: exit 0.
 
 - [ ] **Step 3: Smoke-run against the Zura DB**
 
-Run (adjust the campaign path to the real Zura campaign dir — find it with `ls /media/karim/Code-Drive/karimn-code/zura-ironsworn/campaigns`):
+Requires `fixtures/selection.txt` to exist first (authored in Task 6 Step 1 by inspecting the Zura DB). For a quick smoke test of the script before the real selection is curated, write a throwaway `selection.txt` with 2–3 known scene IDs. Adjust the campaign path to the real Zura campaign dir — find it with `ls /media/karim/Code-Drive/karimn-code/zura-ironsworn/campaigns`:
 
 ```bash
 cd packages/core
 SOURCE_CAMPAIGN=/media/karim/Code-Drive/karimn-code/zura-ironsworn/campaigns/<id> \
-ARC_START=0 ARC_COUNT=14 \
 bun run eval/bootstrap.ts
 ```
 
@@ -1053,17 +1066,21 @@ git commit -m "feat(eval): run-eval orchestrator + eval:extraction script"
 Human curation + first baseline + version bump. This task produces the committed fixtures and the baseline scorecard, and bumps the plugin version for the PR.
 
 **Files:**
-- Create: `packages/core/eval/fixtures/scenes.jsonl` (from Task 4 bootstrap run)
+- Create: `packages/core/eval/fixtures/selection.txt` (curator-authored ordered scene-ID list)
+- Create: `packages/core/eval/fixtures/scenes.jsonl` (from the Task 4 bootstrap run)
 - Create: `packages/core/eval/fixtures/golden.yaml` (hand-curated from the draft)
+- Create: `packages/core/eval/CURATION.md` (the labeling principles behind golden.yaml)
 - Create: `packages/core/eval/baseline.json` (from a `run-eval` run)
 - Create: `packages/core/eval/README.md`
 - Modify: `plugins/ironsworn/.claude-plugin/plugin.json` (minor version bump)
 
-- [ ] **Step 1: Generate fixtures**
+- [ ] **Step 1: Author the scene selection, then generate fixtures**
 
-If not already done in Task 4, run `bootstrap.ts` (see Task 4 Step 3) to produce `fixtures/scenes.jsonl` and `fixtures/golden.draft.yaml`. Pick `ARC_START`/`ARC_COUNT` so the slice is a coherent ~12–15 scene arc. **Inspect the draft for at least one supersedes case** (a relation whose `invalidated: true`, e.g. a title stripped or alliance broken). If the slice contains none, shift the arc window until it does, and record the chosen `ARC_START`/`ARC_COUNT` in `eval/README.md`.
+Inspect the private Zura DB (e.g. `exportScenes` + `getScene`) and author `fixtures/selection.txt`: ~20–25 scene IDs, one per line, **in processing order**, chosen for *diversity* — span scene shapes (dialogue/social, combat, travel/exploration, discovery), factions, and regions; include scenes that exercise rarer `LORE_TYPES` and relation labels; and include a **contiguous supersedes sub-sequence** (a scene that strips a title / breaks an alliance / moves a location, plus the scene that establishes the prior state) kept in order. `#`-prefixed lines are comments — annotate why each scene is in the set.
 
-- [ ] **Step 2: Curate `golden.yaml`**
+Then run `bootstrap.ts` (see Task 4 Step 3) to produce `fixtures/scenes.jsonl` (selected scenes, in selection order) and `fixtures/golden.draft.yaml`. **Confirm the draft contains at least one supersedes case** (a relation whose `invalidated: true`); if not, the selection's supersedes sub-sequence is wrong — fix `selection.txt` and re-run.
+
+- [ ] **Step 2: Curate `golden.yaml` and write `CURATION.md`**
 
 Copy `fixtures/golden.draft.yaml` → `fixtures/golden.yaml` and hand-correct it against the scene text in `scenes.jsonl`:
 - fix wrong `type` values;
@@ -1073,6 +1090,14 @@ Copy `fixtures/golden.draft.yaml` → `fixtures/golden.yaml` and hand-correct it
 - set `invalidated: true` on every relation a later scene supersedes; remove the key (or set false) elsewhere.
 
 The curated file is the spec of "good extraction." Delete `golden.draft.yaml` (do not commit it).
+
+**As you curate, write `packages/core/eval/CURATION.md`** — the *principles* behind the labels, so the next curator (or you, growing the set later) stays consistent instead of diverging. Capture the judgment calls you actually make, example-driven (point at specific `golden.yaml` rows):
+- what counts as a load-bearing entity vs. atmospheric color that should NOT be extracted;
+- how `type` was chosen on ambiguous entities (`truth` vs. `concept`; `faction` vs. concept-shaped org);
+- when two mentions are one entity (alias) vs. two distinct entities;
+- which relations are worth recording vs. incidental adjacency;
+- how the supersedes/temporal case(s) were judged.
+`CURATION.md` is the prose half of the rubric; `golden.yaml` is the executable half.
 
 - [ ] **Step 3: Generate the baseline**
 
@@ -1088,7 +1113,8 @@ Create `packages/core/eval/README.md`:
 ```markdown
 # Extraction evaluation harness
 
-Scores the full lore-extraction pipeline on a fixed Zura scene arc.
+Scores the full lore-extraction pipeline on a fixed, diversity-stratified
+set of real Zura scenes.
 
 ## Run
 
@@ -1100,14 +1126,19 @@ improvement, copy the printed scorecard JSON into `baseline.json` and commit.
 
 ## Files
 
-- `fixtures/scenes.jsonl` — the fixed scene arc (real Zura prose), processing order.
-- `fixtures/golden.yaml` — hand-curated ground truth (the spec of "good").
+- `fixtures/selection.txt` — curator-authored ordered scene-ID list (the corpus selection).
+- `fixtures/scenes.jsonl` — the selected scenes (real Zura prose), processing order.
+- `fixtures/golden.yaml` — hand-curated ground truth (the executable spec of "good").
+- `CURATION.md` — the labeling principles behind golden.yaml (the prose spec).
 - `baseline.json` — last-accepted scorecard.
 - `score.ts` — pure, unit-tested scoring core (`bun test eval/score.test.ts`).
 - `run-eval.ts` — orchestrator (reproducible; reads only committed fixtures).
-- `bootstrap.ts` — one-shot draft generator from the private Zura DB.
+- `bootstrap.ts` — one-shot draft generator from the private Zura DB (reads `selection.txt`).
 
-Arc window used: ARC_START=<n>, ARC_COUNT=<n>. Contains <n> supersedes case(s).
+Corpus: <n> scenes selected for scene-shape / entity-type diversity, with a
+contiguous supersedes sub-sequence (<n> supersedes case(s)). To grow breadth
+later, prefer an unlabeled full-corpus proxy-metrics smoke test over enlarging
+the hand-curated golden set (see the design spec).
 
 ## Metrics
 
@@ -1115,7 +1146,7 @@ entity P/R/F1 + type accuracy · relation P/R/F1 (synonym-aware) · dedup score
 (near-duplicate penalty) · temporal correctness (invalidated relations resolved).
 ```
 
-Fill in the `<n>` placeholders with the actual arc window and supersedes count.
+Fill in the `<n>` placeholders with the actual scene count and supersedes count.
 
 - [ ] **Step 5: Bump the plugin version**
 
@@ -1129,8 +1160,8 @@ Expected: score tests PASS, typecheck exit 0.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/core/eval/fixtures/scenes.jsonl packages/core/eval/fixtures/golden.yaml packages/core/eval/baseline.json packages/core/eval/README.md plugins/ironsworn/.claude-plugin/plugin.json
-git commit -m "feat(eval): commit Zura fixtures, golden set, baseline + version bump"
+git add packages/core/eval/fixtures/selection.txt packages/core/eval/fixtures/scenes.jsonl packages/core/eval/fixtures/golden.yaml packages/core/eval/CURATION.md packages/core/eval/baseline.json packages/core/eval/README.md plugins/ironsworn/.claude-plugin/plugin.json
+git commit -m "feat(eval): commit Zura selection, fixtures, golden set, curation principles, baseline + version bump"
 ```
 
 ---
@@ -1144,11 +1175,14 @@ git commit -m "feat(eval): commit Zura fixtures, golden set, baseline + version 
 - Fixtures committed to public repo under `packages/core/eval/` → Task 6. ✓
 - All four metrics → Task 3 (`scoreExtraction`). ✓
 - Matching: normalized + embedding fallback → Task 2 (`matchEntities`). ✓
-- ~12–15 scene arc, ≥1 supersedes → Task 6 Step 1. ✓
+- ~20–25 scene diversity set, ≥1 supersedes → Task 6 Step 1 (`selection.txt`). ✓
+- Curation principles captured → Task 6 Step 2 (`CURATION.md`). ✓
+- Dedup score floor-clamped at 0 → Task 3 (`Math.max(0, …)`). ✓
+- Synonym map treated as reviewed spec → Task 2 (`LABEL_SYNONYMS` comment). ✓
 - Temperature-0 determinism without duplicating the prompt → Task 1. ✓
 - `score.ts` pure + unit-tested → Tasks 2–3 (`score.test.ts`, stub embedder). ✓
-- Out-of-scope items (multi-sample, CI gating, alt-extractor compare) → not built. ✓
+- Out-of-scope items (multi-sample, CI gating, alt-extractor compare, full-corpus smoke test) → not built. ✓
 
-**Placeholder scan:** the only intentional fill-ins are the `<id>` Zura campaign path and `ARC_START`/`ARC_COUNT`/`<n>` arc-window values in Task 6 — these are genuinely runtime discoveries (depend on inspecting the Zura DB), documented as such, and recorded in `eval/README.md`. No code placeholders.
+**Placeholder scan:** the only intentional fill-ins are the `<id>` Zura campaign path, the curator-authored `selection.txt` scene IDs, and the `<n>` scene/supersedes counts in the README — all genuinely runtime discoveries (depend on inspecting the Zura DB), documented as such, and recorded in `selection.txt` + `eval/README.md`. No code placeholders.
 
 **Type consistency:** `Scorecard`, `ActualState`, `GoldenSet`, `Embedder`, `matchEntities`, `scoreExtraction`, `canonLabel`, `cosine` are defined in Tasks 2–3 and consumed with matching signatures in Tasks 4–5. `_makeDefaultExtractor(client, { temperature })` defined in Task 1, used identically in Tasks 4–5. `exportLore` relation fields (`from_id`, `to_id`, `relation`, `invalid_at`) match the actual `LoreRelationExport` shape. `recordScene(path, summary, kind?, complicationTheme?, beats?, …)` argument order matches the real signature.
