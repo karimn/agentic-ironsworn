@@ -3,9 +3,12 @@ import {
   matchEntities,
   cosine,
   canonLabel,
+  scoreExtraction,
   type ActualEntity,
   type GoldenEntity,
   type Embedder,
+  type ActualState,
+  type GoldenSet,
 } from "./score.js";
 
 // Deterministic stub embedder: maps known names to fixed vectors so we can
@@ -96,8 +99,6 @@ describe("matchEntities", () => {
     expect(m.falsePositives.length).toBe(0);
   });
 });
-
-import { scoreExtraction, type ActualState, type GoldenSet } from "./score.js";
 
 describe("scoreExtraction", () => {
   const embedder: Embedder = async () => [1, 0, 0];
@@ -217,5 +218,68 @@ describe("scoreExtraction", () => {
     };
     expect((await scoreExtraction(actualGood, goldenT, embedder)).temporal).toEqual({ correct: 1, total: 1 });
     expect((await scoreExtraction(actualBad, goldenT, embedder)).temporal).toEqual({ correct: 0, total: 1 });
+  });
+
+  it("drops relation recall on a missed golden relation", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+      ],
+      relations: [
+        { from: "Lona", to: "Caldren", label: "LOCATED_IN", invalidated: false },
+        // missing Lona→Thornwood
+      ],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    expect(s.relation.recall).toBeCloseTo(1 / 2, 6);
+    expect(s.relation.precision).toBeCloseTo(1, 6);
+  });
+
+  it("drops relation precision on a hallucinated relation", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+      ],
+      relations: [
+        { from: "Lona", to: "Caldren", label: "LOCATED_IN", invalidated: false },
+        { from: "Lona", to: "Thornwood", label: "MEMBER_OF", invalidated: false },
+        // hallucinated relation between two matched entities, absent from golden
+        { from: "Caldren", to: "Thornwood", label: "LOCATED_IN", invalidated: false },
+      ],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    expect(s.relation.precision).toBeCloseTo(2 / 3, 6);
+    expect(s.relation.recall).toBeCloseTo(1, 6);
+  });
+
+  it("counts only invalidated golden relations in temporal.total", async () => {
+    const goldenMix: GoldenSet = {
+      entities: [
+        { canonical: "Veil", type: "creature" },
+        { canonical: "Ashfen", type: "place" },
+        { canonical: "Caldren", type: "place" },
+      ],
+      relations: [
+        { from: "Veil", to: "Ashfen", label: "HOLDS_TITLE", invalidated: true },
+        { from: "Veil", to: "Caldren", label: "LOCATED_IN" }, // not invalidated
+      ],
+    };
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Veil", type: "creature", aliases: [] },
+        { canonical: "Ashfen", type: "place", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+      ],
+      relations: [
+        { from: "Veil", to: "Ashfen", label: "HOLDS_TITLE", invalidated: true },
+        { from: "Veil", to: "Caldren", label: "LOCATED_IN", invalidated: false },
+      ],
+    };
+    const s = await scoreExtraction(actual, goldenMix, embedder);
+    expect(s.temporal).toEqual({ correct: 1, total: 1 });
   });
 });
