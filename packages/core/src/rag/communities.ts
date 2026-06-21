@@ -244,6 +244,7 @@ export type AnthropicLike = {
     create: (args: {
       model: string;
       max_tokens: number;
+      temperature?: number;
       system: string;
       messages: { role: "user"; content: string }[];
     }) => Promise<{ content: { type: string; text?: string }[] }>;

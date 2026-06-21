@@ -461,3 +461,52 @@ describe("_makeDefaultExtractor — fence stripping", () => {
     expect(result).toEqual(validResult);
   });
 });
+
+describe("_makeDefaultExtractor — options", () => {
+  it("passes temperature through to the Anthropic client", async () => {
+    let capturedArgs: Record<string, unknown> | undefined;
+    const fakeClient = {
+      messages: {
+        create: async (args: Record<string, unknown>) => {
+          capturedArgs = args;
+          return {
+            content: [
+              { type: "text", text: '{"entities":[],"relations":[]}' },
+            ],
+          };
+        },
+      },
+    };
+
+    const extractor = _makeDefaultExtractor(fakeClient as never, {
+      temperature: 0,
+    });
+    const result = await extractor("Some scene text.", []);
+
+    expect(capturedArgs).toBeDefined();
+    expect(capturedArgs!["temperature"]).toBe(0);
+    expect(result).toEqual({ entities: [], relations: [] });
+  });
+
+  it("omits temperature when not provided", async () => {
+    let capturedArgs: Record<string, unknown> | undefined;
+    const fakeClient = {
+      messages: {
+        create: async (args: Record<string, unknown>) => {
+          capturedArgs = args;
+          return {
+            content: [
+              { type: "text", text: '{"entities":[],"relations":[]}' },
+            ],
+          };
+        },
+      },
+    };
+
+    const extractor = _makeDefaultExtractor(fakeClient as never);
+    await extractor("Some scene text.", []);
+
+    expect(capturedArgs).toBeDefined();
+    expect("temperature" in capturedArgs!).toBe(false);
+  });
+});
