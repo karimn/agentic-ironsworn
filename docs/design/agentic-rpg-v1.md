@@ -276,7 +276,7 @@ without you in the loop.
   story, and hex-crawl extension points wait until storyteller
   quality earns the right to scale.
 
-
+## Four levels of modularity
 
 v1.0 separates four concerns that v0.x conflated. Each is independently
 authored, distributed, and licensed:

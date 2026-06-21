@@ -17,7 +17,10 @@ Closest cousins in the wild:
   graph, Claude-written cluster summaries, hybrid retrieval. We use the same
   Leiden + summarize loop in `rag/communities.ts`.
 - **Graphiti** — temporal narrative KG built from agent transcripts. We
-  share the extraction-from-prose pattern but defer bi-temporal edges.
+  share the extraction-from-prose pattern, adopted its extraction
+  approach into the DuckDB extractor (the 2026-06 Graphiti spike), and
+  now carry lightweight bi-temporal edges (`valid_at` / `invalid_at`)
+  on relations.
 - **Neo4j GenAI patterns** — vector-augmented property graph. Same shape;
   we use DuckDB rather than a graph DB.
 
@@ -143,16 +146,28 @@ narrative inference.
 **Revisit if:** ever. This is a setting-fiction system, not a logic
 database.
 
-### No bi-temporal validity windows
+### Lightweight bi-temporal validity (landed 2026-06)
 
-Relations do not carry `valid_from / valid_until`. A king who is deposed
-gets a new relation (`deposed-by`) and the GM judges from the relation's
-provenance which version is current. Graphiti does this properly; we
-defer until NPC churn forces it. See #55's "non-goals."
+> **Status update.** This started as a non-goal ("defer until NPC churn
+> forces it"). It was reversed and substantially implemented — narrating
+> a dead NPC as alive is the canonical coherence failure, which is too
+> central to a *storyteller* to defer. See the "v1 sequencing" section of
+> `agentic-rpg-v1.md` (priority #3).
 
-**Revisit if:** NPC state churn (deaths, role changes, faction shifts)
-makes the GM context regularly misrepresent the current state of a
-relation. Symptom: the GM agent narrates an NPC as alive who has died.
+Relations carry `valid_at` / `invalid_at` columns (`migrations/world.ts`,
+`rag/world-db.ts`). Extraction runs a `supersedes`-driven
+`invalidateRelations` pass, and all lore grounding reads apply a
+current-fact filter (`invalid_at IS NULL`) so deposed/dead/changed
+relations drop out of context automatically. A king who is deposed has
+his "rules" relation stamped `invalid_at` and the successor's relation
+opened — the GM no longer relies on reading provenance to guess which is
+current.
+
+**Deliberately still out of scope:** arbitrary historical "as-of
+`<timestamp>`" reads. Grounding reads filter to *current* facts only;
+querying the world's state as it stood at some past moment is not built.
+**Revisit if:** a play pattern needs the GM to narrate the past as it was
+believed then (flashbacks, unreliable memory, retconned canon).
 
 ### No cross-world entity references
 
@@ -204,7 +219,11 @@ between the two*.
   not bespoke clustering.
 - **D4** One world DB, campaign as a column (per #166). Visibility filter
   on every read.
-- **D5** No bi-temporal validity. Deferred until forced by symptom.
+- **D5** ~~No bi-temporal validity. Deferred until forced by symptom.~~
+  **Reversed (landed 2026-06):** lightweight bi-temporal edges
+  (`valid_at` / `invalid_at`) + `supersedes`-driven invalidation +
+  current-fact filter on grounding reads. Historical "as-of" reads
+  remain out of scope.
 - **D6** No reasoning engine. Inference is the GM agent's job.
 - **D7** Coherence enforced by ritual (canonize) + prompt (fiction
   grounding), not by schema constraints.
@@ -215,9 +234,11 @@ between the two*.
   surfaced in the extraction prompt (today: free-form with examples)?
   Tracked informally; revisit after Q1 retrieval quality is evaluated on
   more campaigns.
-- **OQ2** Do we need an explicit "supersedes" relation between entities
+- ~~**OQ2** Do we need an explicit "supersedes" relation between entities
   (the new Magistrate supersedes the deposed one) as a lighter alternative
-  to bi-temporal edges? Cheap to add; defer until a real case forces it.
+  to bi-temporal edges?~~ **Resolved (landed 2026-06):** yes —
+  `supersedes`-driven `invalidateRelations` runs in extraction, stamping
+  the superseded relation's `invalid_at`. See D5.
 - **OQ3** How does the canonize ritual surface in the UI/agent workflow?
   Slash command, end-of-session prompt, or implicit on extraction-with-
   high-confidence? Probably explicit slash command; settle when
