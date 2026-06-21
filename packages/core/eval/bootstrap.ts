@@ -40,12 +40,14 @@ async function main(): Promise<void> {
   const source = reqEnv("SOURCE_CAMPAIGN");
   const apiKey = reqEnv("ANTHROPIC_API_KEY");
 
-  // 1. Read the curated, ordered scene-ID selection (skip blanks/comments).
+  // 1. Read the curated, ordered scene-ID selection. Strip inline `#`
+  //    comments and skip blank/comment-only lines, so each ID line can carry
+  //    a trailing annotation (e.g. `<uuid>  # [social] why this scene`).
   const selectionPath = join(FIXTURES, "selection.txt");
   const selectedIds = (await readFile(selectionPath, "utf8"))
     .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith("#"));
+    .map((l) => l.split("#")[0]!.trim())
+    .filter((l) => l.length > 0);
   if (selectedIds.length === 0)
     throw new Error(`No scene IDs in ${selectionPath} — author the selection first`);
 
@@ -78,10 +80,20 @@ async function main(): Promise<void> {
     new Anthropic({ apiKey }) as unknown as AnthropicLike,
     { temperature: 0 },
   );
+  let failed = 0;
   for (const r of replay) {
     const id = await recordScene(dir, r.text, r.kind, undefined, r.beats);
-    await extractLoreFromScene(dir, id, { extractor });
+    try {
+      await extractLoreFromScene(dir, id, { extractor });
+    } catch (e) {
+      // A single scene the LLM returns unparseable output for must not abort
+      // the whole draft. The scene simply contributes nothing — a faithful
+      // (and curator-visible) extraction gap.
+      failed++;
+      console.warn(`Extraction failed for scene ${id}: ${(e as Error).message}`);
+    }
   }
+  if (failed > 0) console.warn(`${failed} of ${replay.length} scenes failed extraction.`);
 
   const { entities, relations } = await exportLore(dir);
   const idToCanon = new Map(entities.map((e) => [e.id, e.canonical]));

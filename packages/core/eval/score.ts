@@ -160,7 +160,7 @@ export async function matchEntities(
 
 export interface Scorecard {
   entity: { precision: number; recall: number; f1: number; typeAccuracy: number };
-  relation: { precision: number; recall: number; f1: number };
+  relation: { precision: number; recall: number; f1: number; labelAccuracy: number };
   dedup: { score: number };
   temporal: { correct: number; total: number };
 }
@@ -198,40 +198,75 @@ export async function scoreExtraction(
     }
   }
 
-  const relKey = (from: string, to: string, label: string): string =>
-    `${norm(from)} ${norm(to)} ${canonLabel(label)}`;
+  // --- Relation metrics (endpoint-primary) ---
+  // The extractor's relation LABEL vocabulary is open-ended and drifts
+  // run-to-run even at temperature 0 (the same fact surfaces as BANISHED_TO,
+  // CUT_FROM_DUTY, etc.), so exact-label matching measures vocabulary noise
+  // rather than relation quality. The primary metric therefore matches on the
+  // resolved entity ENDPOINTS (from -> to); label agreement is reported
+  // separately as `labelAccuracy`.
+  const pairKey = (from: string, to: string): string => `${norm(from)} ${norm(to)}`;
 
-  const goldenRelKeys = new Set(
-    golden.relations.map((r) => relKey(r.from, r.to, r.label)),
-  );
+  // Unique directed golden endpoint-pairs, and the canonical labels per pair.
+  const goldenPairs = new Set<string>();
+  const goldenPairLabels = new Map<string, Set<string>>();
+  for (const r of golden.relations) {
+    const k = pairKey(r.from, r.to);
+    goldenPairs.add(k);
+    (goldenPairLabels.get(k) ?? goldenPairLabels.set(k, new Set()).get(k)!).add(
+      canonLabel(r.label),
+    );
+  }
 
-  const matchedGoldenRel = new Set<string>();
-  let relTruePositives = 0;
+  // Unique actual directed pairs (endpoints resolved to golden canonical), and
+  // the canonical labels the actual produced per pair. Relations whose endpoints
+  // don't both resolve to a matched golden entity are dropped (unscoreable).
+  const actualPairs = new Set<string>();
+  const actualPairLabels = new Map<string, Set<string>>();
   for (const r of actual.relations) {
     const gf = actualNameToGoldenCanonical.get(norm(r.from));
     const gt = actualNameToGoldenCanonical.get(norm(r.to));
-    if (gf === undefined || gt === undefined) continue; // endpoint not matched
-    const key = relKey(gf, gt, r.label);
-    if (goldenRelKeys.has(key) && !matchedGoldenRel.has(key)) {
-      matchedGoldenRel.add(key);
-      relTruePositives++;
-    }
+    if (gf === undefined || gt === undefined) continue;
+    const k = pairKey(gf, gt);
+    actualPairs.add(k);
+    (actualPairLabels.get(k) ?? actualPairLabels.set(k, new Set()).get(k)!).add(
+      canonLabel(r.label),
+    );
   }
-  const relPrecision = actual.relations.length === 0 ? 0 : relTruePositives / actual.relations.length;
-  const relRecall = golden.relations.length === 0 ? 0 : relTruePositives / golden.relations.length;
 
-  // --- Temporal correctness ---
+  let relTruePositives = 0;
+  for (const k of goldenPairs) if (actualPairs.has(k)) relTruePositives++;
+  const relPrecision = actualPairs.size === 0 ? 0 : relTruePositives / actualPairs.size;
+  const relRecall = goldenPairs.size === 0 ? 0 : relTruePositives / goldenPairs.size;
+
+  // Label agreement (secondary): of golden relations whose endpoint-pair the
+  // extractor reproduced, the fraction for which it also produced an agreeing
+  // (synonym-aware) label.
+  let labelMatched = 0;
+  let labelAgree = 0;
+  for (const r of golden.relations) {
+    const k = pairKey(r.from, r.to);
+    if (!actualPairs.has(k)) continue;
+    labelMatched++;
+    if (actualPairLabels.get(k)?.has(canonLabel(r.label))) labelAgree++;
+  }
+  const labelAccuracy = labelMatched === 0 ? 0 : labelAgree / labelMatched;
+
+  // --- Temporal correctness (endpoint-primary) ---
+  // Credit an invalidated golden relation when the extractor produced an
+  // invalidated relation on the same endpoint-pair (label-agnostic).
+  const invalidatedActualPairs = new Set<string>();
+  for (const r of actual.relations) {
+    if (r.invalidated !== true) continue;
+    const gf = actualNameToGoldenCanonical.get(norm(r.from));
+    const gt = actualNameToGoldenCanonical.get(norm(r.to));
+    if (gf === undefined || gt === undefined) continue;
+    invalidatedActualPairs.add(pairKey(gf, gt));
+  }
   const invalidatedGolden = golden.relations.filter((r) => r.invalidated === true);
   let temporalCorrect = 0;
   for (const gr of invalidatedGolden) {
-    const want = relKey(gr.from, gr.to, gr.label);
-    const ok = actual.relations.some((r) => {
-      const gf = actualNameToGoldenCanonical.get(norm(r.from));
-      const gt = actualNameToGoldenCanonical.get(norm(r.to));
-      if (gf === undefined || gt === undefined) return false;
-      return relKey(gf, gt, r.label) === want && r.invalidated === true;
-    });
-    if (ok) temporalCorrect++;
+    if (invalidatedActualPairs.has(pairKey(gr.from, gr.to))) temporalCorrect++;
   }
 
   return {
@@ -245,6 +280,7 @@ export async function scoreExtraction(
       precision: relPrecision,
       recall: relRecall,
       f1: f1(relPrecision, relRecall),
+      labelAccuracy,
     },
     dedup: { score: dedupScore },
     temporal: { correct: temporalCorrect, total: invalidatedGolden.length },

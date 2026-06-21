@@ -113,7 +113,7 @@ check asserts the DB row carries a non-null `invalid_at`.
 ```jsonc
 {
   "entity":   { "precision": 0.0, "recall": 0.0, "f1": 0.0, "typeAccuracy": 0.0 },
-  "relation": { "precision": 0.0, "recall": 0.0, "f1": 0.0 },
+  "relation": { "precision": 0.0, "recall": 0.0, "f1": 0.0, "labelAccuracy": 0.0 },
   "dedup":    { "score": 0.0 },            // max(0, 1 - nearDuplicateActuals / max(1, matchedGolden))
   "temporal": { "correct": 0, "total": 0 } // invalidated golden relations resolved correctly
 }
@@ -152,28 +152,49 @@ From the matching:
   without it, multiple near-dups per golden entity drive the score
   negative, which reads as nonsense in the scorecard.
 
-### Relation matching
+### Relation matching (endpoint-primary)
 
-A relation `(from, to, label)` matches a golden relation when **both
-endpoints match** (via the entity matching above) **and** labels agree —
-exact, or via a small, explicit synonym map (e.g. `MEMBER_OF ≈ SERVES`)
-kept intentionally tiny.
+> **Revised after first run (2026-06-21).** The original design matched a
+> relation only when both endpoints *and* the label agreed. Running the
+> eval showed the shipping extractor's relation-label vocabulary is
+> open-ended and unstable run-to-run even at temperature 0 — the same fact
+> surfaces as `BANISHED_TO`, `CUT_FROM_DUTY`, `FULFILLED_VOWED_THREAD`,
+> etc. (60+ distinct labels across ~79 relations). Exact-label matching
+> therefore measured vocabulary roulette, not relation quality (relation
+> F1 ≈ 0.07, high variance). The metric was changed to endpoint-primary.
 
-> **The synonym map is part of the spec, not a convenience knob.** It is
-> the easiest way to make the score go up without improving extraction
-> (just declare the wrong label a synonym of the right one). Changes to
-> it get the same review scrutiny as prompt changes, and each entry
-> carries a one-line justification comment. Keep it minimal; prefer
-> fixing the extractor's label vocabulary over widening the map.
+A relation matches on its **resolved directed endpoint-pair** `(from → to)`
+alone: actual `from`/`to` are mapped through the entity matching to golden
+canonicals, and the relation counts if that pair exists in the golden set.
+P/R/F1 are computed over the **unique directed endpoint-pairs** on each side
+(so two golden relations sharing a pair count that pair once for the
+endpoint metric). Relations whose endpoints don't both resolve to a matched
+golden entity are unscoreable and dropped.
 
-P/R/F1 as for entities.
+- **Precision** = matched golden pairs / unique actual pairs;
+  **Recall** = matched golden pairs / unique golden pairs; **F1** = harmonic mean.
+- **`labelAccuracy`** (secondary) = of golden relations whose endpoint-pair
+  the extractor reproduced, the fraction for which it also produced an
+  agreeing label (exact or via the synonym map). This keeps a label-quality
+  signal without letting label noise dominate the primary metric.
 
-### Temporal correctness
+> **The synonym map is part of the spec, not a convenience knob.** It now
+> affects only `labelAccuracy` (not endpoint P/R/F1), but the same rule
+> holds: it is the easiest way to inflate a score without improving
+> extraction. Changes get the same review scrutiny as prompt changes, each
+> entry carries a one-line justification, and the map stays minimal —
+> prefer fixing the extractor's label vocabulary over widening it.
 
-For each golden relation with `invalidated: true`, find the
-corresponding DB relation and assert `invalid_at IS NOT NULL`. Report as
-`correct / total`. A vacuous arc (no supersedes case) would make this
-`0/0`; the fixture arc is chosen to contain at least one, so it isn't.
+### Temporal correctness (endpoint-primary)
+
+For each golden relation with `invalidated: true`, the extractor is
+credited if it produced an **invalidated relation on the same resolved
+endpoint-pair** (`invalid_at IS NOT NULL`), label-agnostic — consistent
+with the endpoint-primary relation metric above, so temporal scoring isn't
+also held hostage to label drift. Report as `correct / total` where total
+counts the invalidated golden relations. A vacuous arc (no supersedes case)
+would make this `0/0`; the fixture arc is chosen to contain at least one,
+so it isn't.
 
 ## Execution flow (`run-eval.ts`)
 

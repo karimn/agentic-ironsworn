@@ -131,8 +131,32 @@ describe("scoreExtraction", () => {
     const s = await scoreExtraction(actual, golden, embedder);
     expect(s.entity.f1).toBeCloseTo(1, 6);
     expect(s.entity.typeAccuracy).toBeCloseTo(1, 6);
-    expect(s.relation.f1).toBeCloseTo(1, 6); // SERVES≈MEMBER_OF
+    expect(s.relation.f1).toBeCloseTo(1, 6); // both endpoint-pairs reproduced
+    expect(s.relation.labelAccuracy).toBeCloseTo(1, 6); // LOCATED_IN exact, SERVES≈MEMBER_OF
     expect(s.dedup.score).toBeCloseTo(1, 6);
+  });
+
+  it("counts a right-endpoint wrong-label relation as a hit but drops labelAccuracy", async () => {
+    const actual: ActualState = {
+      entities: [
+        { canonical: "Lona", type: "creature", aliases: [] },
+        { canonical: "Caldren", type: "place", aliases: [] },
+        { canonical: "Thornwood", type: "faction", aliases: [] },
+      ],
+      relations: [
+        // correct endpoints, correct label
+        { from: "Lona", to: "Caldren", label: "LOCATED_IN", invalidated: false },
+        // correct endpoints, UNRELATED label (not a synonym of MEMBER_OF)
+        { from: "Lona", to: "Thornwood", label: "BANISHED_TO", invalidated: false },
+      ],
+    };
+    const s = await scoreExtraction(actual, golden, embedder);
+    // both endpoint-pairs present → endpoint precision/recall/f1 are perfect
+    expect(s.relation.precision).toBeCloseTo(1, 6);
+    expect(s.relation.recall).toBeCloseTo(1, 6);
+    expect(s.relation.f1).toBeCloseTo(1, 6);
+    // ...but only 1 of 2 matched pairs has an agreeing label
+    expect(s.relation.labelAccuracy).toBeCloseTo(1 / 2, 6);
   });
 
   it("drops entity recall on a missed golden entity", async () => {

@@ -54,6 +54,7 @@ function printScorecard(s: Scorecard, base: Scorecard | null): void {
   console.log(`  relation precision ${fmt(s.relation.precision)}${delta(s.relation.precision, base?.relation.precision)}`);
   console.log(`  relation recall   ${fmt(s.relation.recall)}${delta(s.relation.recall, base?.relation.recall)}`);
   console.log(`  relation F1       ${fmt(s.relation.f1)}${delta(s.relation.f1, base?.relation.f1)}`);
+  console.log(`  relation labelAcc ${fmt(s.relation.labelAccuracy)}${delta(s.relation.labelAccuracy, base?.relation.labelAccuracy)}`);
   console.log(`  dedup             ${fmt(s.dedup.score)}${delta(s.dedup.score, base?.dedup.score)}`);
   console.log(`  temporal          ${s.temporal.correct}/${s.temporal.total}`);
   console.log("");
@@ -87,10 +88,19 @@ async function main(): Promise<void> {
     new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] }) as unknown as AnthropicLike,
     { temperature: 0 },
   );
+  let failed = 0;
   for (const sc of scenes) {
     const id = await recordScene(dir, sc.text, sc.kind, undefined, sc.beats);
-    await extractLoreFromScene(dir, id, { extractor });
+    try {
+      await extractLoreFromScene(dir, id, { extractor });
+    } catch (e) {
+      // One scene the LLM returns unparseable output for must not abort the
+      // whole eval. It contributes nothing — scored as the extraction gap it is.
+      failed++;
+      console.warn(`Extraction failed for scene ${id}: ${(e as Error).message}`);
+    }
   }
+  if (failed > 0) console.warn(`${failed} of ${scenes.length} scenes failed extraction.`);
 
   const { entities, relations } = await exportLore(dir);
   const idToCanon = new Map(entities.map((e) => [e.id, e.canonical]));
