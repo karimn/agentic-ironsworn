@@ -4,11 +4,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    // noEmit: this package ships TS source directly (main: src/index.ts), so no outDir/rootDir.
     "noEmit": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "eval/**/*"]
 }

@@ -1,0 +1,453 @@
+# Curated ground truth for the Zura extraction eval. Hand-corrected from the
+# bootstrap draft (see CURATION.md for the principles). This file is the
+# executable spec of "good extraction": entities + relations the pipeline
+# SHOULD produce from fixtures/scenes.jsonl. `invalidated: true` marks a
+# relation a later scene supersedes — the DB must carry a non-null invalid_at.
+entities:
+  # --- People ---
+  - canonical: Zura
+    type: person
+    aliases: []
+  - canonical: Corvel
+    type: person
+    aliases: []
+  - canonical: Eddar
+    type: person
+    aliases: []
+  - canonical: Dalla
+    type: person
+    aliases: []
+  - canonical: Fen
+    type: person
+    aliases: []
+  - canonical: Arda
+    type: person
+    aliases: ["the old woman with the dry cough"]
+  - canonical: Enya
+    type: person
+    aliases: []
+  - canonical: Lona
+    type: person
+    aliases: []
+  - canonical: Hadris
+    type: person
+    aliases: []
+  - canonical: Caldren
+    type: person
+    aliases: []
+  - canonical: Esther
+    type: person
+    aliases: ["Saelin's mother"]
+  - canonical: Harel
+    type: person
+    aliases: ["Harel the Smith"]
+  - canonical: Besren
+    type: person
+    aliases: ["the old speaker", "Besren the Speaker"]
+  - canonical: Maret
+    type: person
+    aliases: []
+  - canonical: Ewa
+    type: person
+    aliases: []
+  - canonical: Ossian
+    type: person
+    aliases: []
+  - canonical: Bren
+    type: person
+    aliases: []
+  - canonical: Saela
+    type: person
+    aliases: []
+  - canonical: Mai
+    type: person
+    aliases: []
+  - canonical: Tavan
+    type: person
+    aliases: []
+  - canonical: Mirin
+    type: person
+    aliases: []
+  - canonical: Serin
+    type: person
+    aliases: ["Lago's companion", "the companion"]
+  - canonical: Lago Rhian
+    type: person
+    aliases: ["the Hollow One", "Lago", "Father"]
+  - canonical: Caldren's Handler
+    type: person
+    aliases: ["the handler"]
+  # --- Creatures ---
+  - canonical: Grey
+    type: creature
+    aliases: ["the hound"]
+  - canonical: Bound Thing at Cracked Stone
+    type: creature
+    aliases: ["the Bound Thing"]
+  # --- Places ---
+  - canonical: Ashfen
+    type: place
+    aliases: ["Ashfen Settlement", "the settlement", "old settlement"]
+  - canonical: Holtfen Settlement
+    type: place
+    aliases: ["Holtfen"]
+  - canonical: Shepherd's Hut
+    type: place
+    aliases: []
+  - canonical: Rot-grey Soil Spread
+    type: place
+    aliases: ["dead colony grey", "Rot-grey"]
+  - canonical: Ashfen Road
+    type: place
+    aliases: ["old Ashfen road"]
+  - canonical: The Hinge
+    type: place
+    aliases: ["the oldest stone"]
+  - canonical: Anchor Network
+    type: place
+    aliases: ["the network", "Understanding web"]
+  - canonical: Network Center Well
+    type: place
+    aliases: ["center well"]
+  - canonical: West Passage
+    type: place
+    aliases: []
+  # --- Materials / objects ---
+  - canonical: Iron Map
+    type: material
+    aliases: ["vow-conductor"]
+  - canonical: First-Born Stones
+    type: material
+    aliases: []
+  - canonical: Captain's Tag
+    type: material
+    aliases: []
+  - canonical: Bone Token
+    type: material
+    aliases: ["finger-joint token"]
+  - canonical: Ward-Stone Sealing Nails
+    type: material
+    aliases: ["offering-grade iron nails"]
+  - canonical: Warm Sealing Nail
+    type: material
+    aliases: ["the nail"]
+  - canonical: Iron Plate Receiver
+    type: material
+    aliases: ["the iron plate", "receiver"]
+  # --- Threads (vows / objectives) ---
+  - canonical: Find a New Colony
+    type: thread
+    aliases: []
+  - canonical: Greyhollow Harvest Vow
+    type: thread
+    aliases: ["Greyhollow's vow"]
+  - canonical: Ashfen Harvest Vow
+    type: thread
+    aliases: ["Ashfen's vow"]
+  - canonical: Late-Sworn Greyhollow Vow
+    type: thread
+    aliases: ["late-sworn harvest vow"]
+  - canonical: Enya's Vow to Zura
+    type: thread
+    aliases: []
+  - canonical: Caldren's Wardenship
+    type: thread
+    aliases: ["Caldren as warden captain"]
+  - canonical: Caldren's Warden Circuit
+    type: thread
+    aliases: ["the circuit"]
+  - canonical: Lona's Captaincy
+    type: thread
+    aliases: []
+  - canonical: Find Mai Before She Reaches Lago
+    type: thread
+    aliases: []
+  - canonical: Network Disc Tampering
+    type: thread
+    aliases: ["re-aligning the Understanding"]
+  - canonical: Complete the Harvest Debt
+    type: thread
+    aliases: ["Seal at Greyhollow"]
+  # --- Events ---
+  - canonical: Root-Cellar Fire
+    type: event
+    aliases: ["the root-cellar alight"]
+  - canonical: Birch Stand Assassination
+    type: event
+    aliases: []
+  - canonical: Caldren's Circle Duel
+    type: event
+    aliases: ["the circle", "the duel at the well"]
+  - canonical: Caldren's Banishment
+    type: event
+    aliases: []
+  - canonical: Joint Iron Vow Fulfilled
+    type: event
+    aliases: []
+  # --- Truths / concepts ---
+  - canonical: Broken Ironbinder Vow
+    type: truth
+    aliases: []
+  - canonical: Anchor Network Collapse
+    type: truth
+    aliases: []
+  - canonical: Lago's Vow Fulfillment
+    type: truth
+    aliases: []
+  - canonical: Mai's Sword-Line
+    type: concept
+    aliases: ["Mai's line"]
+  - canonical: Greyhollow Debt-Signature
+    type: concept
+    aliases: ["debt-pull"]
+  - canonical: Harvest Debt
+    type: concept
+    aliases: ["Harvest Vow"]
+  - canonical: The Answering
+    type: concept
+    aliases: []
+  - canonical: Waking Darkness
+    type: concept
+    aliases: []
+  - canonical: Iron-Memory Circle
+    type: concept
+    aliases: ["compulsive iron-memory circles"]
+  - canonical: The Eld
+    type: faction
+    aliases: []
+relations:
+  # --- Founding / Ashfen ---
+  - from: Ashfen
+    to: Find a New Colony
+    label: SEEKS
+  - from: Ashfen
+    to: Root-Cellar Fire
+    label: DESTROYED_BY
+  - from: Corvel
+    to: Root-Cellar Fire
+    label: PERMITS
+  - from: Corvel
+    to: Find a New Colony
+    label: VOWED_FULFILLED
+  - from: Eddar
+    to: Iron Map
+    label: CREATED_BY
+  - from: Eddar
+    to: Ashfen
+    label: OBSERVED
+  - from: Eddar
+    to: Lago Rhian
+    label: SEEKS
+  - from: Rot-grey Soil Spread
+    to: Greyhollow Harvest Vow
+    label: CONDUCTS
+  - from: Rot-grey Soil Spread
+    to: Ashfen
+    label: LOCATED_IN
+  - from: Corvel
+    to: Zura
+    label: SEEKS_COUNSEL_FROM
+  # --- Holtfen / leaders ---
+  - from: Dalla
+    to: Holtfen Settlement
+    label: LOCATED_IN
+  - from: Dalla
+    to: Broken Ironbinder Vow
+    label: RECOGNIZES
+  - from: Dalla
+    to: Holtfen Settlement
+    label: GATHERS_DISPLACED_TO
+  - from: Dalla
+    to: Eddar
+    label: PRIOR_TENSION_WITH
+  # --- Arda / Enya ---
+  - from: Arda
+    to: Late-Sworn Greyhollow Vow
+    label: BOUND_TO
+  - from: Enya
+    to: Arda
+    label: DAUGHTER_OF
+  - from: Enya
+    to: Enya's Vow to Zura
+    label: BOUND_BY
+  - from: Zura
+    to: Enya's Vow to Zura
+    label: WITNESSES
+  - from: Zura
+    to: Arda
+    label: SEPARATED_FROM
+  - from: Grey
+    to: Fen
+    label: DEPARTS_WITH
+  - from: Fen
+    to: Corvel
+    label: TAKES_SHOULDER_OF
+  # --- Caldren: title + location, SUPERSEDED by his banishment (scene 35) ---
+  - from: Caldren
+    to: Holtfen Settlement
+    label: HOLDS_TITLE
+    invalidated: true
+  - from: Caldren
+    to: Holtfen Settlement
+    label: LOCATED_IN
+    invalidated: true
+  - from: Zura
+    to: Caldren
+    label: DEFEATED
+  - from: Caldren
+    to: Caldren's Handler
+    label: RECRUITED_BY
+  # --- Warden circuit ---
+  - from: Caldren's Warden Circuit
+    to: First-Born Stones
+    label: MAINTAINS
+  - from: Lona
+    to: Caldren's Warden Circuit
+    label: SERVED_IN
+  - from: Hadris
+    to: Caldren's Warden Circuit
+    label: SERVED_IN
+  - from: Ewa
+    to: Caldren's Warden Circuit
+    label: SERVED_IN
+  - from: Maret
+    to: First-Born Stones
+    label: MAINTAINS
+  - from: Lona
+    to: Caldren's Wardenship
+    label: BOUND_TO
+  # --- The duel ---
+  - from: Caldren's Circle Duel
+    to: Caldren's Wardenship
+    label: RESOLVES
+  - from: Besren
+    to: Caldren's Circle Duel
+    label: OFFICIATES
+  - from: Harel
+    to: Caldren's Circle Duel
+    label: OVERSEES
+  - from: Zura
+    to: Mai's Sword-Line
+    label: TRAINED_IN
+  - from: Caldren's Wardenship
+    to: Joint Iron Vow Fulfilled
+    label: RESOLVED_BY
+  # --- Lago / father reveal ---
+  - from: Lago Rhian
+    to: Zura
+    label: FATHER_OF
+  - from: Lago Rhian
+    to: Bone Token
+    label: CREATED_BY
+  - from: Zura
+    to: Bone Token
+    label: POSSESSES
+  - from: Lago Rhian
+    to: Zura
+    label: CARRIES_DEBT_OF
+  # --- Lona's rise + bonds ---
+  - from: Esther
+    to: Hadris
+    label: MOTHER_OF
+  - from: Lona
+    to: Zura
+    label: WITNESSED
+  - from: Dalla
+    to: Zura
+    label: WITNESSED
+  - from: Lona
+    to: Captain's Tag
+    label: HOLDS_TITLE
+  - from: Lona
+    to: Lona's Captaincy
+    label: HOLDS_TITLE
+  - from: Harel
+    to: Lona
+    label: INVESTED_WITH_AUTHORITY
+  - from: Lona
+    to: Ewa
+    label: SEEKS_RESTORATION_FOR
+  - from: Zura
+    to: Lona
+    label: ALLIED_WITH
+  - from: Ossian
+    to: Hadris
+    label: SEALED
+  # --- The Hinge ---
+  - from: The Hinge
+    to: First-Born Stones
+    label: PREDATES
+  - from: The Hinge
+    to: Iron Plate Receiver
+    label: CONTAINS
+  - from: The Hinge
+    to: Bone Token
+    label: SHARES_MARK_WITH
+  - from: Iron Plate Receiver
+    to: Warm Sealing Nail
+    label: FUNCTIONS_LIKE
+  # --- Anchor network / endgame ---
+  - from: Tavan
+    to: Mai's Sword-Line
+    label: TRAINED_PREDECESSOR_OF
+  - from: Mai's Sword-Line
+    to: Tavan
+    label: TAUGHT_BY
+  - from: Tavan
+    to: Greyhollow Harvest Vow
+    label: OBSERVED
+  - from: Broken Ironbinder Vow
+    to: Anchor Network Collapse
+    label: SUSTAINS
+  - from: Mirin
+    to: Network Disc Tampering
+    label: PARTICIPATES_IN
+  - from: Serin
+    to: Mai
+    label: TRAVELS_WITH
+  - from: Serin
+    to: Mirin
+    label: SUPERVISED
+  - from: Serin
+    to: Lago Rhian
+    label: ALLIED_WITH
+  - from: Serin
+    to: Mai
+    label: ALLIED_WITH
+  - from: Mai
+    to: Greyhollow Debt-Signature
+    label: DRAWN_TOWARD
+  - from: Mirin
+    to: Network Center Well
+    label: BOUND_TO_EVACUATE_BEFORE
+  - from: Anchor Network
+    to: Greyhollow Debt-Signature
+    label: RESONATES_WITH
+  - from: Mai
+    to: Lago Rhian
+    label: OPPOSES
+  - from: Zura
+    to: Harvest Debt
+    label: BOUND_TO
+  - from: Lago Rhian
+    to: The Eld
+    label: INSTRUMENT_OF
+  - from: The Eld
+    to: Anchor Network
+    label: CREATED_BY
+  - from: Zura
+    to: Complete the Harvest Debt
+    label: SWORN_TO
+  # --- World phenomena (the curse answering broken vows) ---
+  - from: The Answering
+    to: Broken Ironbinder Vow
+    label: MANIFESTS_THROUGH
+  - from: The Answering
+    to: Arda
+    label: READS
+  - from: Iron Map
+    to: Iron-Memory Circle
+    label: CAUSES
+  - from: Waking Darkness
+    to: Grey
+    label: SEALED_AT

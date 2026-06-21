@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "eval:extraction": "bun run eval/run-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

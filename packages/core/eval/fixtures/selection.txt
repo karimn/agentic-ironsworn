@@ -1,0 +1,37 @@
+# Zura extraction-eval corpus selection.
+# One scene ID per line, in processing order. '#'-lines are comments.
+# Chosen for scene-shape / entity-type diversity with a contiguous supersedes sub-sequence.
+
+# Founding / relocation of Ashfen — settlement, core cast (Zura, Corvel, Fen, Grey); seeds the Ashfen->Holtfen location change
+4b5ea601-9770-451e-9894-48188d35af9c  # [scene] scene index 0
+4e48ec57-a67b-4dd6-a2a4-fa177b750569  # [scene] scene index 2
+20205343-5efb-40e4-8a73-545b28cb52a8  # [scene] scene index 4
+0ac6727f-734f-4161-9691-2fe3f25ea8d3  # [scene] scene index 5
+ff22f8f4-8a3a-46e6-abc4-14c48bfb13a2  # [scene] scene index 6
+
+# Journey + arrival at Holtfen — exploration shape; new locale + leaders (Dalla, Eddar)
+6691b059-7927-4a45-98a7-eee61ba15b11  # [exploration] scene index 9
+c747f7ed-c3f2-4891-be1c-59b9250cd4fb  # [exploration] scene index 12
+d111a342-becd-4e1b-a2ed-0f717930c292  # [social] scene index 13
+
+# Crisis beat — Arda, the late-sworn vow
+7f0b65ef-0008-4c7d-af68-94a9bbeb2d9a  # [crisis] scene index 18
+d53f009e-1582-4cf8-99e0-dc3ae4d5694a  # [crisis] scene index 19
+
+# Caldren supersedes sub-sequence (contiguous, in order): 23 ESTABLISHES Caldren as warden captain of Holtfen; 30-33 the duel; 34 his confession (Lago Rhian); 35 INVALIDATES — Caldren banished from Holtfen + warden-circuit, relocated west to Ashfen
+06b8a38a-5330-4a64-9f03-ef6cb07373b2  # [social] scene index 23
+6465591a-1a4d-43e3-9eef-bb4186496918  # [social] scene index 29
+24fd96ad-4edc-4c84-b8d8-a5d3f83c1b1e  # [combat] scene index 30
+930bf776-2568-489e-9554-fea78e01c96b  # [combat] scene index 31
+679c3b58-bdaa-4012-88ce-94b75e7a4f33  # [combat] scene index 32
+ba2db507-2e24-4c3d-8794-76cf2ac9a896  # [combat] scene index 33
+b1671df3-cfd6-491d-bab3-5d3004f5d3a2  # [social] scene index 34
+1cb103d9-b8d4-458f-8570-e6d7f1590962  # [social] scene index 35
+
+# Aftermath + beats-rich scenes (social/exploration WITH beats) — deserters, the Hinge, the Anchor delve, Serin
+a8c266b6-75c6-4465-ab17-112712a689a0  # [social] scene index 36
+c13766b2-8374-4cbd-91e1-a0631a03716b  # [social] scene index 41
+3769f39a-5e14-4c20-8fc0-93c338faf1bb  # [exploration] scene index 47
+82675e4f-3da8-4e8c-9ba9-426a77754244  # [social] scene index 50
+86a84f5d-1cfe-404e-bb68-9e82009ae25d  # [exploration] scene index 57
+ca07535e-b2b6-4359-9ef7-8d75eb9b4204  # [social] scene index 58

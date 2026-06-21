@@ -286,7 +286,10 @@ const EXTRACTION_SYSTEM_PROMPT =
   "You are a knowledge-graph extractor for a solo RPG campaign. " +
   "Return ONLY valid JSON matching the requested schema. No prose, no markdown fences.";
 
-export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
+export function _makeDefaultExtractor(
+  client: AnthropicLike,
+  opts?: { model?: string; temperature?: number },
+): Extractor {
   return async (sceneText, existingEntities) => {
     const existingContext =
       existingEntities.length > 0
@@ -328,8 +331,11 @@ export function _makeDefaultExtractor(client: AnthropicLike): Extractor {
       `}`;
 
     const response = await client.messages.create({
-      model: DEFAULT_EXTRACTION_MODEL,
+      model: opts?.model ?? DEFAULT_EXTRACTION_MODEL,
       max_tokens: 4096,
+      ...(opts?.temperature !== undefined
+        ? { temperature: opts.temperature }
+        : {}),
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
