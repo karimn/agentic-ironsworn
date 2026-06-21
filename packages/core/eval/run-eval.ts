@@ -6,7 +6,7 @@
 //
 // Accepting a change: copy the printed scorecard into baseline.json and commit.
 
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,7 +59,7 @@ function printScorecard(s: Scorecard, base: Scorecard | null): void {
   console.log(`  entity recall     ${fmt(s.entity.recall)}${delta(s.entity.recall, base?.entity.recall)}`);
   console.log(`  entity F1         ${fmt(s.entity.f1)}${delta(s.entity.f1, base?.entity.f1)}`);
   console.log(`  type accuracy     ${fmt(s.entity.typeAccuracy)}${delta(s.entity.typeAccuracy, base?.entity.typeAccuracy)}`);
-  console.log(`  relation precision${fmt(s.relation.precision)}${delta(s.relation.precision, base?.relation.precision)}`);
+  console.log(`  relation precision ${fmt(s.relation.precision)}${delta(s.relation.precision, base?.relation.precision)}`);
   console.log(`  relation recall   ${fmt(s.relation.recall)}${delta(s.relation.recall, base?.relation.recall)}`);
   console.log(`  relation F1       ${fmt(s.relation.f1)}${delta(s.relation.f1, base?.relation.f1)}`);
   console.log(`  dedup             ${fmt(s.dedup.score)}${delta(s.dedup.score, base?.dedup.score)}`);
