@@ -155,6 +155,12 @@ pattern: rules are commodity data plus pure functions.
 
 ### v1 priorities, in order
 
+> **Status (as of 2026-06-21):** #1 ✅ done · #2 ❌ not started ·
+> #3 🟡 substantially done · #4 ❌ not started · #5 ❌ not started ·
+> #6 ❌ deferred by design. The gating decision (#1) is closed and the
+> DuckDB substrate is locked, which unblocks the rest. Next pickup: #2
+> (extraction evaluation harness).
+
 1. **Graphiti spike (gating decision).** ✅ **Resolved (2026-06-16): Path B.**
    Promote OQ1 from open question
    to the *first* decision. Feed the Zura corpus into Graphiti +
@@ -171,11 +177,19 @@ pattern: rules are commodity data plus pure functions.
    with known-correct entities and relations, scored on every prompt
    or model change. Without this, extraction quality is vibes.
    Required regardless of which way the Graphiti spike resolves.
-3. **Temporal truth.** Reverse the bi-temporal deferral in
-   `knowledge-graph.md`. If the Graphiti spike adopts Graphiti, bi-
-   temporal edges come for free. If it doesn't, add lightweight
-   `supersedes` edges (already filed as OQ2 in `knowledge-graph.md`)
-   plus an "as-of" filter on grounding reads.
+3. **Temporal truth.** 🟡 **Substantially done (landed 2026-06; spike
+   Phases 1–2, preserved through the Path B rollback).** Reverse the
+   bi-temporal deferral in `knowledge-graph.md`. If the Graphiti spike
+   adopts Graphiti, bi-temporal edges come for free. If it doesn't, add
+   lightweight `supersedes` edges (already filed as OQ2 in
+   `knowledge-graph.md`) plus an "as-of" filter on grounding reads.
+   **Done:** `valid_at`/`invalid_at` columns on relations
+   (`migrations/world.ts`, `rag/world-db.ts`), `supersedes`-driven
+   `invalidateRelations` in extraction, and a current-fact filter
+   (`invalid_at IS NULL`) on all lore grounding reads (`rag/lore.ts`).
+   **Remaining:** arbitrary historical "as-of `<timestamp>`" reads —
+   reads currently filter to *current* facts only, not a queryable past
+   state.
 4. **Write-time contradiction surfacing.** On `upsert_entity` /
    `link`, run a similarity check against existing canon and flag
    apparent contradictions (different summary for an existing alias;
@@ -1277,7 +1291,9 @@ in one world, with shared world canon).
 
 ## Migration from v0.x
 
-Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed):
+Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed,
+❌ = not started). As of 2026-06-21: #2, #3 landed; #1 partial; #4–#11
+not started.
 
 1. 🚧 Refactor the public repo into a Bun workspace monorepo:
    `packages/core` + `packages/system-ironsworn` +
@@ -1296,23 +1312,23 @@ Tracked separately. Major pieces (✅ = landed, 🚧 = partially landed):
    on the current DuckDB substrate — effectively Path B with DuckDB;
    the spike decides whether to port.)* **Resolved 2026-06-16: committed
    to Path B (DuckDB); Path A storage rejected.**
-4. Implement the setting-seed-at-world-init mechanism; package the
+4. ❌ Implement the setting-seed-at-world-init mechanism; package the
    Ironlands canon as `@agentic-rpg/setting-ironlands`. Verify a fresh
    world with no setting installed boots cleanly with no seed.
-5. Move existing skills into `@agentic-rpg/craft-default`; verify they
+5. ❌ Move existing skills into `@agentic-rpg/craft-default`; verify they
    don't leak system-specific tool names.
-6. Implement `recall` as the unified retrieval tool; deprecate the v0.x
+6. ❌ Implement `recall` as the unified retrieval tool; deprecate the v0.x
    split.
-7. Add per-tool retrieval budgets; tune.
-8. Implement the canonize slash command; integrate with `extract_session_lore`.
-9. Implement the future-proofing extension points (coordinates convention,
+7. ❌ Add per-tool retrieval budgets; tune.
+8. ❌ Implement the canonize slash command; integrate with `extract_session_lore`.
+9. ❌ Implement the future-proofing extension points (coordinates convention,
    bulk ops, `near` parameter union, `procgen` manifest type, `tick`
    primitive). Each is small individually; together they make v1.0 the
    architecture-stable target.
-10. Repackage the v0.x Delve expansion as `@karimn/ironsworn-delve` (or
+10. ❌ Repackage the v0.x Delve expansion as `@karimn/ironsworn-delve` (or
     similar) on a private registry; verify install via `bun add` works
     end-to-end with the new contribution mechanism.
-11. Move player-directive content out of CC memory into runtime-owned
+11. ❌ Move player-directive content out of CC memory into runtime-owned
     `preferences.md` files (world + per-campaign). Implement
     `remember(scope, note)` MCP tool. Read existing `.remember/`
     directories and project-level `CLAUDE.md` files into
