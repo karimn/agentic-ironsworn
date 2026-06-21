@@ -24,6 +24,7 @@ import { getScene, recordScene } from "../src/rag/scenes.js";
 import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extraction.js";
 import { exportLore } from "../src/rag/lore.js";
 import type { BeatInput } from "../src/rag/scenes.js";
+import type { AnthropicLike } from "../src/rag/communities.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = join(here, "fixtures");
@@ -36,7 +37,7 @@ function reqEnv(name: string): string {
 
 async function main(): Promise<void> {
   const source = reqEnv("SOURCE_CAMPAIGN");
-  reqEnv("ANTHROPIC_API_KEY");
+  const apiKey = reqEnv("ANTHROPIC_API_KEY");
 
   // 1. Read the curated, ordered scene-ID selection (skip blanks/comments).
   const selectionPath = join(FIXTURES, "selection.txt");
@@ -54,10 +55,13 @@ async function main(): Promise<void> {
   const replay: { text: string; kind: string; beats: BeatInput[] }[] = [];
   for (const id of selectedIds) {
     const full = await getScene(source, id, { include_beats: true });
-    if (full === null) continue;
+    if (full === null) {
+      console.warn(`Skipping scene not found in source campaign: ${id}`);
+      continue;
+    }
     const beats = (full.beats ?? []).map((b) => ({
       kind: b.kind,
-      speaker: b.speaker ?? undefined,
+      speaker: b.speaker,
       text: b.text,
       metadata: b.metadata,
     })) as BeatInput[];
@@ -70,7 +74,7 @@ async function main(): Promise<void> {
   // 3. Run the selected scenes through a fresh pipeline (temperature 0) → draft golden.
   const dir = await mkdtemp(join(tmpdir(), "eval-bootstrap-"));
   const extractor = _makeDefaultExtractor(
-    new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] }) as never,
+    new Anthropic({ apiKey }) as unknown as AnthropicLike,
     { temperature: 0 },
   );
   for (const r of replay) {
