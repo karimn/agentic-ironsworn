@@ -48,6 +48,7 @@ describe("matchEntities", () => {
     const actual: ActualEntity[] = [{ canonical: "the healer Lona", type: "creature", aliases: [] }];
     const golden: GoldenEntity[] = [{ canonical: "Lona", type: "creature", aliases: ["the healer Lona"] }];
     const m = await matchEntities(actual, golden, embedder);
+    // Must match via the name/alias pass — the stub embedder returns [0,0,0] for unknowns, so an embedding match is impossible here.
     expect(m.pairs.length).toBe(1);
   });
 

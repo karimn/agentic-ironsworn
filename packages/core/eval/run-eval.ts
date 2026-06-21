@@ -13,25 +13,17 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import Anthropic from "@anthropic-ai/sdk";
-import type { BeatInput } from "../src/rag/scenes.js";
 import type { AnthropicLike } from "../src/rag/communities.js";
 import { recordScene } from "../src/rag/scenes.js";
 import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extraction.js";
 import { exportLore } from "../src/rag/lore.js";
 import { getWorldEmbedding } from "../src/rag/world-db.js";
 import { scoreExtraction, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
+import type { SerializedScene } from "./scene-record.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = join(here, "fixtures");
 const BASELINE = join(here, "baseline.json");
-
-interface SceneRecord {
-  id: string;
-  timestamp: string;
-  text: string;
-  kind: string;
-  beats: { beat_index: number; kind: string; speaker: string | null; text: string }[];
-}
 
 async function ollamaReachable(): Promise<boolean> {
   try {
@@ -84,10 +76,10 @@ async function main(): Promise<void> {
   }
 
   const scenesRaw = await readFile(join(FIXTURES, "scenes.jsonl"), "utf8");
-  const scenes: SceneRecord[] = scenesRaw
+  const scenes: SerializedScene[] = scenesRaw
     .split("\n")
     .filter((l) => l.trim().length > 0)
-    .map((l) => JSON.parse(l) as SceneRecord);
+    .map((l) => JSON.parse(l) as SerializedScene);
   const golden = parse(await readFile(join(FIXTURES, "golden.yaml"), "utf8")) as GoldenSet;
 
   const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
@@ -96,12 +88,7 @@ async function main(): Promise<void> {
     { temperature: 0 },
   );
   for (const sc of scenes) {
-    const beatsInput: BeatInput[] = sc.beats.map((b) => ({
-      kind: b.kind as "narration" | "dialogue" | "move" | "choice" | "oracle",
-      speaker: b.speaker ?? undefined,
-      text: b.text,
-    }));
-    const id = await recordScene(dir, sc.text, sc.kind, undefined, beatsInput);
+    const id = await recordScene(dir, sc.text, sc.kind, undefined, sc.beats);
     await extractLoreFromScene(dir, id, { extractor });
   }
 

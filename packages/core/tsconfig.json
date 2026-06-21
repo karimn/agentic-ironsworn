@@ -6,6 +6,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    // noEmit: this package ships TS source directly (main: src/index.ts), so no outDir/rootDir.
     "noEmit": true
   },
   "include": ["src/**/*", "eval/**/*"]

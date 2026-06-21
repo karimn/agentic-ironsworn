@@ -25,6 +25,7 @@ import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extracti
 import { exportLore } from "../src/rag/lore.js";
 import type { BeatInput } from "../src/rag/scenes.js";
 import type { AnthropicLike } from "../src/rag/communities.js";
+import type { SerializedScene } from "./scene-record.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = join(here, "fixtures");
@@ -65,7 +66,7 @@ async function main(): Promise<void> {
       text: b.text,
       metadata: b.metadata,
     })) as BeatInput[];
-    const record = { id, timestamp: full.timestamp, text: full.text, kind: full.kind, beats };
+    const record: SerializedScene = { id, timestamp: full.timestamp, text: full.text, kind: full.kind, beats };
     lines.push(JSON.stringify(record));
     replay.push({ text: full.text, kind: full.kind, beats });
   }

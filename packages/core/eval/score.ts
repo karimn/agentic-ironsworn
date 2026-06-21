@@ -136,7 +136,7 @@ export async function matchEntities(
       for (let i = 0; i < golden.length; i++) {
         const gEmb = await embed(golden[i]!.canonical);
         const sim = cosine(aEmb, gEmb);
-        if (sim >= bestSim) {
+        if (bestIdx === -1 ? sim >= bestSim : sim > bestSim) {
           bestSim = sim;
           bestIdx = i;
         }
