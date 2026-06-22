@@ -132,7 +132,7 @@ describe("extractLoreFromScene — basic extraction", () => {
 });
 
 describe("extractLoreFromScene — dedup", () => {
-  it("updates an existing entity when cosine similarity >= 0.92 instead of creating a duplicate", async () => {
+  it("updates an existing entity by exact canonical match instead of creating a duplicate", async () => {
     if (!(await ollamaAvailable())) return;
 
     // Pre-seed an entity for "Lona"

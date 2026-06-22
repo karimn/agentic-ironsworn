@@ -65,7 +65,11 @@ export type Extractor = (
   existingEntities: LoreSearchHit[],
 ) => Promise<ExtractionResult>;
 
-const DEDUP_SIMILARITY_THRESHOLD = 0.92;
+// Align with the eval scorer's DEFAULT_SIM_THRESHOLD (0.85): the write-path
+// "same entity?" decision must match how the eval matches entities, or the
+// pipeline and the harness disagree on duplicates. The pre-check embeds the
+// canonical name against stored summary embeddings, so scores skew moderate.
+const DEDUP_SIMILARITY_THRESHOLD = 0.85;
 
 // nomic-embed-text rejects inputs beyond ~6500 chars; cap conservatively.
 const MAX_EMBED_CHARS = 6000;
