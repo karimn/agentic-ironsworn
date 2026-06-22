@@ -465,6 +465,14 @@ Claude-Session: https://claude.ai/code/session_01HBH3AtoNwfYCJotTR2kw3r"
 
 ### Task 4: Re-baseline, README, version bump
 
+> **SUPERSEDED.** Investigation during execution proved the extractor is
+> non-deterministic at `temperature=0` (irreducible LLM API non-determinism),
+> so a single-run baseline is untrustworthy and temporal is a flaky binary
+> gate. This task is replaced by the two tasks in the addendum plan
+> `docs/superpowers/plans/2026-06-21-extraction-quality-pass-addendum.md`
+> (multi-run aggregation, then re-baseline via aggregation). Do not execute the
+> steps below; they assume a deterministic single run.
+
 Run the full eval against the committed fixtures, record the new baseline, and
 bump the plugin version. This is the integration gate: temporal must be 2/2.
 
