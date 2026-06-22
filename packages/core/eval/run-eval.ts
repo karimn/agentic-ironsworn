@@ -21,7 +21,7 @@ import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extracti
 import { exportLore } from "../src/rag/lore.js";
 import { getWorldEmbedding } from "../src/rag/world-db.js";
 import { scoreExtraction, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
-import { aggregateScorecards, type AggregateScorecard } from "./aggregate.js";
+import { aggregateScorecards, type AggregateScorecard, type MetricStats } from "./aggregate.js";
 import type { SerializedScene } from "./scene-record.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -77,7 +77,7 @@ async function runOnce(
   return scoreExtraction(actual, golden, getWorldEmbedding);
 }
 
-function band(s: { median: number; min: number; max: number }): string {
+function band(s: MetricStats): string {
   return `${fmt(s.median)}  [${fmt(s.min)}–${fmt(s.max)}]`;
 }
 
