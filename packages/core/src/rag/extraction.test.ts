@@ -510,3 +510,91 @@ describe("_makeDefaultExtractor — options", () => {
     expect("temperature" in capturedArgs!).toBe(false);
   });
 });
+
+describe("extractLoreFromScene — temporal supersession (endpoint-primary)", () => {
+  it("invalidates all prior relations on a from→to pair when a later relation supersedes, regardless of label", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene } = await import("./scenes.js");
+    const { exportLore } = await import("./lore.js");
+
+    // Scene 1: establish Caldren's title + location in Holtfen.
+    const scene1 = await recordScene(
+      campaignDir,
+      "Caldren is the warden captain of Holtfen Settlement, where he lives.",
+    );
+    const setup: ExtractionResult = {
+      entities: [
+        {
+          canonical: "Caldren",
+          type: "person",
+          summary: "Caldren is the warden captain of Holtfen Settlement.",
+          aliases: [],
+          excerpt: "Caldren is the warden captain of Holtfen Settlement",
+          confidence: 0.95,
+        },
+        {
+          canonical: "Holtfen Settlement",
+          type: "place",
+          summary: "Holtfen Settlement is a fortified village.",
+          aliases: ["Holtfen"],
+          excerpt: "Holtfen Settlement",
+          confidence: 0.95,
+        },
+      ],
+      relations: [
+        {
+          from: "Caldren",
+          to: "Holtfen Settlement",
+          relation: "HOLDS_TITLE",
+          excerpt: "warden captain of Holtfen Settlement",
+          confidence: 0.95,
+        },
+        {
+          from: "Caldren",
+          to: "Holtfen Settlement",
+          relation: "LOCATED_IN",
+          excerpt: "where he lives",
+          confidence: 0.95,
+        },
+      ],
+    };
+    await extractLoreFromScene(campaignDir, scene1, {
+      extractor: makeStubExtractor(setup),
+    });
+
+    // Scene 2: Caldren banished — a DIFFERENT label that supersedes the prior facts.
+    const scene2 = await recordScene(
+      campaignDir,
+      "The council banished Caldren from Holtfen Settlement.",
+    );
+    const supersede: ExtractionResult = {
+      entities: [],
+      relations: [
+        {
+          from: "Caldren",
+          to: "Holtfen Settlement",
+          relation: "BANISHED_FROM",
+          supersedes: true,
+          excerpt: "banished Caldren from Holtfen Settlement",
+          confidence: 0.95,
+        },
+      ],
+    };
+    await extractLoreFromScene(campaignDir, scene2, {
+      extractor: makeStubExtractor(supersede),
+    });
+
+    const { relations } = await exportLore(campaignDir);
+    const isCaldrenHoltfen = (r: (typeof relations)[number]) =>
+      r.relation === "HOLDS_TITLE" || r.relation === "LOCATED_IN";
+    const prior = relations.filter(isCaldrenHoltfen);
+    expect(prior.length).toBe(2);
+    // Both prior facts must now be invalidated (non-null invalid_at).
+    expect(prior.every((r) => r.invalid_at !== null)).toBe(true);
+    // The superseding fact itself stays current.
+    const banished = relations.find((r) => r.relation === "BANISHED_FROM");
+    expect(banished).toBeDefined();
+    expect(banished!.invalid_at).toBeNull();
+  });
+});

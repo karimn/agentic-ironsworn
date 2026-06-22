@@ -219,7 +219,6 @@ export async function extractLoreFromScene(
         campaignPath,
         fromEntity.id,
         toEntity.id,
-        rel.relation,
         scene.timestamp,
       );
     }

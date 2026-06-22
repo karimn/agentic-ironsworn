@@ -556,12 +556,18 @@ export async function linkLore(
   }
 }
 
-/** Mark all active matching relations as invalidated at the given timestamp. */
+/**
+ * Mark every currently-valid relation on a directed from→to pair as invalidated
+ * at the given timestamp, regardless of label. Endpoint-primary (not label-
+ * strict) because a supersession is typically expressed with a different label
+ * than the fact it replaces (e.g. BANISHED_FROM replacing HOLDS_TITLE); matching
+ * on label would never invalidate the prior fact. Direction is preserved, so a
+ * to→from relation between the same entities is untouched.
+ */
 export async function invalidateRelations(
   campaignPath: string,
   fromId: string,
   toId: string,
-  label: string,
   invalidAt: string,
 ): Promise<void> {
   const ctx = await resolveWorldContext(campaignPath);
@@ -570,10 +576,10 @@ export async function invalidateRelations(
   try {
     await conn.run(
       `UPDATE relations SET invalid_at = ?
-       WHERE from_entity = ? AND to_entity = ? AND label = ?
+       WHERE from_entity = ? AND to_entity = ?
          AND invalid_at IS NULL
          AND (campaign_id IS NULL OR campaign_id = ?)`,
-      [invalidAt, fromId, toId, label, ctx.campaignId],
+      [invalidAt, fromId, toId, ctx.campaignId],
     );
   } finally {
     conn.closeSync();
