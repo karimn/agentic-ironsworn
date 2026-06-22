@@ -1,10 +1,12 @@
 // Reproducible extraction eval. Reads committed fixtures, runs the shipping
 // pipeline at temperature 0 into a throwaway DB, scores vs golden.yaml, and
-// diffs baseline.json.
+// reports aggregate stats over EVAL_RUNS runs (default 5) to handle
+// extractor non-determinism.
 //
 //   ANTHROPIC_API_KEY=... bun run eval:extraction
+//   EVAL_RUNS=3 ANTHROPIC_API_KEY=... bun run eval:extraction
 //
-// Accepting a change: copy the printed scorecard into baseline.json and commit.
+// Accepting a change: copy the printed aggregate JSON into baseline.json and commit.
 
 import { mkdtemp, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -19,11 +21,11 @@ import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extracti
 import { exportLore } from "../src/rag/lore.js";
 import { getWorldEmbedding } from "../src/rag/world-db.js";
 import { scoreExtraction, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
+import { aggregateScorecards, type AggregateScorecard } from "./aggregate.js";
 import type { SerializedScene } from "./scene-record.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = join(here, "fixtures");
-const BASELINE = join(here, "baseline.json");
 
 async function ollamaReachable(): Promise<boolean> {
   try {
@@ -43,23 +45,57 @@ function fmt(n: number): string {
   return n.toFixed(2);
 }
 
-function printScorecard(s: Scorecard, base: Scorecard | null): void {
-  const delta = (cur: number, b: number | undefined): string =>
-    b === undefined ? "" : `  (baseline ${fmt(b)}  ${cur - b >= 0 ? "+" : ""}${fmt(cur - b)})`;
-  console.log("Extraction eval scorecard");
-  console.log(`  entity precision  ${fmt(s.entity.precision)}${delta(s.entity.precision, base?.entity.precision)}`);
-  console.log(`  entity recall     ${fmt(s.entity.recall)}${delta(s.entity.recall, base?.entity.recall)}`);
-  console.log(`  entity F1         ${fmt(s.entity.f1)}${delta(s.entity.f1, base?.entity.f1)}`);
-  console.log(`  type accuracy     ${fmt(s.entity.typeAccuracy)}${delta(s.entity.typeAccuracy, base?.entity.typeAccuracy)}`);
-  console.log(`  relation precision ${fmt(s.relation.precision)}${delta(s.relation.precision, base?.relation.precision)}`);
-  console.log(`  relation recall   ${fmt(s.relation.recall)}${delta(s.relation.recall, base?.relation.recall)}`);
-  console.log(`  relation F1       ${fmt(s.relation.f1)}${delta(s.relation.f1, base?.relation.f1)}`);
-  console.log(`  relation labelAcc ${fmt(s.relation.labelAccuracy)}${delta(s.relation.labelAccuracy, base?.relation.labelAccuracy)}`);
-  console.log(`  dedup             ${fmt(s.dedup.score)}${delta(s.dedup.score, base?.dedup.score)}`);
-  console.log(`  temporal          ${s.temporal.correct}/${s.temporal.total}`);
+async function runOnce(
+  scenes: SerializedScene[],
+  golden: GoldenSet,
+  extractor: ReturnType<typeof _makeDefaultExtractor>,
+): Promise<Scorecard> {
+  const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
+  let failed = 0;
+  for (const sc of scenes) {
+    const id = await recordScene(dir, sc.text, sc.kind, undefined, sc.beats);
+    try {
+      await extractLoreFromScene(dir, id, { extractor });
+    } catch (e) {
+      failed++;
+      console.warn(`Extraction failed for scene ${id}: ${(e as Error).message}`);
+    }
+  }
+  if (failed > 0) console.warn(`${failed} of ${scenes.length} scenes failed extraction.`);
+
+  const { entities, relations } = await exportLore(dir);
+  const idToCanon = new Map(entities.map((e) => [e.id, e.canonical]));
+  const actual: ActualState = {
+    entities: entities.map((e) => ({ canonical: e.canonical, type: e.type, aliases: e.aliases })),
+    relations: relations.map((r) => ({
+      from: idToCanon.get(r.from_id) ?? r.from_id,
+      to: idToCanon.get(r.to_id) ?? r.to_id,
+      label: r.relation,
+      invalidated: r.invalid_at !== null,
+    })),
+  };
+  return scoreExtraction(actual, golden, getWorldEmbedding);
+}
+
+function band(s: { median: number; min: number; max: number }): string {
+  return `${fmt(s.median)}  [${fmt(s.min)}–${fmt(s.max)}]`;
+}
+
+function printAggregate(a: AggregateScorecard): void {
+  console.log(`Extraction eval — aggregate over ${a.runs} runs (median [min–max])`);
+  console.log(`  entity precision  ${band(a.entity.precision)}`);
+  console.log(`  entity recall     ${band(a.entity.recall)}`);
+  console.log(`  entity F1         ${band(a.entity.f1)}`);
+  console.log(`  type accuracy     ${band(a.entity.typeAccuracy)}`);
+  console.log(`  relation precision ${band(a.relation.precision)}`);
+  console.log(`  relation recall   ${band(a.relation.recall)}`);
+  console.log(`  relation F1       ${band(a.relation.f1)}`);
+  console.log(`  relation labelAcc ${band(a.relation.labelAccuracy)}`);
+  console.log(`  dedup             ${band(a.dedup.score)}`);
+  console.log(`  temporal          passRate ${fmt(a.temporal.passRate)} (meanCorrect ${fmt(a.temporal.meanCorrect)}/${a.temporal.total})`);
   console.log("");
-  console.log("Scorecard JSON (copy into baseline.json to accept):");
-  console.log(JSON.stringify(s, null, 2));
+  console.log("Aggregate JSON (copy into baseline.json to accept):");
+  console.log(JSON.stringify(a, null, 2));
 }
 
 async function main(): Promise<void> {
@@ -83,42 +119,23 @@ async function main(): Promise<void> {
     .map((l) => JSON.parse(l) as SerializedScene);
   const golden = parse(await readFile(join(FIXTURES, "golden.yaml"), "utf8")) as GoldenSet;
 
-  const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
+  const RUNS = Number(process.env["EVAL_RUNS"] ?? "5");
   const extractor = _makeDefaultExtractor(
     new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] }) as unknown as AnthropicLike,
     { temperature: 0 },
   );
-  let failed = 0;
-  for (const sc of scenes) {
-    const id = await recordScene(dir, sc.text, sc.kind, undefined, sc.beats);
-    try {
-      await extractLoreFromScene(dir, id, { extractor });
-    } catch (e) {
-      // One scene the LLM returns unparseable output for must not abort the
-      // whole eval. It contributes nothing — scored as the extraction gap it is.
-      failed++;
-      console.warn(`Extraction failed for scene ${id}: ${(e as Error).message}`);
-    }
+
+  const cards: Scorecard[] = [];
+  for (let i = 0; i < RUNS; i++) {
+    console.log(`--- run ${i + 1}/${RUNS} ---`);
+    const c = await runOnce(scenes, golden, extractor);
+    console.log(
+      `  entity F1 ${fmt(c.entity.f1)}  dedup ${fmt(c.dedup.score)}  temporal ${c.temporal.correct}/${c.temporal.total}`,
+    );
+    cards.push(c);
   }
-  if (failed > 0) console.warn(`${failed} of ${scenes.length} scenes failed extraction.`);
 
-  const { entities, relations } = await exportLore(dir);
-  const idToCanon = new Map(entities.map((e) => [e.id, e.canonical]));
-  const actual: ActualState = {
-    entities: entities.map((e) => ({ canonical: e.canonical, type: e.type, aliases: e.aliases })),
-    relations: relations.map((r) => ({
-      from: idToCanon.get(r.from_id) ?? r.from_id,
-      to: idToCanon.get(r.to_id) ?? r.to_id,
-      label: r.relation,
-      invalidated: r.invalid_at !== null,
-    })),
-  };
-
-  const scorecard = await scoreExtraction(actual, golden, getWorldEmbedding);
-  const base: Scorecard | null = existsSync(BASELINE)
-    ? (JSON.parse(await readFile(BASELINE, "utf8")) as Scorecard)
-    : null;
-  printScorecard(scorecard, base);
+  printAggregate(aggregateScorecards(cards));
 }
 
 main().catch((e) => {
