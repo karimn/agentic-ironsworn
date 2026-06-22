@@ -242,7 +242,7 @@ describe("extractLoreFromScene — idempotency", () => {
 });
 
 describe("extractLoreFromScene — confidence threshold", () => {
-  it("low-confidence entity is upserted with needs_review=true", async () => {
+  it("drops a low-confidence entity instead of inserting it", async () => {
     if (!(await ollamaAvailable())) return;
 
     const { recordScene, exportScenes } = await import("./scenes.js");
@@ -268,13 +268,10 @@ describe("extractLoreFromScene — confidence threshold", () => {
       extractor: makeStubExtractor(stubResult),
     });
 
-    // Entity is still created, just flagged
-    expect(report.entities_created).toBe(1);
-    expect(report.skipped).toBe(0);
-
-    const entity = await getLore(campaignDir, "Shadowy Figure");
-    expect(entity).not.toBeNull();
-    expect(entity!.metadata["needs_review"]).toBe(true);
+    // Entity is dropped, not created or flagged.
+    expect(report.entities_created).toBe(0);
+    expect(report.skipped).toBe(1);
+    expect(await getLore(campaignDir, "Shadowy Figure")).toBeNull();
   });
 
   it("low-confidence relation is skipped entirely", async () => {
