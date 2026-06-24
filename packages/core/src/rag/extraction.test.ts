@@ -508,6 +508,144 @@ describe("_makeDefaultExtractor — options", () => {
   });
 });
 
+describe("_makeDefaultExtractor — current-relations context", () => {
+  it("renders each existing entity's current relations into the prompt", async () => {
+    let capturedArgs: Record<string, unknown> | undefined;
+    const fakeClient = {
+      messages: {
+        create: async (args: Record<string, unknown>) => {
+          capturedArgs = args;
+          return {
+            content: [{ type: "text", text: '{"entities":[],"relations":[]}' }],
+          };
+        },
+      },
+    };
+
+    const extractor = _makeDefaultExtractor(fakeClient as never);
+    await extractor("The council banished Caldren from Holtfen.", [
+      {
+        id: "e1",
+        slug: "caldren",
+        canonical: "Caldren",
+        type: "person",
+        summary: "Caldren is the warden captain of Holtfen Settlement.",
+        score: 0.9,
+        relations: [{ relation: "LOCATED_IN", to: "Holtfen Settlement" }],
+      },
+    ]);
+
+    expect(capturedArgs).toBeDefined();
+    const messages = capturedArgs!["messages"] as { content: string }[];
+    const prompt = messages[0]!.content;
+    // The current relation must be rendered as a compound endpoint token so the
+    // model can both recognize the prior state AND reuse the exact canonical
+    // names. (The label alone already appears in the rules; assert the arrow.)
+    expect(prompt).toContain("LOCATED_IN->Holtfen Settlement");
+  });
+
+  it("omits the current-relations annotation when an entity has none", async () => {
+    let capturedArgs: Record<string, unknown> | undefined;
+    const fakeClient = {
+      messages: {
+        create: async (args: Record<string, unknown>) => {
+          capturedArgs = args;
+          return {
+            content: [{ type: "text", text: '{"entities":[],"relations":[]}' }],
+          };
+        },
+      },
+    };
+
+    const extractor = _makeDefaultExtractor(fakeClient as never);
+    await extractor("A new figure appears.", [
+      {
+        id: "e1",
+        slug: "caldren",
+        canonical: "Caldren",
+        type: "person",
+        summary: "Caldren is a warden.",
+        score: 0.9,
+        relations: [],
+      },
+    ]);
+
+    const messages = capturedArgs!["messages"] as { content: string }[];
+    const prompt = messages[0]!.content;
+    // No relation arrow noise for relation-less entities.
+    expect(prompt).not.toContain("->");
+  });
+});
+
+describe("extractLoreFromScene — enriches extractor context with current relations", () => {
+  it("passes each existing entity's current outgoing relations to the extractor", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { recordScene, exportScenes } = await import("./scenes.js");
+
+    // Seed Caldren --LOCATED_IN--> Holtfen via a first extraction.
+    const scene1 = await recordScene(
+      campaignDir,
+      "Caldren is the warden captain of Holtfen Settlement.",
+    );
+    await extractLoreFromScene(campaignDir, scene1, {
+      extractor: makeStubExtractor({
+        entities: [
+          {
+            canonical: "Caldren",
+            type: "person",
+            summary: "Caldren is the warden captain of Holtfen Settlement.",
+            aliases: [],
+            excerpt: "Caldren is the warden captain",
+            confidence: 0.95,
+          },
+          {
+            canonical: "Holtfen Settlement",
+            type: "place",
+            summary: "Holtfen Settlement is a fortified village.",
+            aliases: ["Holtfen"],
+            excerpt: "Holtfen Settlement",
+            confidence: 0.95,
+          },
+        ],
+        relations: [
+          {
+            from: "Caldren",
+            to: "Holtfen Settlement",
+            relation: "LOCATED_IN",
+            excerpt: "of Holtfen Settlement",
+            confidence: 0.95,
+          },
+        ],
+      }),
+    });
+
+    // Second scene: capture what context the extractor receives.
+    await recordScene(
+      campaignDir,
+      "The council debates Caldren's fate in Holtfen Settlement.",
+    );
+    const scenes = await exportScenes(campaignDir);
+    const scene2 = scenes[scenes.length - 1]!.id;
+
+    let capturedExisting: import("./lore.js").LoreSearchHit[] = [];
+    const capturing: Extractor = async (_text, existing) => {
+      capturedExisting = existing;
+      return { entities: [], relations: [] };
+    };
+    await extractLoreFromScene(campaignDir, scene2, { extractor: capturing });
+
+    const caldrenHit = capturedExisting.find((e) => e.canonical === "Caldren");
+    expect(caldrenHit).toBeDefined();
+    expect(caldrenHit!.relations).toBeDefined();
+    expect(
+      caldrenHit!.relations!.some(
+        (r) => r.relation === "LOCATED_IN" && r.to === "Holtfen Settlement",
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("extractLoreFromScene — temporal supersession (endpoint-primary)", () => {
   it("invalidates all prior relations on a from→to pair when a later relation supersedes, regardless of label", async () => {
     if (!(await ollamaAvailable())) return;

@@ -416,6 +416,13 @@ export interface LoreSearchHit {
   type: LoreType;
   summary: string;
   score: number;
+  /**
+   * Current (non-invalidated) outgoing relations, as `{ relation, to-canonical }`.
+   * Optional: only the extraction path populates it (via
+   * `getCurrentOutgoingRelations`) so the extractor can see what state already
+   * holds and reliably flag supersession. `to` is the resolved canonical name.
+   */
+  relations?: { relation: string; to: string }[];
 }
 
 export async function searchLore(
@@ -480,6 +487,46 @@ export async function searchLore(
       score: typeof row["score"] === "number" ? row["score"]
         : typeof row["score"] === "bigint" ? Number(row["score"]) : Number.NaN,
     }));
+  } finally {
+    conn.closeSync();
+  }
+}
+
+/**
+ * Batch-fetch the current (non-invalidated) outgoing relations for a set of
+ * entity ids, keyed by from-entity id. `to` is the resolved canonical name of
+ * the target entity. Used by the extraction path to show the LLM what state
+ * already holds, so it can flag supersession reliably and reuse exact names.
+ */
+export async function getCurrentOutgoingRelations(
+  campaignPath: string,
+  ids: string[],
+): Promise<Map<string, { relation: string; to: string }[]>> {
+  const out = new Map<string, { relation: string; to: string }[]>();
+  if (ids.length === 0) return out;
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await instance.connect();
+  try {
+    const placeholders = ids.map(() => "?").join(", ");
+    const result = await conn.runAndReadAll(
+      `SELECT r.from_entity AS from_id, r.label AS relation, e.canonical AS to_canonical
+       FROM relations r
+       JOIN entities e ON e.id = r.to_entity AND (e.campaign_id IS NULL OR e.campaign_id = ?)
+       WHERE r.from_entity IN (${placeholders})
+         AND r.invalid_at IS NULL
+         AND (r.campaign_id IS NULL OR r.campaign_id = ?)`,
+      [ctx.campaignId, ...ids, ctx.campaignId],
+    );
+    for (const row of result.getRowObjectsJS() as Record<string, unknown>[]) {
+      const fromId = String(row["from_id"]);
+      const list = out.get(fromId) ?? out.set(fromId, []).get(fromId)!;
+      list.push({
+        relation: String(row["relation"]),
+        to: String(row["to_canonical"]),
+      });
+    }
+    return out;
   } finally {
     conn.closeSync();
   }

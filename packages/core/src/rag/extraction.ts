@@ -6,6 +6,7 @@ import {
   linkLore,
   invalidateRelations,
   getLore,
+  getCurrentOutgoingRelations,
   LORE_TYPES,
   type LoreType,
   type LoreSearchHit,
@@ -154,7 +155,18 @@ export async function extractLoreFromScene(
 
   const sceneText = buildSceneText(scene);
   const existingEntities = await searchLore(campaignPath, buildEmbedText(scene), 10);
-  const result = await extractor(sceneText, existingEntities);
+  // Enrich each candidate with its CURRENT relations so the extractor can see
+  // what state already holds — this is what lets it reliably flag supersession
+  // (e.g. a banishment ending a prior LOCATED_IN) and reuse exact canonical names.
+  const relMap = await getCurrentOutgoingRelations(
+    campaignPath,
+    existingEntities.map((e) => e.id),
+  );
+  const enrichedEntities: LoreSearchHit[] = existingEntities.map((e) => ({
+    ...e,
+    relations: relMap.get(e.id) ?? [],
+  }));
+  const result = await extractor(sceneText, enrichedEntities);
 
   const report: ExtractionReport = {
     scene_id: sceneId,
@@ -298,13 +310,21 @@ export function _makeDefaultExtractor(
     const existingContext =
       existingEntities.length > 0
         ? existingEntities
-            .map((e) => `${e.id}|${e.canonical}|${e.type}|${e.summary}`)
+            .map((e) => {
+              const rels =
+                e.relations && e.relations.length > 0
+                  ? ` :: current: ${e.relations
+                      .map((r) => `${r.relation}->${r.to}`)
+                      .join(", ")}`
+                  : "";
+              return `${e.id}|${e.canonical}|${e.type}|${e.summary}${rels}`;
+            })
             .join("\n")
         : "(none)";
 
     const userPrompt =
       `Scene text:\n${sceneText}\n\n` +
-      `Existing lore entities (id|canonical|type|summary):\n${existingContext}\n\n` +
+      `Existing lore entities (id|canonical|type|summary :: current relations):\n${existingContext}\n\n` +
       `Extract only what is newly established or explicitly changed in this scene.\n\n` +
       `ENTITY RULES:\n` +
       `- canonical: specific noun phrase, ≤5 words (e.g. "Ashfen Market Quarter" not "the market")\n` +
@@ -324,6 +344,10 @@ export function _makeDefaultExtractor(
       `- notes: one self-contained sentence elaborating the relation\n` +
       `- supersedes: true ONLY when this relation explicitly replaces a prior known state\n` +
       `  (a title stripped, an alliance broken, a location changed); false otherwise\n` +
+      `- IMPORTANT: when the scene ends or changes a state shown in an existing entity's\n` +
+      `  "current:" relations (e.g. a LOCATED_IN/HOLDS_TITLE ended by banishment, exile,\n` +
+      `  death, or a move), emit the new relation with supersedes:true and reuse the SAME\n` +
+      `  from/to canonical names shown there, so the prior fact is found and invalidated\n` +
       `- Do NOT extract: player character as from-entity unless a new named relationship is\n` +
       `  established, generic spatial relations ("X is in the room"), duplicate relations\n` +
       `  already present in existing entities\n\n` +
