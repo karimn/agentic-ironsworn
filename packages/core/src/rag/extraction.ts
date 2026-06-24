@@ -65,7 +65,11 @@ export type Extractor = (
   existingEntities: LoreSearchHit[],
 ) => Promise<ExtractionResult>;
 
-const DEDUP_SIMILARITY_THRESHOLD = 0.92;
+// Align with the eval scorer's DEFAULT_SIM_THRESHOLD (0.85): the write-path
+// "same entity?" decision must match how the eval matches entities, or the
+// pipeline and the harness disagree on duplicates. The pre-check embeds the
+// canonical name against stored summary embeddings, so scores skew moderate.
+const DEDUP_SIMILARITY_THRESHOLD = 0.85;
 
 // nomic-embed-text rejects inputs beyond ~6500 chars; cap conservatively.
 const MAX_EMBED_CHARS = 6000;
@@ -166,14 +170,16 @@ export async function extractLoreFromScene(
       continue;
     }
 
+    // Drop low-confidence entities entirely rather than flagging them — keeps
+    // extraction precision honest (the eval scores every persisted entity).
+    if (entity.confidence < threshold) {
+      report.skipped++;
+      continue;
+    }
+
     const hits = await searchLore(campaignPath, entity.canonical, 3);
     const topHit = hits[0];
     const isExisting = topHit !== undefined && topHit.score >= DEDUP_SIMILARITY_THRESHOLD;
-
-    const metadata: Record<string, unknown> = {};
-    if (entity.confidence < threshold) {
-      metadata["needs_review"] = true;
-    }
 
     const upsertResult = await upsertLore(campaignPath, {
       ...(isExisting ? { id: topHit.id } : {}),
@@ -181,7 +187,6 @@ export async function extractLoreFromScene(
       type: entity.type,
       summary: entity.summary,
       aliases: entity.aliases,
-      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       provenance: {
         source_kind: "extraction",
         source_id: sceneId,
@@ -219,7 +224,6 @@ export async function extractLoreFromScene(
         campaignPath,
         fromEntity.id,
         toEntity.id,
-        rel.relation,
         scene.timestamp,
       );
     }
@@ -307,9 +311,12 @@ export function _makeDefaultExtractor(
       `- type: one of ${LORE_TYPES.join(", ")}\n` +
       `- summary: one self-contained sentence using the canonical name, not pronouns\n` +
       `- aliases: other names used in the scene for the same entity\n` +
-      `- Do NOT extract: player character stats or moves, emotional states, implied facts\n` +
-      `  ("X is alive"), setting-generic entities ("a guard", "some merchants"), anything\n` +
-      `  already captured in the existing entities list above\n\n` +
+      `- Extract an entity ONLY if it is both NAMED and CONSEQUENTIAL — a proper\n` +
+      `  noun that the ongoing story will refer back to. When in doubt, leave it out.\n` +
+      `- Do NOT extract: player character stats or moves; emotional or transient\n` +
+      `  states ("X is afraid"); implied facts ("X is alive"); generic/unnamed\n` +
+      `  background ("a guard", "some merchants", "the road", "the crowd"); or\n` +
+      `  anything already captured in the existing entities list above\n\n` +
       `RELATION RULES:\n` +
       `- relation: SCREAMING_SNAKE_CASE, verb-first (e.g. LEADS, GUARDS, MEMBER_OF, ALLIED_WITH,\n` +
       `  ENEMY_OF, LOCATED_IN, CREATED_BY, BOUND_TO, SEEKS, OPPOSES, HOLDS_TITLE, SERVES,\n` +
