@@ -43,6 +43,47 @@ async function insertEntity(
   );
 }
 
+// Insert stub entity rows so FK-adjacent queries can join them.
+async function insertStubEntities(
+  conn: Awaited<ReturnType<typeof openWorldWriteConn>>,
+  campaignId: string,
+  ids: [string, string][],  // [id, slug] pairs
+): Promise<void> {
+  const emb = [1.0, ...Array(767).fill(0.0)];
+  const embLiteral = `[${emb.join(",")}]::FLOAT[768]`;
+  const now = new Date().toISOString();
+  for (const [eid, slug] of ids) {
+    await conn.run(
+      `INSERT INTO entities
+         (id, slug, canonical, aliases, type, summary, content, metadata, embedding,
+          campaign_id, created_in_campaign, created_at, updated_at)
+       VALUES (?, ?, ?, [], 'person', 'stub', '{}', '{}', ${embLiteral}, ?, ?, ?, ?)`,
+      [eid, slug, slug, campaignId, campaignId, now, now],
+    );
+  }
+}
+
+// Insert a relation row directly.
+async function insertRelation(
+  conn: Awaited<ReturnType<typeof openWorldWriteConn>>,
+  opts: {
+    id: string;
+    fromId: string;
+    toId: string;
+    label: string;
+    campaignId: string;
+    invalidAt?: string;
+  },
+): Promise<void> {
+  const now = new Date().toISOString();
+  await conn.run(
+    `INSERT INTO relations
+       (id, from_entity, to_entity, label, notes, metadata, campaign_id, valid_at, invalid_at, created_at)
+     VALUES (?, ?, ?, ?, NULL, '{}', ?, NULL, ?, ?)`,
+    [opts.id, opts.fromId, opts.toId, opts.label, opts.campaignId, opts.invalidAt ?? null, now],
+  );
+}
+
 describe("checkEntityContradiction", () => {
   it("returns a flag when new summary embedding is orthogonal to existing (sim ≈ 0)", async () => {
     const ctx = await resolveWorldContext(campaignDir);
@@ -103,6 +144,86 @@ describe("checkEntityContradiction", () => {
         existingSummary: "A healer in Caldren",
         incomingSummary: "A healer in Caldren (expanded)",
         campaignId: ctx.campaignId,
+      });
+
+      expect(flag).toBeNull();
+    } finally {
+      conn.closeSync();
+    }
+  });
+});
+
+describe("checkRelationContradiction", () => {
+  it("returns a flag when an active A→B relation with a different label exists", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    try {
+      const fromId = crypto.randomUUID();
+      const toId = crypto.randomUUID();
+      const existingRelId = crypto.randomUUID();
+      const newRelId = crypto.randomUUID();
+
+      await insertStubEntities(conn, ctx.campaignId, [[fromId, "from-a"], [toId, "to-a"]]);
+      await insertRelation(conn, {
+        id: existingRelId, fromId, toId, label: "ENEMY_OF", campaignId: ctx.campaignId,
+      });
+
+      const flag = await checkRelationContradiction(conn, {
+        fromId, toId, newLabel: "ALLY_OF", newRelationId: newRelId, campaignId: ctx.campaignId,
+      });
+
+      expect(flag).not.toBeNull();
+      expect(flag!.kind).toBe("relation_label_conflict");
+      expect(flag!.relation_id).toBe(newRelId);
+      expect(flag!.conflicting_relation_id).toBe(existingRelId);
+      expect(flag!.existing_value).toBe("ENEMY_OF");
+      expect(flag!.incoming_value).toBe("ALLY_OF");
+      expect(flag!.id).toBeDefined();
+    } finally {
+      conn.closeSync();
+    }
+  });
+
+  it("returns null when the only existing A→B relation is already invalidated", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    try {
+      const fromId = crypto.randomUUID();
+      const toId = crypto.randomUUID();
+      await insertStubEntities(conn, ctx.campaignId, [[fromId, "from-b"], [toId, "to-b"]]);
+      await insertRelation(conn, {
+        id: crypto.randomUUID(), fromId, toId, label: "HOLDS_TITLE",
+        campaignId: ctx.campaignId, invalidAt: new Date().toISOString(),
+      });
+
+      const flag = await checkRelationContradiction(conn, {
+        fromId, toId, newLabel: "BANISHED_FROM",
+        newRelationId: crypto.randomUUID(), campaignId: ctx.campaignId,
+      });
+
+      expect(flag).toBeNull();
+    } finally {
+      conn.closeSync();
+    }
+  });
+
+  it("returns null when the only existing A→B relation has the same label (defensive case)", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    try {
+      const fromId = crypto.randomUUID();
+      const toId = crypto.randomUUID();
+      await insertStubEntities(conn, ctx.campaignId, [[fromId, "from-c"], [toId, "to-c"]]);
+      await insertRelation(conn, {
+        id: crypto.randomUUID(), fromId, toId, label: "ALLY_OF", campaignId: ctx.campaignId,
+      });
+
+      const flag = await checkRelationContradiction(conn, {
+        fromId, toId, newLabel: "ALLY_OF",
+        newRelationId: crypto.randomUUID(), campaignId: ctx.campaignId,
       });
 
       expect(flag).toBeNull();
