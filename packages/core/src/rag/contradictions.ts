@@ -1,4 +1,6 @@
 import { DuckDBInstance } from "@duckdb/node-api";
+import { resolveWorldContext } from "../world.js";
+import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 
 export interface ContradictionFlag {
   id: string;
@@ -133,19 +135,65 @@ export async function checkRelationContradiction(
   return firstFlag;
 }
 
-/** @todo Task 4: list open contradictions for a campaign */
-export async function listContradictions(
-  _conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
-  _campaignId: string,
-): Promise<ContradictionFlag[]> {
-  throw new Error("Not implemented — Task 4");
+function rowToFlag(row: Record<string, unknown>): ContradictionFlag {
+  return {
+    id: String(row["id"]),
+    kind: String(row["kind"]) as ContradictionFlag["kind"],
+    entity_id: row["entity_id"] != null ? String(row["entity_id"]) : undefined,
+    relation_id: row["relation_id"] != null ? String(row["relation_id"]) : undefined,
+    conflicting_relation_id: row["conflicting_relation_id"] != null
+      ? String(row["conflicting_relation_id"]) : undefined,
+    existing_value: String(row["existing_value"]),
+    incoming_value: String(row["incoming_value"]),
+    similarity: row["similarity"] != null ? Number(row["similarity"]) : undefined,
+    campaign_id: row["campaign_id"] != null ? String(row["campaign_id"]) : null,
+    created_at: String(row["created_at"]),
+    resolved_at: row["resolved_at"] != null ? String(row["resolved_at"]) : undefined,
+    resolution: row["resolution"] != null ? String(row["resolution"]) : undefined,
+  };
 }
 
-/** @todo Task 4: mark a contradiction as resolved */
+export async function listContradictions(
+  campaignPath: string,
+  opts?: { includeResolved?: boolean; limit?: number },
+): Promise<ContradictionFlag[]> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await instance.connect();
+  try {
+    const limit = opts?.limit ?? 20;
+    const resolvedClause = (opts?.includeResolved ?? false) ? "" : "AND resolved_at IS NULL";
+    const result = await conn.runAndReadAll(
+      `SELECT id, kind, entity_id, relation_id, conflicting_relation_id,
+              existing_value, incoming_value, similarity, campaign_id,
+              created_at, resolved_at, resolution
+       FROM contradictions
+       WHERE campaign_id = ? ${resolvedClause}
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      [ctx.campaignId, limit],
+    );
+    return (result.getRowObjectsJS() as Record<string, unknown>[]).map(rowToFlag);
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function resolveContradiction(
-  _conn: Awaited<ReturnType<DuckDBInstance["connect"]>>,
-  _id: string,
-  _resolution: string,
+  campaignPath: string,
+  id: string,
+  resolution?: string,
 ): Promise<void> {
-  throw new Error("Not implemented — Task 4");
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await openWorldWriteConn(instance);
+  try {
+    const now = new Date().toISOString();
+    await conn.run(
+      `UPDATE contradictions SET resolved_at = ?, resolution = ? WHERE id = ?`,
+      [now, resolution ?? null, id],
+    );
+  } finally {
+    conn.closeSync();
+  }
 }

@@ -232,3 +232,64 @@ describe("checkRelationContradiction", () => {
     }
   });
 });
+
+describe("listContradictions + resolveContradiction", () => {
+  it("listContradictions returns open flags and excludes resolved by default", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    const openId = crypto.randomUUID();
+    const resolvedId = crypto.randomUUID();
+    try {
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO contradictions
+           (id, kind, existing_value, incoming_value, campaign_id, created_at)
+         VALUES (?, 'relation_label_conflict', 'A', 'B', ?, ?)`,
+        [openId, ctx.campaignId, now],
+      );
+      await conn.run(
+        `INSERT INTO contradictions
+           (id, kind, existing_value, incoming_value, campaign_id, created_at, resolved_at, resolution)
+         VALUES (?, 'entity_summary_divergence', 'C', 'D', ?, ?, ?, 'confirmed coexistence')`,
+        [resolvedId, ctx.campaignId, now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const openFlags = await listContradictions(campaignDir);
+    expect(openFlags.length).toBe(1);
+    expect(openFlags[0].id).toBe(openId);
+    expect(openFlags[0].resolved_at).toBeUndefined();
+
+    const allFlags = await listContradictions(campaignDir, { includeResolved: true });
+    expect(allFlags.length).toBe(2);
+  });
+
+  it("resolveContradiction sets resolved_at and resolution on the row", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    const flagId = crypto.randomUUID();
+    try {
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO contradictions
+           (id, kind, existing_value, incoming_value, campaign_id, created_at)
+         VALUES (?, 'relation_label_conflict', 'X', 'Y', ?, ?)`,
+        [flagId, ctx.campaignId, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    await resolveContradiction(campaignDir, flagId, "facts coexist — ally and student simultaneously");
+
+    const all = await listContradictions(campaignDir, { includeResolved: true });
+    const flag = all.find((f) => f.id === flagId);
+    expect(flag).toBeDefined();
+    expect(flag!.resolved_at).toBeDefined();
+    expect(flag!.resolution).toBe("facts coexist — ally and student simultaneously");
+  });
+});
