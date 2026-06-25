@@ -17,4 +17,32 @@ export const WORLD_MIGRATIONS: DbMigration[] = [
       );
     },
   },
+  {
+    version: 2,
+    description: "add contradictions table for write-time conflict surfacing",
+    async up(conn) {
+      await conn.run(`
+        CREATE TABLE IF NOT EXISTS contradictions (
+          id                      TEXT PRIMARY KEY,
+          kind                    TEXT NOT NULL,
+          entity_id               TEXT,
+          relation_id             TEXT,
+          conflicting_relation_id TEXT,
+          existing_value          TEXT NOT NULL,
+          incoming_value          TEXT NOT NULL,
+          similarity              REAL,
+          campaign_id             TEXT,
+          created_at              TEXT NOT NULL,
+          resolved_at             TEXT,
+          resolution              TEXT
+        )
+      `);
+      await conn.run(
+        `CREATE INDEX IF NOT EXISTS contradictions_campaign_id_idx ON contradictions (campaign_id)`,
+      );
+      await conn.run(
+        `CREATE INDEX IF NOT EXISTS contradictions_entity_id_idx ON contradictions (entity_id)`,
+      );
+    },
+  },
 ];

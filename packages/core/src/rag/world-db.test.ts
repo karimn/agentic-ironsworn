@@ -426,3 +426,47 @@ describe("getWorldDb", () => {
     expect(msg).toContain(DEFAULT_EMBEDDING_PIN.model);
   });
 });
+
+// ---------------------------------------------------------------------------
+// initDb — contradictions table
+// ---------------------------------------------------------------------------
+
+describe("initDb — contradictions table", () => {
+  let campaignDir: string;
+
+  beforeEach(async () => {
+    campaignDir = await mkdtemp(join(tmpdir(), "world-contradiction-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(campaignDir, { recursive: true, force: true });
+  });
+
+  it("creates the contradictions table on fresh DB init", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await instance.connect();
+    try {
+      const result = await conn.runAndReadAll(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name = 'contradictions' ORDER BY column_name`,
+      );
+      const cols = (result.getRowObjectsJS() as Record<string, unknown>[])
+        .map((r) => String(r["column_name"]));
+      expect(cols).toContain("id");
+      expect(cols).toContain("kind");
+      expect(cols).toContain("entity_id");
+      expect(cols).toContain("relation_id");
+      expect(cols).toContain("conflicting_relation_id");
+      expect(cols).toContain("existing_value");
+      expect(cols).toContain("incoming_value");
+      expect(cols).toContain("similarity");
+      expect(cols).toContain("campaign_id");
+      expect(cols).toContain("created_at");
+      expect(cols).toContain("resolved_at");
+      expect(cols).toContain("resolution");
+    } finally {
+      conn.closeSync();
+    }
+  });
+});
