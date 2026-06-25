@@ -39,7 +39,8 @@ export async function checkEntityContradiction(
 ): Promise<ContradictionFlag | null> {
   const embLiteral = `[${input.newEmbedding.join(",")}]::FLOAT[768]`;
   const simResult = await conn.runAndReadAll(
-    `SELECT array_cosine_similarity(embedding, ${embLiteral}) AS similarity
+    `SELECT array_cosine_similarity(embedding, ${embLiteral}) AS similarity,
+            campaign_id
      FROM entities WHERE id = ?`,
     [input.entityId],
   );
@@ -54,13 +55,14 @@ export async function checkEntityContradiction(
 
   if (Number.isNaN(similarity) || similarity >= ENTITY_CONTRADICTION_THRESHOLD) return null;
 
+  const flagCampaignId = rows[0]["campaign_id"] != null ? String(rows[0]["campaign_id"]) : null;
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await conn.run(
     `INSERT INTO contradictions
        (id, kind, entity_id, existing_value, incoming_value, similarity, campaign_id, created_at)
      VALUES (?, 'entity_summary_divergence', ?, ?, ?, ?, ?, ?)`,
-    [id, input.entityId, input.existingSummary, input.incomingSummary, similarity, input.campaignId, now],
+    [id, input.entityId, input.existingSummary, input.incomingSummary, similarity, flagCampaignId, now],
   );
   return {
     id,
@@ -69,7 +71,7 @@ export async function checkEntityContradiction(
     existing_value: input.existingSummary,
     incoming_value: input.incomingSummary,
     similarity,
-    campaign_id: input.campaignId,
+    campaign_id: flagCampaignId,
     created_at: now,
   };
 }
@@ -96,7 +98,7 @@ export async function checkRelationContradiction(
   },
 ): Promise<ContradictionFlag | null> {
   const result = await conn.runAndReadAll(
-    `SELECT id, label FROM relations
+    `SELECT id, label, campaign_id FROM relations
      WHERE from_entity = ? AND to_entity = ? AND label != ?
        AND invalid_at IS NULL
        AND (campaign_id IS NULL OR campaign_id = ?)`,
@@ -111,12 +113,13 @@ export async function checkRelationContradiction(
   for (const row of rows) {
     const conflictingId = String(row["id"]);
     const conflictingLabel = String(row["label"]);
+    const flagCampaignId = row["campaign_id"] != null ? String(row["campaign_id"]) : null;
     const id = crypto.randomUUID();
     await conn.run(
       `INSERT INTO contradictions
          (id, kind, relation_id, conflicting_relation_id, existing_value, incoming_value, campaign_id, created_at)
        VALUES (?, 'relation_label_conflict', ?, ?, ?, ?, ?, ?)`,
-      [id, input.newRelationId, conflictingId, conflictingLabel, input.newLabel, input.campaignId, now],
+      [id, input.newRelationId, conflictingId, conflictingLabel, input.newLabel, flagCampaignId, now],
     );
     if (firstFlag === null) {
       firstFlag = {
@@ -126,7 +129,7 @@ export async function checkRelationContradiction(
         conflicting_relation_id: conflictingId,
         existing_value: conflictingLabel,
         incoming_value: input.newLabel,
-        campaign_id: input.campaignId,
+        campaign_id: flagCampaignId,
         created_at: now,
       };
     }
@@ -168,7 +171,7 @@ export async function listContradictions(
               existing_value, incoming_value, similarity, campaign_id,
               created_at, resolved_at, resolution
        FROM contradictions
-       WHERE campaign_id = ? ${resolvedClause}
+       WHERE (campaign_id = ? OR campaign_id IS NULL) ${resolvedClause}
        ORDER BY created_at DESC
        LIMIT ?`,
       [ctx.campaignId, limit],
