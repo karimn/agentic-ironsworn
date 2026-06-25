@@ -70,25 +70,37 @@ Treat single-run metric deltas **under ~0.1** (relation, dedup) as noise, not
 signal. A real regression or improvement moves a metric's median well outside
 that band across multiple runs.
 
-## Current baseline (EVAL_RUNS=5, 2026-06-22)
+## Current baseline (EVAL_RUNS=10, 2026-06-24)
 
 ```
-entity precision  0.67  [0.63–0.71]
-entity recall     0.78  [0.69–0.84]
-entity F1         0.71  [0.66–0.77]
-type accuracy     0.80  [0.73–0.83]
-relation precision 0.39  [0.32–0.53]
-relation recall   0.17  [0.13–0.33]
-relation F1       0.22  [0.19–0.41]
-relation labelAcc 0.55  [0.44–0.64]
-dedup             0.63  [0.43–0.87]
-temporal          passRate 0.20 (meanCorrect 0.40/2)
+entity precision  0.69  [0.62–0.77]
+entity recall     0.74  [0.71–0.78]
+entity F1         0.72  [0.67–0.77]
+type accuracy     0.81  [0.76–0.90]
+relation precision 0.31  [0.25–0.39]
+relation recall   0.15  [0.10–0.26]
+relation F1       0.20  [0.14–0.31]
+relation labelAcc 0.39  [0.30–0.67]
+dedup             0.60  [0.43–0.72]
+temporal          passRate 0.50 (meanCorrect 1.00/2)
 ```
 
-The temporal `passRate` of **0.20** reflects that the Caldren supersedes arc is
-detected in roughly 1 of 5 runs — the `establishing` relation is flakily
-extracted and the harness now measures this honestly rather than treating a
-single-run binary as a gate.
+The temporal `passRate` of **0.50** (up from 0.20) reflects the Caldren
+supersedes arc now landing in ~half of runs. The fix fed each existing entity's
+**current relations** into the extractor context (`getCurrentOutgoingRelations`)
+so the model can see a prior `LOCATED_IN`/`HOLDS_TITLE` state and reliably mark a
+banishment as `supersedes`, instead of guessing the flag blind. The earlier
+diagnosis — flaky *recall* of the establishing relation — was wrong: in
+isolation the establishing relation and the banishment both emit reliably; the
+gate was the `supersedes` boolean, which the extractor had no basis to set.
+
+The remaining ~0.5 miss rate is irreducible LLM non-determinism (occasional
+malformed-JSON scenes, residual `Holtfen`/`Holtfen Settlement` canonicalization
+drift). Trade-off: the supersedes/name-reuse prompting raised temporal and
+entity precision but drifted **relation precision (0.39→0.31)** and
+**labelAccuracy (0.55→0.39)** down — the model now emits more
+supersession/varied-label relations. Relation F1 stays within noise; relation
+quality was explicitly out of scope for this pass.
 
 ## Accepting a new baseline
 
