@@ -40,6 +40,16 @@ export type { EmbeddingPin, WorldJson } from "./world.js";
 export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, canonizeEntity, decanonizeEntity, canonizeRelation, decanonizeRelation, LORE_TYPES } from "./rag/lore.js";
 export type { LoreType, ProvenanceInput, ProvenanceEntry, LoreRelation, LoreEntity, LinkLoreInput, UpsertLoreInput, UpsertLoreResult, LoreSearchHit, LoreGraph, LoreEntityExport, LoreRelationExport } from "./rag/lore.js";
 
+// RAG — contradictions
+export {
+  checkEntityContradiction,
+  checkRelationContradiction,
+  listContradictions,
+  resolveContradiction,
+  ENTITY_CONTRADICTION_THRESHOLD,
+} from "./rag/contradictions.js";
+export type { ContradictionFlag } from "./rag/contradictions.js";
+
 // RAG — scenes
 export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs, exportSceneEntityRefs } from "./rag/scenes.js";
 export type { Scene, BeatInput, Beat, BeatSearchResult, BeatExport, SceneExport, RecentSceneSummary, ComplicationScene, BeatKind, SceneEntityRefExport } from "./rag/scenes.js";
