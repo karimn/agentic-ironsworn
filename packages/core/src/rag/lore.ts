@@ -6,6 +6,7 @@ import {
   peekWorldDb,
   getWorldEmbedding,
 } from "./world-db.js";
+import { checkEntityContradiction, type ContradictionFlag } from "./contradictions.js";
 
 export const LORE_TYPES = [
   "place",
@@ -96,6 +97,7 @@ export interface UpsertLoreResult {
   canonical: string;
   aliases: string[];
   updated: boolean;
+  contradiction?: ContradictionFlag;
 }
 
 export function slugify(text: string): string {
@@ -188,7 +190,7 @@ async function resolveExisting(
   needle: string,
   campaignId: string,
   includeSiblings = false,
-): Promise<{ id: string; slug: string; canonical: string; aliases: string[]; metadata: string; campaign_id: string | null } | null> {
+): Promise<{ id: string; slug: string; canonical: string; aliases: string[]; summary: string; metadata: string; campaign_id: string | null } | null> {
   const needleLower = needle.toLowerCase();
   const vis = visibilityClause(includeSiblings);
   const params: (string | null)[] = [needleLower, needleLower, needleLower, needleLower];
@@ -196,7 +198,7 @@ async function resolveExisting(
     // visibility clause has ONE `?` for campaign_id — we need it 4 times (once per OR arm)
     // We use a CTE approach: pass campaignId once at the end and reference in the predicate
     const result = await conn.runAndReadAll(
-      `SELECT id, slug, canonical, aliases, metadata, campaign_id
+      `SELECT id, slug, canonical, aliases, summary, metadata, campaign_id
        FROM entities
        WHERE ${vis}
          AND (lower(id::TEXT) = ? OR lower(canonical) = ? OR lower(slug) = ?
@@ -212,12 +214,13 @@ async function resolveExisting(
       slug: String(r["slug"] ?? ""),
       canonical: String(r["canonical"]),
       aliases: Array.isArray(r["aliases"]) ? (r["aliases"] as unknown[]).map(String) : [],
+      summary: String(r["summary"] ?? ""),
       metadata: typeof r["metadata"] === "string" ? r["metadata"] : "{}",
       campaign_id: r["campaign_id"] != null ? String(r["campaign_id"]) : null,
     };
   } else {
     const result = await conn.runAndReadAll(
-      `SELECT id, slug, canonical, aliases, metadata, campaign_id
+      `SELECT id, slug, canonical, aliases, summary, metadata, campaign_id
        FROM entities
        WHERE lower(id::TEXT) = ? OR lower(canonical) = ? OR lower(slug) = ?
               OR EXISTS (SELECT 1 FROM unnest(aliases) AS t(alias) WHERE lower(alias) = ?)
@@ -232,6 +235,7 @@ async function resolveExisting(
       slug: String(r["slug"] ?? ""),
       canonical: String(r["canonical"]),
       aliases: Array.isArray(r["aliases"]) ? (r["aliases"] as unknown[]).map(String) : [],
+      summary: String(r["summary"] ?? ""),
       metadata: typeof r["metadata"] === "string" ? r["metadata"] : "{}",
       campaign_id: r["campaign_id"] != null ? String(r["campaign_id"]) : null,
     };
@@ -281,7 +285,7 @@ export async function upsertLore(
       if (looksLikeUuid(input.id)) {
         // Case 1: UUID PK lookup
         const r = await conn.runAndReadAll(
-          `SELECT id, slug, canonical, aliases, metadata, campaign_id
+          `SELECT id, slug, canonical, aliases, summary, metadata, campaign_id
            FROM entities WHERE id = ?`,
           [input.id],
         );
@@ -293,6 +297,7 @@ export async function upsertLore(
             slug: String(row["slug"] ?? ""),
             canonical: String(row["canonical"]),
             aliases: Array.isArray(row["aliases"]) ? (row["aliases"] as unknown[]).map(String) : [],
+            summary: String(row["summary"] ?? ""),
             metadata: typeof row["metadata"] === "string" ? row["metadata"] : "{}",
             campaign_id: row["campaign_id"] != null ? String(row["campaign_id"]) : null,
           };
@@ -381,7 +386,19 @@ export async function upsertLore(
 
     const aliasesLiteral = `[${mergedAliases.map((a) => `'${a.replace(/'/g, "''")}'`).join(",")}]::TEXT[]`;
 
+    let contradiction: ContradictionFlag | undefined;
+
     if (existingRow !== null) {
+      // Check BEFORE overwriting the stored embedding — similarity must compare old vs new.
+      const flag = await checkEntityContradiction(conn, {
+        entityId,
+        newEmbedding: embedding,
+        existingSummary: existingRow.summary,
+        incomingSummary: input.summary,
+        campaignId: ctx.campaignId,
+      });
+      contradiction = flag ?? undefined;
+
       // Update — do NOT change campaign_id (canonize is a separate Phase 3 op)
       await conn.run(
         `UPDATE entities SET canonical = ?, slug = ?, aliases = ${aliasesLiteral}, type = ?, summary = ?,
@@ -403,7 +420,7 @@ export async function upsertLore(
       await recordProvenance(conn, "entity", entityId, input.provenance, now);
     }
 
-    return { id: entityId, slug: entitySlug, canonical: input.canonical, aliases: mergedAliases, updated };
+    return { id: entityId, slug: entitySlug, canonical: input.canonical, aliases: mergedAliases, updated, contradiction };
   } finally {
     conn.closeSync();
   }

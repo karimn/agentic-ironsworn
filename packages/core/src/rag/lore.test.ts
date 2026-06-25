@@ -782,6 +782,47 @@ describe("visibility", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Contradiction detection integration tests
+// ---------------------------------------------------------------------------
+
+describe("upsertLore — contradiction detection", () => {
+  it("returns no contradiction flag when updated summary is semantically similar", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    await upsertLore(campaignDir, {
+      canonical: "Elder Voss",
+      type: "person",
+      summary: "Elder Voss is a wise council member in Holtfen, known for fairness.",
+    });
+
+    const result = await upsertLore(campaignDir, {
+      canonical: "Elder Voss",
+      type: "person",
+      summary: "Elder Voss is a wise and respected council member in Holtfen Settlement, known for fair judgment.",
+    });
+
+    expect(result.updated).toBe(true);
+    expect(result.contradiction).toBeUndefined();
+  });
+
+  it("field 'contradiction' is present on UpsertLoreResult type (structural check)", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const result = await upsertLore(campaignDir, {
+      canonical: "Structural Check Entity",
+      type: "concept",
+      summary: "A concept for type-checking purposes.",
+    });
+
+    // TypeScript compiler enforces contradiction?: ContradictionFlag exists on result.
+    // At runtime, it should be undefined on a fresh insert (no existing entity to compare).
+    expect(result.contradiction).toBeUndefined();
+    // Ensure the field is truly optional (not a missing key)
+    expect("contradiction" in result).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Embedding-leakage regression test
 // ---------------------------------------------------------------------------
 
