@@ -6,7 +6,7 @@ import {
   peekWorldDb,
   getWorldEmbedding,
 } from "./world-db.js";
-import { checkEntityContradiction, type ContradictionFlag } from "./contradictions.js";
+import { checkEntityContradiction, checkRelationContradiction, type ContradictionFlag } from "./contradictions.js";
 
 export const LORE_TYPES = [
   "place",
@@ -552,7 +552,7 @@ export async function getCurrentOutgoingRelations(
 export async function linkLore(
   campaignPath: string,
   input: LinkLoreInput,
-): Promise<{ from_id: string; to_id: string; relation: string; relation_id: string }> {
+): Promise<{ from_id: string; to_id: string; relation: string; relation_id: string; contradiction?: ContradictionFlag }> {
   const ctx = await resolveWorldContext(campaignPath);
   const instance = await getWorldDb(ctx);
   const conn = await openWorldWriteConn(instance);
@@ -589,6 +589,7 @@ export async function linkLore(
       : "metadata = relations.metadata";
 
     let relationId: string;
+    let relationContradiction: ContradictionFlag | null = null;
     if (existingRows.length > 0) {
       relationId = String(existingRows[0]["id"]);
       // Update notes/metadata on conflict
@@ -609,12 +610,25 @@ export async function linkLore(
         [relationId, fromId, toId, input.relation, input.notes ?? null, metadataJson, relationCampaignId,
          input.valid_at ?? null, input.invalid_at ?? null, now],
       );
+      relationContradiction = await checkRelationContradiction(conn, {
+        fromId,
+        toId,
+        newLabel: input.relation,
+        newRelationId: relationId,
+        campaignId: ctx.campaignId,
+      });
     }
 
     if (!input._skipRecordingProvenance) {
       await recordProvenance(conn, "relation", relationId, input.provenance, now);
     }
-    return { from_id: fromId, to_id: toId, relation: input.relation, relation_id: relationId };
+    return {
+      from_id: fromId,
+      to_id: toId,
+      relation: input.relation,
+      relation_id: relationId,
+      ...(relationContradiction !== null && { contradiction: relationContradiction }),
+    };
   } finally {
     conn.closeSync();
   }
