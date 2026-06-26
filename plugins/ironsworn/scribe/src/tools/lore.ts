@@ -32,6 +32,10 @@ import {
   type ProximityDimension,
 } from "@agentic-rpg/core";
 import { recordMutation } from "@agentic-rpg/core";
+import {
+  listContradictions,
+  resolveContradiction,
+} from "@agentic-rpg/core";
 
 export function register(server: McpServer, campaignPath: string): void {
   const provenanceSchema = z
@@ -516,6 +520,52 @@ export function register(server: McpServer, campaignPath: string): void {
           dimension as ProximityDimension,
         );
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "list_contradictions",
+    "List open (unresolved) contradiction flags raised at write time. Call before canonize to see what needs adjudication.",
+    {
+      include_resolved: z.boolean().optional()
+        .describe("Include already-resolved flags (default false)"),
+      limit: z.coerce.number().int().min(1).max(100).optional()
+        .describe("Max results 1–100 (default 20)"),
+    },
+    async ({ include_resolved, limit }) => {
+      try {
+        const flags = await listContradictions(campaignPath, {
+          includeResolved: include_resolved ?? false,
+          limit: limit ?? 20,
+        });
+        return { content: [{ type: "text", text: JSON.stringify(flags) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "resolve_contradiction",
+    "Mark a contradiction flag as resolved. Call after adjudicating — e.g. after canonizing the correct version or confirming the two facts genuinely coexist.",
+    {
+      id: z.string().describe("UUID of the contradiction flag"),
+      resolution: z.string().optional()
+        .describe("Optional note on how it was resolved"),
+    },
+    async ({ id, resolution }) => {
+      try {
+        await resolveContradiction(campaignPath, id, resolution);
+        return { content: [{ type: "text", text: JSON.stringify({ ok: true, id }) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
