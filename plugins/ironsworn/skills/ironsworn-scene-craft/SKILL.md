@@ -58,7 +58,7 @@ Before the first sentence:
 1. `recall` for the place and any faces on stage. Returns entities + their recent scenes + community summaries in one call. Pass `near: { entity: "<place-id>" }` to restrict to entities connected to this place.
 2. `list_threads` (k=3–5) — pick one to surface as visible tension.
 
-Never invent against the lore graph. If recall returns nothing, you may invent — then `upsert_entity` so the next scene matches.
+Never invent against the lore graph. If recall returns nothing, you may invent — then record the new entity in that same `record_beat` call (in `entities`) so the next scene matches.
 
 Record the canon a beat establishes **on the beat** — `record_beat` with `entities` and `relations`, reusing exact grounded names. Don't leave relations for later extraction.
 
