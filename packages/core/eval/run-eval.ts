@@ -20,13 +20,15 @@ import { recordScene } from "../src/rag/scenes.js";
 import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extraction.js";
 import { exportLore } from "../src/rag/lore.js";
 import { getWorldEmbedding } from "../src/rag/world-db.js";
-import { scoreExtraction, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
+import { scoreExtraction, matchEntities, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
 import { aggregateScorecards, type AggregateScorecard, type MetricStats } from "./aggregate.js";
 import {
   classifyRelationDrops,
   aggregateRelationDrops,
+  entityRecallByType,
   type EmittedRelation,
   type RelationDropBreakdown,
+  type TypeRecall,
 } from "./diagnostics.js";
 import type { SerializedScene } from "./scene-record.js";
 
@@ -59,7 +61,12 @@ async function runOnce(
   scenes: SerializedScene[],
   golden: GoldenSet,
   extractor: ReturnType<typeof _makeDefaultExtractor>,
-): Promise<{ card: Scorecard; drops: RelationDropBreakdown }> {
+): Promise<{
+  card: Scorecard;
+  drops: RelationDropBreakdown;
+  typeRecall: TypeRecall[];
+  missedGolden: string[];
+}> {
   const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
 
   // Capture every relation the extractor EMITTED (raw, pre-filter) so we can
@@ -101,8 +108,14 @@ async function runOnce(
   const persistedNames = entities.flatMap((e) => [e.canonical, ...e.aliases]);
   const drops = classifyRelationDrops(emitted, persistedNames, CONF_THRESHOLD);
 
+  // Which golden entities were missed, and per-type recall — relations depend on
+  // abstract entity types (thread/event/concept/truth) being extracted at all.
+  const matching = await matchEntities(actual.entities, golden.entities, getWorldEmbedding);
+  const typeRecall = entityRecallByType(golden.entities, matching.unmatchedGolden);
+  const missedGolden = matching.unmatchedGolden.map((g) => `${g.canonical} (${g.type})`);
+
   const card = await scoreExtraction(actual, golden, getWorldEmbedding);
-  return { card, drops };
+  return { card, drops, typeRecall, missedGolden };
 }
 
 function band(s: MetricStats): string {
@@ -148,6 +161,21 @@ function printRelationDrops(d: RelationDropBreakdown, runs: number): void {
   }
 }
 
+// Per-type entity recall (worst first) + the specific golden entities missed in
+// the final run. Relations connect abstract entity types, so a type the
+// extractor under-produces caps the relation recall built on it.
+function printEntityRecallByType(rows: TypeRecall[], missed: string[]): void {
+  console.log("");
+  console.log("Entity recall by golden type (final run, worst first)");
+  for (const r of rows) {
+    console.log(`  ${r.type.padEnd(9)} ${fmt(r.recall)}  (${r.matched}/${r.total})`);
+  }
+  if (missed.length > 0) {
+    console.log(`  missed golden entities (${missed.length}):`);
+    for (const m of missed) console.log(`    ${m}`);
+  }
+}
+
 async function main(): Promise<void> {
   if (!process.env["ANTHROPIC_API_KEY"]) {
     console.error("Eval needs ANTHROPIC_API_KEY (the shipping extractor calls the real LLM).");
@@ -177,21 +205,26 @@ async function main(): Promise<void> {
 
   const cards: Scorecard[] = [];
   const drops: RelationDropBreakdown[] = [];
+  let lastTypeRecall: TypeRecall[] = [];
+  let lastMissed: string[] = [];
   for (let i = 0; i < RUNS; i++) {
     console.log(`--- run ${i + 1}/${RUNS} ---`);
-    const { card, drops: d } = await runOnce(scenes, golden, extractor);
+    const { card, drops: d, typeRecall, missedGolden } = await runOnce(scenes, golden, extractor);
     console.log(
-      `  entity F1 ${fmt(card.entity.f1)}  dedup ${fmt(card.dedup.score)}  temporal ${card.temporal.correct}/${card.temporal.total}`,
+      `  entity F1 ${fmt(card.entity.f1)}  recall ${fmt(card.entity.recall)}  dedup ${fmt(card.dedup.score)}  temporal ${card.temporal.correct}/${card.temporal.total}`,
     );
     console.log(
       `  relations: ${d.emitted} emitted → ${d.survived} survived, ${d.droppedLowConfidence} low-conf, ${d.droppedEndpointUnresolved} unresolved`,
     );
     cards.push(card);
     drops.push(d);
+    lastTypeRecall = typeRecall;
+    lastMissed = missedGolden;
   }
 
   printAggregate(aggregateScorecards(cards));
   printRelationDrops(aggregateRelationDrops(drops), RUNS);
+  printEntityRecallByType(lastTypeRecall, lastMissed);
 }
 
 main().catch((e) => {

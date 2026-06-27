@@ -83,6 +83,34 @@ export function classifyRelationDrops(
   };
 }
 
+export interface TypeRecall {
+  type: string;
+  matched: number;
+  total: number;
+  recall: number;
+}
+
+// Per-type entity recall, worst-recall type first. Relations connect abstract
+// entities (threads/events/concepts/truths), so a type the extractor misses
+// silently caps the relation recall that depends on it — this surfaces which
+// types to target in the extraction prompt.
+export function entityRecallByType(
+  allGolden: { type: string }[],
+  unmatchedGolden: { type: string }[],
+): TypeRecall[] {
+  const total = new Map<string, number>();
+  for (const g of allGolden) total.set(g.type, (total.get(g.type) ?? 0) + 1);
+  const missed = new Map<string, number>();
+  for (const g of unmatchedGolden) missed.set(g.type, (missed.get(g.type) ?? 0) + 1);
+
+  return [...total.entries()]
+    .map(([type, t]) => {
+      const matched = t - (missed.get(type) ?? 0);
+      return { type, matched, total: t, recall: t === 0 ? 0 : matched / t };
+    })
+    .sort((a, b) => a.recall - b.recall || a.type.localeCompare(b.type));
+}
+
 export function aggregateRelationDrops(
   runs: RelationDropBreakdown[],
 ): RelationDropBreakdown {

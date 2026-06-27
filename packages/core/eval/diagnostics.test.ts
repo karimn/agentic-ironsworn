@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import {
   classifyRelationDrops,
   aggregateRelationDrops,
+  entityRecallByType,
   type RelationDropBreakdown,
 } from "./diagnostics.js";
 
@@ -139,5 +140,36 @@ describe("aggregateRelationDrops", () => {
     const a = aggregateRelationDrops([]);
     expect(a.emitted).toBe(0);
     expect(a.unresolvedEndpoints).toEqual([]);
+  });
+});
+
+describe("entityRecallByType", () => {
+  it("computes matched/total/recall per golden type", () => {
+    const allGolden = [
+      { type: "person" },
+      { type: "person" },
+      { type: "thread" },
+      { type: "thread" },
+      { type: "event" },
+    ];
+    // one person and both threads were missed
+    const unmatched = [{ type: "person" }, { type: "thread" }, { type: "thread" }];
+    const rows = entityRecallByType(allGolden, unmatched);
+    const byType = Object.fromEntries(rows.map((r) => [r.type, r]));
+    expect(byType["person"]).toEqual({ type: "person", matched: 1, total: 2, recall: 0.5 });
+    expect(byType["thread"]).toEqual({ type: "thread", matched: 0, total: 2, recall: 0 });
+    expect(byType["event"]).toEqual({ type: "event", matched: 1, total: 1, recall: 1 });
+  });
+
+  it("sorts rows by recall ascending (worst types first)", () => {
+    const allGolden = [{ type: "person" }, { type: "thread" }, { type: "event" }];
+    const unmatched = [{ type: "thread" }];
+    const rows = entityRecallByType(allGolden, unmatched);
+    expect(rows[0]!.type).toBe("thread"); // recall 0, surfaced first
+    expect(rows[0]!.recall).toBe(0);
+  });
+
+  it("returns an empty list when there are no golden entities", () => {
+    expect(entityRecallByType([], [])).toEqual([]);
   });
 });

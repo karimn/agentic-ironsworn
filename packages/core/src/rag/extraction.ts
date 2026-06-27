@@ -331,8 +331,20 @@ export function _makeDefaultExtractor(
       `- type: one of ${LORE_TYPES.join(", ")}\n` +
       `- summary: one self-contained sentence using the canonical name, not pronouns\n` +
       `- aliases: other names used in the scene for the same entity\n` +
-      `- Extract an entity ONLY if it is both NAMED and CONSEQUENTIAL — a proper\n` +
-      `  noun that the ongoing story will refer back to. When in doubt, leave it out.\n` +
+      `- Extract an entity if it is CONSEQUENTIAL — the ongoing story will refer\n` +
+      `  back to it. Cover ALL these kinds, not just people and places:\n` +
+      `    person / creature: named individuals\n` +
+      `    place: named locations\n` +
+      `    faction: named groups, orders, or networks (e.g. "The Eld", "Anchor Network")\n` +
+      `    material: significant objects, relics, or tokens (e.g. "Iron Map", "Bone Token")\n` +
+      `    event: a discrete happening the story treats as a landmark — a fire, a duel,\n` +
+      `      a banishment, a vow fulfilled (e.g. "Root-Cellar Fire", "Caldren's Circle Duel")\n` +
+      `    thread: a vow, quest, or obligation a character is pursuing or holds\n` +
+      `      (e.g. "Find a New Colony", "Caldren's Wardenship", "Lona's Captaincy")\n` +
+      `    concept / truth: a named phenomenon, force, lineage, debt, or world-fact\n` +
+      `      (e.g. "The Answering", "Mai's Sword-Line", "Harvest Debt")\n` +
+      `  A consequential vow, event, faction, or named phenomenon counts EVEN WHEN it is\n` +
+      `  not a classic proper noun — give it a specific canonical name drawn from the scene.\n` +
       `- Do NOT extract: player character stats or moves; emotional or transient\n` +
       `  states ("X is afraid"); implied facts ("X is alive"); generic/unnamed\n` +
       `  background ("a guard", "some merchants", "the road", "the crowd"); or\n` +
