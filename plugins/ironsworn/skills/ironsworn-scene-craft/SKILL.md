@@ -29,8 +29,8 @@ A scene has a place, a moment, a stake, and an exit. This skill is the operation
 
 | Tool | When |
 |---|---|
-| `search_lore_global` | Before framing — anchor place, faces, threads (Fiction Grounding #103) |
-| `search_lore` / `get_npc` | Resolve a named place or NPC the scene needs |
+| `recall` | Before framing — grounding dossier: entities + scenes + communities (Fiction Grounding #103) |
+| `search_lore` | Targeted lookup: name-collision check, type filter, resolving a specific ID |
 | `list_threads` | Pick an open thread to surface as visible tension |
 | `search_scenes` | Sanity-check tone/sensory choices against prior scenes (continuity) |
 | `search_rules` | Re-pull rule text whenever this skill is invoked second-hand |
@@ -55,11 +55,10 @@ If the moment is a transition or montage, defer to `ironsworn-pacing` *before* f
 
 Before the first sentence:
 
-1. `search_lore_global` for the place. Prior detail is canon — match it.
-2. `search_lore` / `get_npc` for any face on stage.
-3. `list_threads` (k=3–5) — pick one to surface as visible tension.
+1. `recall` for the place and any faces on stage. Returns entities + their recent scenes + community summaries in one call. Pass `near: { entity: "<place-id>" }` to restrict to entities connected to this place.
+2. `list_threads` (k=3–5) — pick one to surface as visible tension.
 
-Never invent against the lore graph. If search returns nothing, you may invent — then `upsert_lore` so the next scene matches.
+Never invent against the lore graph. If recall returns nothing, you may invent — then `upsert_entity` so the next scene matches.
 
 ---
 
@@ -105,7 +104,7 @@ End on **one** of: a **question** (explicit or implicit), an **image** that reso
 
 ## Common Mistakes
 
-- **Skipping Fiction Grounding.** `search_lore_global` first, always.
+- **Skipping Fiction Grounding.** `recall` first, always.
 - **Five sensory details instead of three.** The fourth blunts the first three.
 - **Sight-only descriptions.** Smell, sound, and temperature do more work per word.
 - **Opening without a visible stake.** That's stage dressing.
