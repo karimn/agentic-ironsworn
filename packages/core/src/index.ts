@@ -40,6 +40,10 @@ export type { EmbeddingPin, WorldJson } from "./world.js";
 export { slugify, recordProvenance, upsertLore, searchLore, linkLore, getLoreGraph, getLore, listProvenance, exportLore, exportProvenance, replayProvenance, checkpointLore, canonizeEntity, decanonizeEntity, canonizeRelation, decanonizeRelation, LORE_TYPES } from "./rag/lore.js";
 export type { LoreType, ProvenanceInput, ProvenanceEntry, LoreRelation, LoreEntity, LinkLoreInput, UpsertLoreInput, UpsertLoreResult, LoreSearchHit, LoreGraph, LoreEntityExport, LoreRelationExport } from "./rag/lore.js";
 
+// RAG — recall (unified grounding dossier)
+export { recall } from "./rag/recall.js";
+export type { NearFilter, RecallOptions, RecallScene, RecallEntity, RecallCommunity, RecallResult } from "./rag/recall.js";
+
 // RAG — contradictions
 export {
   checkEntityContradiction,
