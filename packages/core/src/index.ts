@@ -82,6 +82,9 @@ export {
   type BeatCanonResult,
 } from "./rag/beat-canon.js";
 
+// RAG — graph health
+export { fragmentationClusters, relationCoverage } from "./rag/graph-health.js";
+
 // Checkpoint
 export { startPeriodicCheckpoint, recordMutation } from "./checkpoint.js";
 
