@@ -76,9 +76,15 @@ export async function recordBeatCanon(
     const fromEntity = await getLore(campaignPath, r.from);
     const toEntity = await getLore(campaignPath, r.to);
     if (fromEntity === null || toEntity === null) {
-      const missing = fromEntity === null ? r.from : r.to;
+      const missing = [
+        fromEntity === null ? r.from : null,
+        toEntity === null ? r.to : null,
+      ]
+        .filter(Boolean)
+        .map((name) => `"${name}"`)
+        .join(" and ");
       result.skipped.push(
-        `relation ${r.from} -[${r.label}]-> ${r.to}: "${missing}" not found — ground it or add it to entities`,
+        `relation ${r.from} -[${r.label}]-> ${r.to}: ${missing} not found — ground it or add it to entities`,
       );
       continue;
     }

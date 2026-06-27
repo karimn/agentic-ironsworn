@@ -2,11 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 import { recordBeat as _defaultRecordBeat } from "./scenes.js";
 import type { BeatInput } from "./scenes.js";
-import { recordBeatCanon } from "./beat-canon.js";
+import { recordBeatCanon as _defaultRecordBeatCanon } from "./beat-canon.js";
+import type { BeatEntity, BeatRelation, BeatCanonResult } from "./beat-canon.js";
 
 type RecordBeatFn = (campaignPath: string, sceneId: string, beat: BeatInput) => Promise<number>;
+type RecordBeatCanonFn = (campaignPath: string, sceneId: string, entities: BeatEntity[] | undefined, relations: BeatRelation[] | undefined) => Promise<BeatCanonResult>;
 
 let _recordBeat: RecordBeatFn = _defaultRecordBeat;
+let _recordBeatCanon: RecordBeatCanonFn = _defaultRecordBeatCanon;
 
 export function _setRecordBeatFn(fn: RecordBeatFn): void {
   _recordBeat = fn;
@@ -14,6 +17,14 @@ export function _setRecordBeatFn(fn: RecordBeatFn): void {
 
 export function _resetRecordBeatFn(): void {
   _recordBeat = _defaultRecordBeat;
+}
+
+export function _setRecordBeatCanonFn(fn: RecordBeatCanonFn): void {
+  _recordBeatCanon = fn;
+}
+
+export function _resetRecordBeatCanonFn(): void {
+  _recordBeatCanon = _defaultRecordBeatCanon;
 }
 
 export interface BeatQueueEntry {
@@ -132,16 +143,10 @@ async function _runWorker(campaignPath: string): Promise<void> {
 
   while (queue.length > 0) {
     const entry = queue[0]!;
+    let beatWriteOk = false;
     try {
       entry.beatIndex = await _recordBeat(campaignPath, entry.sceneId, entry.beat);
-      const { entities, relations } = entry.beat;
-      if ((entities && entities.length > 0) || (relations && relations.length > 0)) {
-        const canon = await recordBeatCanon(campaignPath, entry.sceneId, entities, relations);
-        for (const skip of canon.skipped) {
-          _queueNotice(campaignPath, `[core] beat canon skipped: ${skip}`);
-        }
-      }
-      entry._resolve();
+      beatWriteOk = true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const sidecarOk = _appendSidecar(campaignPath, entry);
@@ -151,7 +156,33 @@ async function _runWorker(campaignPath: string): Promise<void> {
       _queueNotice(campaignPath, `[core] beat write failed for scene ${entry.sceneId}: ${msg}. ${noticeDetail}`);
       process.stderr.write(`[core] beat-queue: failed to persist beat for scene ${entry.sceneId}: ${msg}\n`);
       entry._reject(e);
+      queue.shift();
+      continue;
     }
+
+    if (beatWriteOk) {
+      // Canon write is a best-effort enrichment step. A failure here must NOT
+      // replay the beat (which is already durably stored), so it gets its own
+      // isolated try/catch that queues a notice and still resolves the entry.
+      const { entities, relations } = entry.beat;
+      if ((entities && entities.length > 0) || (relations && relations.length > 0)) {
+        try {
+          const canon = await _recordBeatCanon(campaignPath, entry.sceneId, entities, relations);
+          for (const skip of canon.skipped) {
+            _queueNotice(campaignPath, `[core] beat canon skipped: ${skip}`);
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          _queueNotice(
+            campaignPath,
+            `[core] beat canon write failed for scene ${entry.sceneId}: ${msg}. The beat was saved; its structured canon was not.`,
+          );
+          process.stderr.write(`[core] beat-queue: canon write failed for scene ${entry.sceneId}: ${msg}\n`);
+        }
+      }
+      entry._resolve();
+    }
+
     queue.shift();
   }
 

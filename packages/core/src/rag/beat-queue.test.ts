@@ -5,7 +5,7 @@ import * as os from "os";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { pushBeat, drainNotices, replayFailures, shutdown, _setRecordBeatFn, _resetRecordBeatFn } from "./beat-queue.js";
+import { pushBeat, drainNotices, replayFailures, shutdown, _setRecordBeatFn, _resetRecordBeatFn, _setRecordBeatCanonFn, _resetRecordBeatCanonFn } from "./beat-queue.js";
 import { recordScene } from "./scenes.js";
 import { getLore } from "./lore.js";
 
@@ -58,11 +58,13 @@ describe("BeatQueue", () => {
   });
 
   afterEach(() => {
+    _resetRecordBeatCanonFn();
     cleanupTmpDir(campaignPath);
   });
 
   afterAll(() => {
     _resetRecordBeatFn();
+    _resetRecordBeatCanonFn();
   });
 
   describe("worker error recovery", () => {
@@ -338,6 +340,67 @@ describe("BeatQueue", () => {
       expect(mockRecordBeat).toHaveBeenCalledTimes(1);
       expect(mockRecordBeat).toHaveBeenCalledWith(campaignPath, "s1", { kind: "narration", text: "good" });
     });
+  });
+});
+
+describe("BeatQueue — canon failure isolation", () => {
+  let campaignPath: string;
+  let mockRecordBeat: ReturnType<typeof mock<(cp: string, sid: string, beat: unknown) => Promise<number>>>;
+
+  beforeEach(async () => {
+    campaignPath = makeTmpDir();
+    mockRecordBeat = mock(async () => 0);
+    _setRecordBeatFn(mockRecordBeat as unknown as (cp: string, sid: string, beat: import("./scenes.js").BeatInput) => Promise<number>);
+    await shutdown(campaignPath);
+  });
+
+  afterEach(() => {
+    _resetRecordBeatCanonFn();
+    cleanupTmpDir(campaignPath);
+  });
+
+  afterAll(() => {
+    _resetRecordBeatFn();
+    _resetRecordBeatCanonFn();
+  });
+
+  it("resolves settled (beat saved) even when recordBeatCanon throws", async () => {
+    // Beat write succeeds; canon write throws.
+    // The entry MUST resolve (not reject), a notice MUST be queued, and the beat MUST be recorded.
+    mockRecordBeat.mockImplementation(async () => 0);
+    _setRecordBeatCanonFn(async () => { throw new Error("Ollama down"); });
+
+    const entry = await pushBeat(campaignPath, "scene-1", {
+      kind: "narration",
+      text: "Vera guards Stonehaven.",
+      entities: [{ canonical: "Vera", type: "person", summary: "A guard." }],
+      relations: [],
+    });
+
+    // Must resolve — the beat was saved even though canon failed
+    await entry.settled;
+
+    expect(mockRecordBeat).toHaveBeenCalledTimes(1);
+
+    const notices = drainNotices(campaignPath);
+    expect(notices.length).toBeGreaterThan(0);
+    expect(notices.some((n) => n.includes("beat canon write failed") && n.includes("scene-1"))).toBe(true);
+  });
+
+  it("does NOT write a sidecar when only the canon write fails", async () => {
+    // A canon failure must never trigger the beat-replay sidecar
+    mockRecordBeat.mockImplementation(async () => 0);
+    _setRecordBeatCanonFn(async () => { throw new Error("Ollama down"); });
+
+    const entry = await pushBeat(campaignPath, "scene-1", {
+      kind: "narration",
+      text: "canon-only failure",
+      entities: [{ canonical: "X", type: "person", summary: "s" }],
+    });
+    await entry.settled;
+
+    const sidecar = path.join(campaignPath, "beat-failures.jsonl");
+    expect(fs.existsSync(sidecar)).toBe(false);
   });
 });
 
