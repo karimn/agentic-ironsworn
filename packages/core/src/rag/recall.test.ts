@@ -147,4 +147,41 @@ describe("recall", () => {
     expect(ids).toContain(neighborId);
     expect(ids).not.toContain(unrelatedId);
   });
+
+  it("near.entity - canonical name anchor works (no UUID required)", async () => {
+    if (!(await ollamaAvailable())) return;
+    const { linkLore } = await import("./lore.js");
+
+    const { id: anchorId } = await upsertLore(campaignDir, {
+      canonical: "Caldren Village",
+      type: "place",
+      summary: "A settlement in the Hinterlands.",
+    });
+    const { id: neighborId } = await upsertLore(campaignDir, {
+      canonical: "Elder Marn",
+      type: "person",
+      summary: "The elder of Caldren, keeper of the village record.",
+    });
+    const { id: unrelatedId } = await upsertLore(campaignDir, {
+      canonical: "The Sunken Forge",
+      type: "place",
+      summary: "An ancient forge far to the south, no ties to Caldren.",
+    });
+    await linkLore(campaignDir, {
+      from: anchorId,
+      to: neighborId,
+      relation: "governed-by",
+    });
+
+    // Pass the canonical name instead of a UUID — must not throw
+    const result = await recall(campaignDir, "elder keeper village settlement", {
+      near: { entity: "Caldren Village" },
+      limit: 10,
+    });
+
+    const ids = result.entities.map((e) => e.id);
+    // Neighbor must appear; unrelated entity must not
+    expect(ids).toContain(neighborId);
+    expect(ids).not.toContain(unrelatedId);
+  });
 });

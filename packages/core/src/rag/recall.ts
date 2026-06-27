@@ -72,10 +72,12 @@ export async function recall(
       const anchorRows = (
         await conn.runAndReadAll(
           `SELECT id FROM entities
-           WHERE (id = ? OR lower(canonical) = lower(?) OR lower(slug) = lower(?))
+           WHERE (lower(id::TEXT) = lower(?) OR lower(canonical) = lower(?) OR lower(slug) = lower(?)
+                  OR EXISTS (SELECT 1 FROM unnest(aliases) AS t(alias) WHERE lower(alias) = lower(?)))
              AND (campaign_id IS NULL OR campaign_id = ?)
+           ORDER BY (campaign_id IS NOT NULL) DESC
            LIMIT 1`,
-          [anchorRef, anchorRef, anchorRef, ctx.campaignId],
+          [anchorRef, anchorRef, anchorRef, anchorRef, ctx.campaignId],
         )
       ).getRowObjectsJS() as Record<string, unknown>[];
       if (anchorRows.length === 0) {
