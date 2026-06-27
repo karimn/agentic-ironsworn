@@ -12,6 +12,8 @@ import {
   decanonizeRelation,
   LORE_TYPES,
   type LoreType,
+  recall,
+  type RecallOptions,
 } from "@agentic-rpg/core";
 import {
   recomputeCommunities,
@@ -252,6 +254,53 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const results = await searchCommunities(campaignPath, query, k, undefined, { includeSiblings: include_sibling_campaigns ?? false });
         return { content: [{ type: "text", text: JSON.stringify(results) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "recall",
+    [
+      "Unified grounding dossier: one call returns matching entities, their recent scenes, and relevant community summaries.",
+      "Replaces the parallel search_lore + search_lore_global pattern for scene grounding.",
+      "Use this as the first tool call before narrating any scene that introduces or invokes a place, NPC, faction, or past event.",
+      "search_lore and search_lore_global remain available for targeted lookups (entity-resolution checks, name-collision detection).",
+      "Returns { query, entities: [{ id, slug, canonical, type, summary, score, scenes: [{ id, text, timestamp, kind }] }], communities: [{ id, level, summary, score }] }.",
+    ].join(" "),
+    {
+      query: z.string().describe("Search query — what to ground (e.g. 'Caldren village', 'Lona the healer', 'the iron-oath network')"),
+      kind: z.enum(LORE_TYPES).optional().describe("Filter entities to a specific type"),
+      near: z.object({ entity: z.string() }).optional().describe(
+        "Restrict entity results to 1-hop lore-graph neighbors of this entity (id, canonical, or alias)"
+      ),
+      limit: z.coerce.number().int().positive().optional().describe("Max entities to return (default 5)"),
+      scenes_per_entity: z.coerce.number().int().positive().optional().describe(
+        "Max recent scenes per entity (default 2)"
+      ),
+      communities: z.coerce.number().int().positive().optional().describe(
+        "Max community summaries to return (default 3)"
+      ),
+      include_sibling_campaigns: z.boolean().optional().describe(
+        "When true, search across all campaigns in the world (default false)"
+      ),
+    },
+    async ({ query, kind, near, limit, scenes_per_entity, communities, include_sibling_campaigns }) => {
+      try {
+        const opts: RecallOptions = {
+          kind: kind as LoreType | undefined,
+          near: near ? { entity: near.entity } : undefined,
+          limit,
+          scenes_per_entity,
+          communities,
+          include_sibling_campaigns,
+        };
+        const result = await recall(campaignPath, query, opts);
+        return { content: [{ type: "text", text: JSON.stringify(result) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
