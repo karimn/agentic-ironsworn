@@ -66,6 +66,8 @@ async function runOnce(
   drops: RelationDropBreakdown;
   typeRecall: TypeRecall[];
   missedGolden: string[];
+  nearDuplicates: string[];
+  falsePositives: string[];
 }> {
   const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
 
@@ -113,9 +115,17 @@ async function runOnce(
   const matching = await matchEntities(actual.entities, golden.entities, getWorldEmbedding);
   const typeRecall = entityRecallByType(golden.entities, matching.unmatchedGolden);
   const missedGolden = matching.unmatchedGolden.map((g) => `${g.canonical} (${g.type})`);
+  // Near-duplicate actuals (a second extracted entity that collapsed onto an
+  // already-matched golden) — these are what tank the dedup score; seeing the
+  // names tells us whether the fix is lexical (reorderings) or semantic.
+  const nearDuplicates = matching.nearDuplicates.map((e) => `${e.canonical} (${e.type})`);
+  // False positives: extracted entities matching NO golden. The precision metric
+  // counts these as wrong — but golden is a curated subset, so some may be
+  // legitimate-but-uncurated. Dumping them tells us whether precision is fair.
+  const falsePositives = matching.falsePositives.map((e) => `${e.canonical} (${e.type})`);
 
   const card = await scoreExtraction(actual, golden, getWorldEmbedding);
-  return { card, drops, typeRecall, missedGolden };
+  return { card, drops, typeRecall, missedGolden, nearDuplicates, falsePositives };
 }
 
 function band(s: MetricStats): string {
@@ -207,9 +217,11 @@ async function main(): Promise<void> {
   const drops: RelationDropBreakdown[] = [];
   let lastTypeRecall: TypeRecall[] = [];
   let lastMissed: string[] = [];
+  let lastNearDup: string[] = [];
+  let lastFalsePos: string[] = [];
   for (let i = 0; i < RUNS; i++) {
     console.log(`--- run ${i + 1}/${RUNS} ---`);
-    const { card, drops: d, typeRecall, missedGolden } = await runOnce(scenes, golden, extractor);
+    const { card, drops: d, typeRecall, missedGolden, nearDuplicates, falsePositives } = await runOnce(scenes, golden, extractor);
     console.log(
       `  entity F1 ${fmt(card.entity.f1)}  recall ${fmt(card.entity.recall)}  dedup ${fmt(card.dedup.score)}  temporal ${card.temporal.correct}/${card.temporal.total}`,
     );
@@ -220,11 +232,25 @@ async function main(): Promise<void> {
     drops.push(d);
     lastTypeRecall = typeRecall;
     lastMissed = missedGolden;
+    lastNearDup = nearDuplicates;
+    lastFalsePos = falsePositives;
   }
 
   printAggregate(aggregateScorecards(cards));
   printRelationDrops(aggregateRelationDrops(drops), RUNS);
   printEntityRecallByType(lastTypeRecall, lastMissed);
+  if (lastNearDup.length > 0) {
+    console.log("");
+    console.log(`Near-duplicate entities (final run, ${lastNearDup.length}) — collapsed onto`);
+    console.log("an already-matched golden entity; these tank the dedup score:");
+    for (const n of lastNearDup) console.log(`    ${n}`);
+  }
+  if (lastFalsePos.length > 0) {
+    console.log("");
+    console.log(`False-positive entities (final run, ${lastFalsePos.length}) — matched NO golden.`);
+    console.log("Audit: are these genuine junk, or legitimate-but-uncurated canon?");
+    for (const n of lastFalsePos) console.log(`    ${n}`);
+  }
 }
 
 main().catch((e) => {
