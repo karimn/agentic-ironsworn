@@ -74,6 +74,14 @@ export type { ExtractedEntity, ExtractedRelation, ExtractionResult, ExtractionRe
 export { pushBeat, drainNotices, replayFailures, shutdown, _setRecordBeatFn, _resetRecordBeatFn } from "./rag/beat-queue.js";
 export type { BeatQueueEntry } from "./rag/beat-queue.js";
 
+// RAG — beat-canon
+export {
+  recordBeatCanon,
+  type BeatEntity,
+  type BeatRelation,
+  type BeatCanonResult,
+} from "./rag/beat-canon.js";
+
 // Checkpoint
 export { startPeriodicCheckpoint, recordMutation } from "./checkpoint.js";
 

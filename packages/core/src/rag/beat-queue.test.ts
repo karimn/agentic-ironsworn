@@ -2,7 +2,33 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, mock } from "bun
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { pushBeat, drainNotices, replayFailures, shutdown, _setRecordBeatFn, _resetRecordBeatFn } from "./beat-queue.js";
+import { recordScene } from "./scenes.js";
+import { getLore } from "./lore.js";
+
+// ---------------------------------------------------------------------------
+// Ollama availability check (same pattern as extraction.test.ts)
+// ---------------------------------------------------------------------------
+
+let _ollamaReady: boolean | null = null;
+async function ollamaAvailable(): Promise<boolean> {
+  if (_ollamaReady !== null) return _ollamaReady;
+  try {
+    const baseUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+    const res = await fetch(`${baseUrl}/api/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "nomic-embed-text", input: "t" }),
+    });
+    _ollamaReady = res.ok;
+  } catch {
+    _ollamaReady = false;
+  }
+  return _ollamaReady;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -312,5 +338,34 @@ describe("BeatQueue", () => {
       expect(mockRecordBeat).toHaveBeenCalledTimes(1);
       expect(mockRecordBeat).toHaveBeenCalledWith(campaignPath, "s1", { kind: "narration", text: "good" });
     });
+  });
+});
+
+describe("pushBeat — structured canon", () => {
+  it("writes a beat's entities and relations, surfacing skips as notices", async () => {
+    if (!(await ollamaAvailable())) return;
+    const dir = await mkdtemp(join(tmpdir(), "beat-queue-canon-"));
+    const sceneId = await recordScene(dir, "Vera guards Stonehaven; a stranger watches.");
+
+    const entry = await pushBeat(dir, sceneId, {
+      kind: "narration",
+      text: "Vera guards Stonehaven.",
+      entities: [
+        { canonical: "Vera", type: "person", summary: "A guard." },
+        { canonical: "Stonehaven", type: "place", summary: "A settlement." },
+      ],
+      relations: [
+        { from: "Vera", to: "Stonehaven", label: "GUARDS" },
+        { from: "Vera", to: "The Stranger", label: "WATCHED_BY" }, // unresolved → skipped
+      ],
+    });
+    await entry.settled;
+
+    expect(await getLore(dir, "Vera")).not.toBeNull();
+    expect(await getLore(dir, "Stonehaven")).not.toBeNull();
+    const notices = drainNotices(dir);
+    expect(notices.some((n) => n.includes("The Stranger"))).toBe(true);
+
+    await rm(dir, { recursive: true, force: true });
   });
 });

@@ -1,6 +1,7 @@
 import { type DuckDBValue } from "@duckdb/node-api";
 import { resolveWorldContext } from "../world.js";
 import { getWorldDb, openWorldWriteConn, peekWorldDb, getWorldEmbedding } from "./world-db.js";
+import type { BeatEntity, BeatRelation } from "./beat-canon.js";
 
 // NOTE: Local DB plumbing (initDb, getDb, openWriteConn, getEmbedding from old scenes.duckdb)
 // has been removed. All reads/writes now target world.duckdb via getWorldDb(ctx).
@@ -31,6 +32,9 @@ export interface BeatInput {
   speaker?: string;
   text: string;
   metadata?: Record<string, unknown>;
+  // Structured canon this beat establishes (point-of-entry recording).
+  entities?: BeatEntity[];
+  relations?: BeatRelation[];
 }
 
 export interface Beat {

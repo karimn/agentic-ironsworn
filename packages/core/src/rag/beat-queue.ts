@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { recordBeat as _defaultRecordBeat } from "./scenes.js";
 import type { BeatInput } from "./scenes.js";
+import { recordBeatCanon } from "./beat-canon.js";
 
 type RecordBeatFn = (campaignPath: string, sceneId: string, beat: BeatInput) => Promise<number>;
 
@@ -133,6 +134,13 @@ async function _runWorker(campaignPath: string): Promise<void> {
     const entry = queue[0]!;
     try {
       entry.beatIndex = await _recordBeat(campaignPath, entry.sceneId, entry.beat);
+      const { entities, relations } = entry.beat;
+      if ((entities && entities.length > 0) || (relations && relations.length > 0)) {
+        const canon = await recordBeatCanon(campaignPath, entry.sceneId, entities, relations);
+        for (const skip of canon.skipped) {
+          _queueNotice(campaignPath, `[core] beat canon skipped: ${skip}`);
+        }
+      }
       entry._resolve();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
