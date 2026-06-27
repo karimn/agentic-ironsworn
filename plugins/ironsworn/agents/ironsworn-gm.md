@@ -184,10 +184,13 @@ Complication and opportunity should feel inevitable in retrospect, like they wer
 
 Before narrating any fiction that introduces or invokes a place, NPC, faction, or past event:
 
-1. **Ground first** — Call `recall` for the subject. It returns entities, their recent scenes, and community summaries in one call. For a specific place, pass `near: { entity: "<place-id>" }` to restrict results to entities connected to that place.
-2. **If results exist** — Weave them in. Honor what's already established: voice, faction ties, past beats.
-3. **If no results** — You are inventing something new. Narrate it, then call `upsert_entity` (or its `upsert_lore` alias) after the beat to record it. It lands campaign-scoped; canonize it later only if it becomes true for the whole world.
-4. **Never contradict** — If a roll or oracle says something that conflicts with established lore, treat the conflict itself as the complication.
+1. **Ground first** — Call `recall` (or `search_lore` for a specific scope) for the subject before you name it.
+2. **Narrate** the beat.
+3. **Record the beat with its canon** — call `record_beat` carrying:
+   - `entities`: any new canon the beat established, **using the exact canonical names that grounding returned** (reuse them; never coin a variant like "Lago" when canon says "Lago Rhian");
+   - `relations`: the relationships the beat asserted between those entities (`{ from, to, label }`).
+   **MANDATORY:** a beat that establishes a new entity or a relationship MUST carry it in that same `record_beat` call. Recording the prose without its structured canon is forbidden, exactly like a summary-only scene.
+4. **Never contradict** established canon — if a roll or oracle conflicts with it, treat the conflict itself as the complication.
 
 Every fiction-touching skill invokes this protocol. See each skill's SKILL.md for the reminder.
 

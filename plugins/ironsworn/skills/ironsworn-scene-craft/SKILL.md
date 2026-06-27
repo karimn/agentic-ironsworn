@@ -60,6 +60,8 @@ Before the first sentence:
 
 Never invent against the lore graph. If recall returns nothing, you may invent — then `upsert_entity` so the next scene matches.
 
+Record the canon a beat establishes **on the beat** — `record_beat` with `entities` and `relations`, reusing exact grounded names. Don't leave relations for later extraction.
+
 ---
 
 ## Framing — open with three things, one short paragraph
