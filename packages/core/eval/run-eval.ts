@@ -20,9 +20,21 @@ import { recordScene } from "../src/rag/scenes.js";
 import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extraction.js";
 import { exportLore } from "../src/rag/lore.js";
 import { getWorldEmbedding } from "../src/rag/world-db.js";
-import { scoreExtraction, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
+import { scoreExtraction, matchEntities, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
 import { aggregateScorecards, type AggregateScorecard, type MetricStats } from "./aggregate.js";
+import {
+  classifyRelationDrops,
+  aggregateRelationDrops,
+  entityRecallByType,
+  type EmittedRelation,
+  type RelationDropBreakdown,
+  type TypeRecall,
+} from "./diagnostics.js";
 import type { SerializedScene } from "./scene-record.js";
+
+// extractLoreFromScene's default when no confidenceThreshold is passed (and the
+// eval passes none). The drop classifier must use the same value as production.
+const CONF_THRESHOLD = 0.6;
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const FIXTURES = join(here, "fixtures");
@@ -49,13 +61,32 @@ async function runOnce(
   scenes: SerializedScene[],
   golden: GoldenSet,
   extractor: ReturnType<typeof _makeDefaultExtractor>,
-): Promise<Scorecard> {
+): Promise<{
+  card: Scorecard;
+  drops: RelationDropBreakdown;
+  typeRecall: TypeRecall[];
+  missedGolden: string[];
+  nearDuplicates: string[];
+  falsePositives: string[];
+}> {
   const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
+
+  // Capture every relation the extractor EMITTED (raw, pre-filter) so we can
+  // classify what production then dropped. Wrap per-run for a fresh tally.
+  const emitted: EmittedRelation[] = [];
+  const capturing: typeof extractor = async (text, existing) => {
+    const result = await extractor(text, existing);
+    for (const r of result.relations) {
+      emitted.push({ from: r.from, to: r.to, relation: r.relation, confidence: r.confidence });
+    }
+    return result;
+  };
+
   let failed = 0;
   for (const sc of scenes) {
     const id = await recordScene(dir, sc.text, sc.kind, undefined, sc.beats);
     try {
-      await extractLoreFromScene(dir, id, { extractor });
+      await extractLoreFromScene(dir, id, { extractor: capturing });
     } catch (e) {
       failed++;
       console.warn(`Extraction failed for scene ${id}: ${(e as Error).message}`);
@@ -74,7 +105,27 @@ async function runOnce(
       invalidated: r.invalid_at !== null,
     })),
   };
-  return scoreExtraction(actual, golden, getWorldEmbedding);
+
+  // Persisted-name set mirrors getLore's resolution surface (canonical + aliases).
+  const persistedNames = entities.flatMap((e) => [e.canonical, ...e.aliases]);
+  const drops = classifyRelationDrops(emitted, persistedNames, CONF_THRESHOLD);
+
+  // Which golden entities were missed, and per-type recall — relations depend on
+  // abstract entity types (thread/event/concept/truth) being extracted at all.
+  const matching = await matchEntities(actual.entities, golden.entities, getWorldEmbedding);
+  const typeRecall = entityRecallByType(golden.entities, matching.unmatchedGolden);
+  const missedGolden = matching.unmatchedGolden.map((g) => `${g.canonical} (${g.type})`);
+  // Near-duplicate actuals (a second extracted entity that collapsed onto an
+  // already-matched golden) — these are what tank the dedup score; seeing the
+  // names tells us whether the fix is lexical (reorderings) or semantic.
+  const nearDuplicates = matching.nearDuplicates.map((e) => `${e.canonical} (${e.type})`);
+  // False positives: extracted entities matching NO golden. The precision metric
+  // counts these as wrong — but golden is a curated subset, so some may be
+  // legitimate-but-uncurated. Dumping them tells us whether precision is fair.
+  const falsePositives = matching.falsePositives.map((e) => `${e.canonical} (${e.type})`);
+
+  const card = await scoreExtraction(actual, golden, getWorldEmbedding);
+  return { card, drops, typeRecall, missedGolden, nearDuplicates, falsePositives };
 }
 
 function band(s: MetricStats): string {
@@ -96,6 +147,43 @@ function printAggregate(a: AggregateScorecard): void {
   console.log("");
   console.log("Aggregate JSON (copy into baseline.json to accept):");
   console.log(JSON.stringify(a, null, 2));
+}
+
+// Diagnose where emitted relations are lost. Recall failures split into "never
+// emitted" (prompt problem, visible in the scorer's relation recall) vs.
+// "emitted then dropped" (plumbing problem, shown here). Totals are summed
+// across all runs.
+function printRelationDrops(d: RelationDropBreakdown, runs: number): void {
+  const pct = (n: number): string =>
+    d.emitted === 0 ? "  0%" : `${Math.round((100 * n) / d.emitted)}%`.padStart(4);
+  console.log("");
+  console.log(`Relation-drop diagnostics (summed over ${runs} runs)`);
+  console.log(`  emitted by extractor       ${d.emitted}`);
+  console.log(`  survived (would link)      ${d.survived}  (${pct(d.survived)})`);
+  console.log(`  dropped: low confidence    ${d.droppedLowConfidence}  (${pct(d.droppedLowConfidence)})`);
+  console.log(`  dropped: endpoint unresolved ${d.droppedEndpointUnresolved}  (${pct(d.droppedEndpointUnresolved)})`);
+  if (d.unresolvedEndpoints.length > 0) {
+    console.log("  top unresolved endpoint names (extractor named a relation endpoint");
+    console.log("  that never became an entity — name-agreement loss):");
+    for (const e of d.unresolvedEndpoints.slice(0, 15)) {
+      console.log(`    ${String(e.count).padStart(3)}  ${e.name}`);
+    }
+  }
+}
+
+// Per-type entity recall (worst first) + the specific golden entities missed in
+// the final run. Relations connect abstract entity types, so a type the
+// extractor under-produces caps the relation recall built on it.
+function printEntityRecallByType(rows: TypeRecall[], missed: string[]): void {
+  console.log("");
+  console.log("Entity recall by golden type (final run, worst first)");
+  for (const r of rows) {
+    console.log(`  ${r.type.padEnd(9)} ${fmt(r.recall)}  (${r.matched}/${r.total})`);
+  }
+  if (missed.length > 0) {
+    console.log(`  missed golden entities (${missed.length}):`);
+    for (const m of missed) console.log(`    ${m}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -126,16 +214,43 @@ async function main(): Promise<void> {
   );
 
   const cards: Scorecard[] = [];
+  const drops: RelationDropBreakdown[] = [];
+  let lastTypeRecall: TypeRecall[] = [];
+  let lastMissed: string[] = [];
+  let lastNearDup: string[] = [];
+  let lastFalsePos: string[] = [];
   for (let i = 0; i < RUNS; i++) {
     console.log(`--- run ${i + 1}/${RUNS} ---`);
-    const c = await runOnce(scenes, golden, extractor);
+    const { card, drops: d, typeRecall, missedGolden, nearDuplicates, falsePositives } = await runOnce(scenes, golden, extractor);
     console.log(
-      `  entity F1 ${fmt(c.entity.f1)}  dedup ${fmt(c.dedup.score)}  temporal ${c.temporal.correct}/${c.temporal.total}`,
+      `  entity F1 ${fmt(card.entity.f1)}  recall ${fmt(card.entity.recall)}  dedup ${fmt(card.dedup.score)}  temporal ${card.temporal.correct}/${card.temporal.total}`,
     );
-    cards.push(c);
+    console.log(
+      `  relations: ${d.emitted} emitted → ${d.survived} survived, ${d.droppedLowConfidence} low-conf, ${d.droppedEndpointUnresolved} unresolved`,
+    );
+    cards.push(card);
+    drops.push(d);
+    lastTypeRecall = typeRecall;
+    lastMissed = missedGolden;
+    lastNearDup = nearDuplicates;
+    lastFalsePos = falsePositives;
   }
 
   printAggregate(aggregateScorecards(cards));
+  printRelationDrops(aggregateRelationDrops(drops), RUNS);
+  printEntityRecallByType(lastTypeRecall, lastMissed);
+  if (lastNearDup.length > 0) {
+    console.log("");
+    console.log(`Near-duplicate entities (final run, ${lastNearDup.length}) — collapsed onto`);
+    console.log("an already-matched golden entity; these tank the dedup score:");
+    for (const n of lastNearDup) console.log(`    ${n}`);
+  }
+  if (lastFalsePos.length > 0) {
+    console.log("");
+    console.log(`False-positive entities (final run, ${lastFalsePos.length}) — matched NO golden.`);
+    console.log("Audit: are these genuine junk, or legitimate-but-uncurated canon?");
+    for (const n of lastFalsePos) console.log(`    ${n}`);
+  }
 }
 
 main().catch((e) => {

@@ -302,96 +302,137 @@ const EXTRACTION_SYSTEM_PROMPT =
   "You are a knowledge-graph extractor for a solo RPG campaign. " +
   "Return ONLY valid JSON matching the requested schema. No prose, no markdown fences.";
 
+// Render an entity list as the `id|canonical|type|summary :: current: ...` block
+// both passes show the model. New (just-extracted) entities carry no relations,
+// so no "-> " arrows appear for them.
+function renderEntityContext(entities: LoreSearchHit[]): string {
+  if (entities.length === 0) return "(none)";
+  return entities
+    .map((e) => {
+      const rels =
+        e.relations && e.relations.length > 0
+          ? ` :: current: ${e.relations
+              .map((r) => `${r.relation}->${r.to}`)
+              .join(", ")}`
+          : "";
+      return `${e.id}|${e.canonical}|${e.type}|${e.summary}${rels}`;
+    })
+    .join("\n");
+}
+
+// One LLM call: send the prompt, strip fences/prose, parse the first JSON object.
+async function callExtractorJson(
+  client: AnthropicLike,
+  userPrompt: string,
+  opts?: { model?: string; temperature?: number },
+): Promise<{ entities?: ExtractedEntity[]; relations?: ExtractedRelation[] }> {
+  const response = await client.messages.create({
+    model: opts?.model ?? DEFAULT_EXTRACTION_MODEL,
+    max_tokens: 4096,
+    ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
+    system: EXTRACTION_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  let text = response.content
+    .flatMap((b) =>
+      b.type === "text" && typeof b.text === "string" ? [b.text] : [],
+    )
+    .join("")
+    .trim();
+
+  if (text.length === 0) {
+    throw new Error("Empty extraction response from Anthropic");
+  }
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) text = jsonMatch[0];
+
+  return JSON.parse(text) as {
+    entities?: ExtractedEntity[];
+    relations?: ExtractedRelation[];
+  };
+}
+
+// Single-pass prompt: entities + relations in one call. (A two-pass split was
+// trialed — entities then relations over a fixed vocabulary — and measured as a
+// negative result: ~2x cost, no precision/dedup recovery, since entity
+// over-extraction is intrinsic to the entity pass, not driven by relation
+// pressure. Reverted to single-pass.)
+function buildExtractionPrompt(sceneText: string, existingContext: string): string {
+  return (
+    `Scene text:\n${sceneText}\n\n` +
+    `Existing lore entities (id|canonical|type|summary :: current relations):\n${existingContext}\n\n` +
+    `Extract only what is newly established or explicitly changed in this scene.\n\n` +
+    `ENTITY RULES:\n` +
+    `- canonical: specific noun phrase, ≤5 words (e.g. "Ashfen Market Quarter" not "the market")\n` +
+    `- type: one of ${LORE_TYPES.join(", ")}\n` +
+    `- summary: one self-contained sentence using the canonical name, not pronouns\n` +
+    `- aliases: other names used in the scene for the same entity\n` +
+    `- Extract an entity if it is CONSEQUENTIAL — the ongoing story will refer\n` +
+    `  back to it. Cover ALL these kinds, not just people and places:\n` +
+    `    person / creature: named individuals\n` +
+    `    place: named locations\n` +
+    `    faction: named groups, orders, or networks (e.g. "The Eld", "Anchor Network")\n` +
+    `    material: significant objects, relics, or tokens (e.g. "Iron Map", "Bone Token")\n` +
+    `    event: a discrete happening the story treats as a landmark — a fire, a duel,\n` +
+    `      a banishment, a vow fulfilled (e.g. "Root-Cellar Fire", "Caldren's Circle Duel")\n` +
+    `    thread: a vow, quest, or obligation a character is pursuing or holds\n` +
+    `      (e.g. "Find a New Colony", "Caldren's Wardenship", "Lona's Captaincy")\n` +
+    `    concept / truth: a named phenomenon, force, lineage, debt, or world-fact\n` +
+    `      (e.g. "The Answering", "Mai's Sword-Line", "Harvest Debt")\n` +
+    `  A consequential vow, event, faction, or named phenomenon counts EVEN WHEN it is\n` +
+    `  not a classic proper noun — give it a specific canonical name drawn from the scene.\n` +
+    `- Extract a thing ONLY if the ongoing story will REFER BACK to it as a DURABLE\n` +
+    `  anchor. One entity per durable thing, NOT one per beat. If a vow, event, or\n` +
+    `  place recurs under slightly different wording, REUSE the existing canonical\n` +
+    `  name from the list above instead of coining a new variant.\n` +
+    `- Do NOT extract: player character stats, moves, or mechanical outcomes\n` +
+    `  ("Combat Track Maxed", "Hip-Powered Counter"); one-off beats the story will\n` +
+    `  not return to ("Caldren's Boast", "Dalla's Ultimatum"); emotional or transient\n` +
+    `  states ("X is afraid"); implied facts ("X is alive"); generic/unnamed\n` +
+    `  background ("a guard", "some merchants", "the road", "the crowd"); or\n` +
+    `  anything already captured in the existing entities list above\n\n` +
+    `RELATION RULES:\n` +
+    `- relation: SCREAMING_SNAKE_CASE, verb-first (e.g. LEADS, GUARDS, MEMBER_OF, ALLIED_WITH,\n` +
+    `  ENEMY_OF, LOCATED_IN, CREATED_BY, BOUND_TO, SEEKS, OPPOSES, HOLDS_TITLE, SERVES,\n` +
+    `  KILLED_BY, TAGGED_AS — invent a clear verb label if none of these fit)\n` +
+    `- notes: one self-contained sentence elaborating the relation\n` +
+    `- supersedes: true ONLY when this relation explicitly replaces a prior known state\n` +
+    `  (a title stripped, an alliance broken, a location changed); false otherwise\n` +
+    `- IMPORTANT: when the scene ends or changes a state shown in an existing entity's\n` +
+    `  "current:" relations (e.g. a LOCATED_IN/HOLDS_TITLE ended by banishment, exile,\n` +
+    `  death, or a move), emit the new relation with supersedes:true and reuse the SAME\n` +
+    `  from/to canonical names shown there, so the prior fact is found and invalidated\n` +
+    `- Do NOT extract: player character as from-entity unless a new named relationship is\n` +
+    `  established, generic spatial relations ("X is in the room"), duplicate relations\n` +
+    `  already present in existing entities\n\n` +
+    `Return ONLY this JSON object:\n` +
+    `{\n` +
+    `  "entities": [\n` +
+    `    { "canonical": string, "type": string, "summary": string, "aliases": string[], "excerpt": string, "confidence": number }\n` +
+    `  ],\n` +
+    `  "relations": [\n` +
+    `    { "from": string, "to": string, "relation": string, "notes": string, "supersedes": boolean, "excerpt": string, "confidence": number }\n` +
+    `  ]\n` +
+    `}`
+  );
+}
+
 export function _makeDefaultExtractor(
   client: AnthropicLike,
   opts?: { model?: string; temperature?: number },
 ): Extractor {
   return async (sceneText, existingEntities) => {
-    const existingContext =
-      existingEntities.length > 0
-        ? existingEntities
-            .map((e) => {
-              const rels =
-                e.relations && e.relations.length > 0
-                  ? ` :: current: ${e.relations
-                      .map((r) => `${r.relation}->${r.to}`)
-                      .join(", ")}`
-                  : "";
-              return `${e.id}|${e.canonical}|${e.type}|${e.summary}${rels}`;
-            })
-            .join("\n")
-        : "(none)";
-
-    const userPrompt =
-      `Scene text:\n${sceneText}\n\n` +
-      `Existing lore entities (id|canonical|type|summary :: current relations):\n${existingContext}\n\n` +
-      `Extract only what is newly established or explicitly changed in this scene.\n\n` +
-      `ENTITY RULES:\n` +
-      `- canonical: specific noun phrase, ≤5 words (e.g. "Ashfen Market Quarter" not "the market")\n` +
-      `- type: one of ${LORE_TYPES.join(", ")}\n` +
-      `- summary: one self-contained sentence using the canonical name, not pronouns\n` +
-      `- aliases: other names used in the scene for the same entity\n` +
-      `- Extract an entity ONLY if it is both NAMED and CONSEQUENTIAL — a proper\n` +
-      `  noun that the ongoing story will refer back to. When in doubt, leave it out.\n` +
-      `- Do NOT extract: player character stats or moves; emotional or transient\n` +
-      `  states ("X is afraid"); implied facts ("X is alive"); generic/unnamed\n` +
-      `  background ("a guard", "some merchants", "the road", "the crowd"); or\n` +
-      `  anything already captured in the existing entities list above\n\n` +
-      `RELATION RULES:\n` +
-      `- relation: SCREAMING_SNAKE_CASE, verb-first (e.g. LEADS, GUARDS, MEMBER_OF, ALLIED_WITH,\n` +
-      `  ENEMY_OF, LOCATED_IN, CREATED_BY, BOUND_TO, SEEKS, OPPOSES, HOLDS_TITLE, SERVES,\n` +
-      `  KILLED_BY, TAGGED_AS — invent a clear verb label if none of these fit)\n` +
-      `- notes: one self-contained sentence elaborating the relation\n` +
-      `- supersedes: true ONLY when this relation explicitly replaces a prior known state\n` +
-      `  (a title stripped, an alliance broken, a location changed); false otherwise\n` +
-      `- IMPORTANT: when the scene ends or changes a state shown in an existing entity's\n` +
-      `  "current:" relations (e.g. a LOCATED_IN/HOLDS_TITLE ended by banishment, exile,\n` +
-      `  death, or a move), emit the new relation with supersedes:true and reuse the SAME\n` +
-      `  from/to canonical names shown there, so the prior fact is found and invalidated\n` +
-      `- Do NOT extract: player character as from-entity unless a new named relationship is\n` +
-      `  established, generic spatial relations ("X is in the room"), duplicate relations\n` +
-      `  already present in existing entities\n\n` +
-      `Return ONLY this JSON object:\n` +
-      `{\n` +
-      `  "entities": [\n` +
-      `    { "canonical": string, "type": string, "summary": string, "aliases": string[], "excerpt": string, "confidence": number }\n` +
-      `  ],\n` +
-      `  "relations": [\n` +
-      `    { "from": string, "to": string, "relation": string, "notes": string, "supersedes": boolean, "excerpt": string, "confidence": number }\n` +
-      `  ]\n` +
-      `}`;
-
-    const response = await client.messages.create({
-      model: opts?.model ?? DEFAULT_EXTRACTION_MODEL,
-      max_tokens: 4096,
-      ...(opts?.temperature !== undefined
-        ? { temperature: opts.temperature }
-        : {}),
-      system: EXTRACTION_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    let text = response.content
-      .flatMap((b) =>
-        b.type === "text" && typeof b.text === "string" ? [b.text] : [],
-      )
-      .join("")
-      .trim();
-
-    if (text.length === 0) {
-      throw new Error("Empty extraction response from Anthropic");
-    }
-
-    // Extract first JSON object from the response, tolerating surrounding prose
-    // or markdown fences the model may add despite the system prompt.
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) text = jsonMatch[0];
-
-    const parsed = JSON.parse(text) as ExtractionResult;
-    parsed.entities = parsed.entities.filter((e) =>
+    const parsed = await callExtractorJson(
+      client,
+      buildExtractionPrompt(sceneText, renderEntityContext(existingEntities)),
+      opts,
+    );
+    const entities = (parsed.entities ?? []).filter((e) =>
       LORE_TYPES.includes(e.type),
     );
-    return parsed;
+    return { entities, relations: parsed.relations ?? [] };
   };
 }
 
