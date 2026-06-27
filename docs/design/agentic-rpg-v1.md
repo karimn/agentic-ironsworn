@@ -131,10 +131,16 @@ Storage isn't the hard part. The world DB (#166, landed in #169) gives
 us a place to put facts — necessary, not sufficient. The actual failure
 modes for a storyteller, several already observable in Zura play:
 
-1. **Extraction quality.** If `extract_session_lore` produces
-   near-duplicates, mis-typed relations, or misses load-bearing facts,
-   the graph is noise with provenance. Highest-leverage component;
-   currently treated as carry-forward.
+1. **Capture at point of entry.** The highest-leverage fix is *not* better
+   extraction — batch extraction is a lossy prose→structure reconstruction that
+   lacks the author's knowledge of what is canonical and reliable name grounding.
+   The GM, at narration time, has both. Canon (entities **and relations**) should
+   be recorded on the beat via `record_beat`; extraction is demoted to optional
+   backfill. (Established 2026-06 after measurement: relation recall caps because
+   relations were never recorded where known; a two-pass extractor was a measured
+   negative result; the dedup regression was largely name fragmentation from
+   re-deriving names independently. See
+   `docs/superpowers/specs/2026-06-27-point-of-entry-recording-design.md`.)
 2. **Temporal truth.** Who's alive *now*? Who holds the post *now*?
    `knowledge-graph.md` explicitly defers bi-temporal validity ("until
    NPC churn forces it"). For a storyteller this is wrong — narrating a
@@ -155,11 +161,11 @@ pattern: rules are commodity data plus pure functions.
 
 ### v1 priorities, in order
 
-> **Status (as of 2026-06-21):** #1 ✅ done · #2 ❌ not started ·
-> #3 🟡 substantially done · #4 ❌ not started · #5 ❌ not started ·
-> #6 ❌ deferred by design. The gating decision (#1) is closed and the
-> DuckDB substrate is locked, which unblocks the rest. Next pickup: #2
-> (extraction evaluation harness).
+> **Status (as of 2026-06-27):** #1 ✅ done · #2 ✅ done ·
+> #3 ❌ not started · #4 🟡 substantially done · #5 ❌ not started ·
+> #6 ❌ not started · #7 ❌ deferred by design. Point-of-entry structured
+> recording (#2) is the active completed item; the DuckDB substrate is locked.
+> Next pickup: #3 (extraction evaluation as backfill-quality measurement).
 
 1. **Graphiti spike (gating decision).** ✅ **Resolved (2026-06-16): Path B.**
    Promote OQ1 from open question
@@ -173,11 +179,18 @@ pattern: rules are commodity data plus pure functions.
    embedded backend, Kuzu, is archived and deprecated by Graphiti) and
    committed to Path B (DuckDB). Graphiti's *extraction approach* was
    adopted into the DuckDB extractor. See `docs/spikes/2026-06-graphiti.md`.
-2. **Extraction evaluation harness.** Build a fixed set of Zura scenes
-   with known-correct entities and relations, scored on every prompt
-   or model change. Without this, extraction quality is vibes.
-   Required regardless of which way the Graphiti spike resolves.
-3. **Temporal truth.** 🟡 **Substantially done (landed 2026-06; spike
+2. **Point-of-entry structured recording.** ✅ **Done (2026-06-27).** The
+   highest-leverage coherence improvement is authorial capture at the moment of
+   narration, not batch extraction. `record_beat` now carries optional `entities`
+   and `relations` payloads; the GM records canon on the beat using exact grounded
+   names. Extraction is demoted to optional backfill. See
+   `docs/superpowers/specs/2026-06-27-point-of-entry-recording-design.md`.
+3. **Extraction evaluation (backfill-quality measurement).** Build a fixed set
+   of Zura scenes with known-correct entities and relations, scored on every
+   prompt or model change. *This is no longer the primary quality lever* —
+   point-of-entry recording is. The harness measures backfill quality and guards
+   against regressions in the fallback path.
+4. **Temporal truth.** 🟡 **Substantially done (landed 2026-06; spike
    Phases 1–2, preserved through the Path B rollback).** Reverse the
    bi-temporal deferral in `knowledge-graph.md`. If the Graphiti spike
    adopts Graphiti, bi-temporal edges come for free. If it doesn't, add
@@ -190,17 +203,17 @@ pattern: rules are commodity data plus pure functions.
    **Remaining:** arbitrary historical "as-of `<timestamp>`" reads —
    reads currently filter to *current* facts only, not a queryable past
    state.
-4. **Write-time contradiction surfacing.** On `upsert_entity` /
+5. **Write-time contradiction surfacing.** On `upsert_entity` /
    `link`, run a similarity check against existing canon and flag
    apparent contradictions (different summary for an existing alias;
    a relation that conflicts with one already on the graph) for the
    canonize ritual to adjudicate. Don't reject — surface.
-5. **Retrieval discipline.** Tighten the fiction-grounding protocol
+6. **Retrieval discipline.** Tighten the fiction-grounding protocol
    into a hard tool-use pattern, not a prompt convention. Read tools
    return entity refs plus *what the agent should re-read before
    narrating* (e.g., "you fetched X but didn't fetch X's recent
    scenes — call recall first").
-6. **Then the platform work.** System / setting / craft package
+7. **Then the platform work.** System / setting / craft package
    splits, npm distribution, paid stacks, alt-frontend candidates,
    future-proofing extension points. Keep the boundaries the doc
    already establishes (they cost little in code); defer the
@@ -776,14 +789,19 @@ Per "one tool per query pattern, not per concept" (start-from-scratch).
   `recall` unification is its own follow-up.
 - `record_scene(summary, beats, place_entity, refs)` — *shipped (#169):*
   resolves names to entity UUIDs, auto-stubs unknowns as campaign-scoped
-  entities, writes `scene_entity_refs`.
+  entities, writes `scene_entity_refs`. `record_beat` carries optional
+  `entities` and `relations` payloads; canon recorded on the beat via these
+  fields is the primary path to the knowledge graph (point-of-entry recording).
 - `upsert_entity(kind, name, summary, metadata)` — *shipped (#169);*
   `upsert_npc` / `upsert_lore` kept as one-release aliases.
 - `link(from, to, label, metadata?)` — replaces v0.x `link_lore`.
 - `canonize_entity(id)` / `canonize_relation(id)` and the
   `decanonize_*(id, into_campaign)` inverses — *shipped (#169).* Entities
   and relations canonize independently.
-- `extract_session_lore()` — batch extraction from recent scenes.
+- `extract_session_lore()` — *optional backfill only.* Batch LLM extraction
+  from recent scenes; use if the GM suspects canon was missed. Deduplicates
+  against recorded canon via exact-match idempotency. Not the primary
+  canon-capture path.
 
 **Player-directive tools (system-agnostic, in core):**
 
@@ -1134,9 +1152,12 @@ introducing or narrating anything that might be canon, call:
 
 1. `recall(query=<entity-or-concept>, kind?, limit=5)` — does this exist?
 2. If multiple matches → disambiguate via aliases, then continue
-3. If no match → free to invent, then `upsert_entity(...)` after the
-   scene resolves
+3. If no match → free to invent; include the new entity in the beat's
+   `entities` payload using the exact name chosen here
 4. If match → narrate consistent with the recorded summary + relations
+5. `record_beat(...)` carrying `entities` (new canon this beat establishes,
+   using exact grounded names) and `relations` (links the beat asserts);
+   a beat that establishes a new entity or relationship **must** carry it
 
 This is the single biggest contributor to long-campaign coherence. It's
 craft, not mechanics; it lives with skills, not the rules engine.
