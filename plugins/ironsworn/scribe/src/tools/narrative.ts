@@ -3,7 +3,7 @@ import { z } from "zod";
 import { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, type BeatInput } from "@agentic-rpg/core";
 import { openThread, closeThread } from "../state/threads.js";
 import { upsertNpc, getNpc } from "@agentic-rpg/core";
-import { getLore, upsertLore } from "@agentic-rpg/core";
+import { getLore, upsertLore, LORE_TYPES } from "@agentic-rpg/core";
 import { loadCharacter, saveCharacter, ProgressTrack } from "../state/character.js";
 import { recordMutation } from "@agentic-rpg/core";
 import { pushBeat, drainNotices } from "@agentic-rpg/core";
@@ -185,8 +185,31 @@ export function register(server: McpServer, campaignPath: string): void {
       wait: z.boolean().optional().describe(
         "If true, block until the beat is fully persisted before returning. Default: false (fire-and-forget)."
       ),
+      entities: z
+        .array(
+          z.object({
+            canonical: z.string(),
+            type: z.enum(LORE_TYPES),
+            summary: z.string(),
+            aliases: z.array(z.string()).optional(),
+          }),
+        )
+        .optional()
+        .describe("Canon this beat establishes. Reuse exact canonical names from grounding; new names create campaign-scoped entities."),
+      relations: z
+        .array(
+          z.object({
+            from: z.string(),
+            to: z.string(),
+            label: z.string(),
+            notes: z.string().optional(),
+            supersedes: z.boolean().optional(),
+          }),
+        )
+        .optional()
+        .describe("Relationships this beat asserts between known entities (existing or in this beat's `entities`). Endpoints that resolve to neither are skipped with a notice."),
     },
-    async ({ scene_id, kind, text, speaker, metadata, wait }) => {
+    async ({ scene_id, kind, text, speaker, metadata, wait, entities, relations }) => {
       // Validate scene exists synchronously — cheap read, surfaces errors immediately
       const existing = await getScene(campaignPath, scene_id);
       if (existing === null) {
@@ -196,7 +219,7 @@ export function register(server: McpServer, campaignPath: string): void {
         };
       }
 
-      const entry = await pushBeat(campaignPath, scene_id, { kind, text, speaker, metadata });
+      const entry = await pushBeat(campaignPath, scene_id, { kind, text, speaker, metadata, entities, relations });
 
       if (wait) {
         try {
