@@ -112,11 +112,39 @@ describe("recall", () => {
     expect(result.entities.length).toBeLessThanOrEqual(2);
   });
 
-  it("throws if near.entity is provided (not yet implemented)", async () => {
+  it("near.entity restricts results to graph neighbors of anchor", async () => {
     if (!(await ollamaAvailable())) return;
+    const { linkLore } = await import("./lore.js");
 
-    await expect(
-      recall(campaignDir, "iron", { near: { entity: "some-id" } })
-    ).rejects.toThrow("near.entity");
+    const { id: anchorId } = await upsertLore(campaignDir, {
+      canonical: "Caldren Village",
+      type: "place",
+      summary: "A settlement in the Hinterlands.",
+    });
+    const { id: neighborId } = await upsertLore(campaignDir, {
+      canonical: "Elder Marn",
+      type: "person",
+      summary: "The elder of Caldren, keeper of the village record.",
+    });
+    const { id: unrelatedId } = await upsertLore(campaignDir, {
+      canonical: "The Sunken Forge",
+      type: "place",
+      summary: "An ancient forge far to the south, no ties to Caldren.",
+    });
+    await linkLore(campaignDir, {
+      from: anchorId,
+      to: neighborId,
+      relation: "governed-by",
+    });
+
+    const result = await recall(campaignDir, "elder keeper village settlement", {
+      near: { entity: anchorId },
+      limit: 10,
+    });
+
+    const ids = result.entities.map((e) => e.id);
+    // Neighbor must appear; unrelated entity must not
+    expect(ids).toContain(neighborId);
+    expect(ids).not.toContain(unrelatedId);
   });
 });
