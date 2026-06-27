@@ -72,7 +72,7 @@ export async function recall(
       const anchorRows = (
         await conn.runAndReadAll(
           `SELECT id FROM entities
-           WHERE id = ? OR lower(canonical) = lower(?) OR lower(slug) = lower(?)
+           WHERE (id = ? OR lower(canonical) = lower(?) OR lower(slug) = lower(?))
              AND (campaign_id IS NULL OR campaign_id = ?)
            LIMIT 1`,
           [anchorRef, anchorRef, anchorRef, ctx.campaignId],
@@ -102,12 +102,13 @@ export async function recall(
   }
 
   // Build entity search SQL — restrict to nearIds if present
-  const embeddingLiteral = await getWorldEmbedding(query).then(
-    (emb) => `[${emb.join(",")}]::FLOAT[768]`,
-  );
-
   let entityHits: LoreSearchHit[];
+  let communityHits: CommunitySearchHit[];
   if (nearIds !== null && nearIds.size > 0) {
+    // Embedding only needed for the manual cosine-similarity SQL on this path
+    const embeddingLiteral = await getWorldEmbedding(query).then(
+      (emb) => `[${emb.join(",")}]::FLOAT[768]`,
+    );
     const idList = [...nearIds];
     const placeholders = idList.map(() => "?").join(",");
     const conn = await instance.connect();
@@ -135,13 +136,15 @@ export async function recall(
     } finally {
       conn.closeSync();
     }
+    // Community search (always unrestricted — thematic framing shouldn't be proximity-filtered)
+    communityHits = await searchCommunities(campaignPath, query, communityLimit, undefined, { includeSiblings });
   } else {
-    // No near filter (or unknown anchor) — unrestricted search
-    entityHits = await searchLore(campaignPath, query, limit, opts?.kind, { includeSiblings });
+    // No near filter (or unknown anchor) — unrestricted search, run in parallel
+    [entityHits, communityHits] = await Promise.all([
+      searchLore(campaignPath, query, limit, opts?.kind, { includeSiblings }),
+      searchCommunities(campaignPath, query, communityLimit, undefined, { includeSiblings }),
+    ]);
   }
-
-  // Community search (always unrestricted — thematic framing shouldn't be proximity-filtered)
-  const communityHits = await searchCommunities(campaignPath, query, communityLimit, undefined, { includeSiblings });
 
   // Batch-fetch recent scenes for matched entities
   const entityIds = entityHits.map((e) => e.id);
