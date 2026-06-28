@@ -23,7 +23,7 @@ export const LORE_TYPES = [
 export type LoreType = (typeof LORE_TYPES)[number];
 
 export interface ProvenanceInput {
-  source_kind: "manual" | "scene" | "document" | "extraction";
+  source_kind: "manual" | "scene" | "document" | "extraction" | "beat";
   source_id?: string;
   excerpt?: string;
   confidence?: number;
