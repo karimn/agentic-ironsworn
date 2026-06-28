@@ -165,8 +165,13 @@ pattern: rules are commodity data plus pure functions.
 > #3 ✅ done · #4 🟡 substantially done · #5 ✅ done · #6 ✅ done ·
 > #7 ❌ deferred by design. Coherence work (#1–#6) is complete; only #4's
 > arbitrary "as-of `<timestamp>`" historical reads remain as a refinement.
-> The DuckDB substrate is locked. Next pickup: #7 (platform work) — or #4's
-> historical-read refinement if coherence depth is preferred first.
+> The DuckDB substrate is locked.
+>
+> A 2026-06-28 audit surfaced a **third axis** the priority list never
+> named — the human-facing **fiction-workflow track** (umbrella #201,
+> items FW1–FW5 below). That, not platform (#7), is the natural next
+> pickup: **FW1** (surface contradictions in play, #196) is the cheapest
+> high-value start.
 
 1. **Graphiti spike (gating decision).** ✅ **Resolved (2026-06-16): Path B.**
    Promote OQ1 from open question
@@ -242,6 +247,35 @@ pattern: rules are commodity data plus pure functions.
    generality (the loaders, the marketplace story, the hex-crawl
    modules). One system, one world, one player. Packaging serves a
    future that storyteller quality has to earn first.
+
+### The fiction-workflow track (the missing axis)
+
+The priority list above is **coherence infrastructure** (#1–#6) and
+**platform** (#7) — two axes. A 2026-06-28 audit found a third axis the
+roadmap never named: the **human-facing fiction workflow** — the rituals
+and surfacings that sit *on top of* the coherence machinery and turn it
+into a storytelling experience. The plumbing for fiction management is
+built (capture, temporal truth, contradiction *detection*, grounding);
+the fiction *experience* of using it is largely undesigned. Every
+remaining fiction-management gap falls here.
+
+Tracked under umbrella **#201**, sequenced by leverage:
+
+| Item | Gap | Issue |
+|---|---|---|
+| **FW1** | Contradictions are detected and queued (#190) but **not surfaced into live play** — `context/build.ts` doesn't inject them; the agent only sees them if it calls `list_contradictions` at canonize time. Cheapest, highest immediate value: one context-builder change turns a dev tool into a live storytelling aid. | #196 |
+| **FW2** | The **canonize ritual has no moment** — tools (`canonize_*`) + a GM-prompt paragraph, but no trigger, no candidate surfacing, no command. Depends on the agent remembering mid-narration. Resolves **OQ5**. The signature primitive of the design, least operationalized. | #197 |
+| **FW3** | **"New campaign in the same world" has no fiction onramp** — the original #166 motivation. The visibility filter supports it; `ironsworn-init` only scaffolds a *fresh* campaign; there's no GM canon briefing for a PC entering an established world. Pairs with FW2 (what one campaign blesses is what the next inherits). | #198 |
+| **FW4** | **Setting-seed unbuilt** — `world-truths` Q&A establishes truths for a *new* world ✅, but inheriting a *published* setting's canon (migration step #4) is not started. Straddles platform; the fiction-facing half is the undone part. | #199 |
+| **FW5** | **Narration quality is unmeasured** (frontier) — the eval measures *capture* (does the KG reflect play); nothing measures whether grounding makes narration *better*. Scope as a research spike, don't block v1 on it. | #200 |
+
+Why this matters: the system's stated purpose is *a storyteller that
+maintains a coherent world*. #1–#6 made the world coherent in the
+database. FW1–FW5 are what make that coherence reach the table — the
+GM noticing conflicts in the moment, blessing emergent canon
+deliberately, carrying a world across campaigns, and (eventually)
+knowing whether any of it makes the *fiction* better. This track is the
+natural successor to the coherence work, ahead of platform (#7).
 
 ### Step 1: Graphiti spike (handoff-ready)
 
@@ -1503,7 +1537,9 @@ not started.
   separately if pursued.
 - **OQ5** A canonize ritual UX: slash command, end-of-session prompt,
   or implicit on high-confidence extraction. Probably explicit slash
-  command. Settle when implementing.
+  command. **Now tracked as fiction-workflow item FW2 (#197)** — to be
+  resolved when implemented; recommended lean is an explicit `/canonize`
+  command that surfaces ranked candidates.
 - ~~**OQ6** Should overlay-state relations anchor on the PC entity or on
   a synthetic `party` entity?~~ **Resolved (#169):** anchors on the PC
   entity. A `party` generalization is deferred with multi-PC support
