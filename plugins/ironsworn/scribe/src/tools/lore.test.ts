@@ -596,3 +596,44 @@ describe("include_sibling_campaigns on search_lore / get_lore", () => {
     await import("node:fs/promises").then((m) => m.rm(sib3Dir, { recursive: true, force: true }));
   });
 });
+
+// ---------------------------------------------------------------------------
+// get_lore — retrieval-discipline grounding hint (v1 #6)
+// ---------------------------------------------------------------------------
+
+describe("get_lore — grounding hint (#6)", () => {
+  function allText(result: unknown): string {
+    const blocks = (result as { content: Array<{ type: string; text: string }> }).content;
+    return blocks.map((b) => b.text).join("\n");
+  }
+
+  it("appends a grounding reminder when the entity exists", async () => {
+    if (!dbReady) return;
+    // NPCs are entities; upsertNpc degrades without Ollama (zero-vector), so this
+    // seeds a retrievable entity offline. get_lore resolves it by canonical name.
+    const { upsertNpc } = await import("@agentic-rpg/core");
+    await upsertNpc(campaignDir, "Marn", "Elder of Caldren.", "Stern");
+
+    const result = await client.callTool({ name: "get_lore", arguments: { identifier: "Marn" } });
+    expect(result.isError).not.toBe(true);
+
+    const blocks = (result as { content: Array<{ type: string; text: string }> }).content;
+    // Primary block unchanged — the entity JSON.
+    const entity = JSON.parse(blocks[0]!.text) as { canonical: string } | null;
+    expect(entity?.canonical).toBe("Marn");
+    // A grounding hint is appended pointing at recall.
+    const joined = allText(result);
+    expect(joined).toContain('recall("Marn")');
+    expect(joined.toLowerCase()).toContain("before narrating");
+  });
+
+  it("does not append a grounding reminder when the entity is not found", async () => {
+    if (!dbReady) return;
+    const result = await client.callTool({
+      name: "get_lore",
+      arguments: { identifier: "No Such Entity" },
+    });
+    expect(JSON.parse((result as { content: Array<{ text: string }> }).content[0]!.text)).toBeNull();
+    expect(allText(result)).not.toContain("Grounding reminder");
+  });
+});

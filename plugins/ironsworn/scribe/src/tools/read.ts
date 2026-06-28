@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadCharacter } from "../state/character.js";
 import { listThreads } from "../state/threads.js";
-import { getNpc, listNpcs, getNpcLastUpdated, findStaleNpcs } from "@agentic-rpg/core";
+import { getNpc, listNpcs, getNpcLastUpdated, findStaleNpcs, groundingHint } from "@agentic-rpg/core";
 import { searchRules, lookupMove } from "../rag/query.js";
 import { searchScenes, getRecentComplications, getRecentScenesChronological, getScene, searchBeats, countScenesMentioningNpc } from "@agentic-rpg/core";
 import { lookupAsset } from "../rules/ironsworn/assets.js";
@@ -115,8 +115,16 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ name }) => {
       try {
         const content = await getNpc(campaignPath, name);
+        if (content === null) {
+          return { content: [{ type: "text", text: "NPC not found" }] };
+        }
+        // Retrieval discipline (#6): a direct entity read returns the stored
+        // record only — nudge the agent to recall before narrating.
         return {
-          content: [{ type: "text", text: content ?? "NPC not found" }],
+          content: [
+            { type: "text", text: content },
+            { type: "text", text: groundingHint(name) },
+          ],
         };
       } catch (e) {
         return {

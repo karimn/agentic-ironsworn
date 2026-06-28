@@ -15,6 +15,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { register } from "./read.js";
 import { saveCharacter, DEBILITIES, type Character } from "../state/character.js";
 import { openThread, closeThread } from "../state/threads.js";
+import { upsertNpc } from "@agentic-rpg/core";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -306,5 +307,35 @@ describe("session_briefing — overall shape", () => {
     expect("recent_scenes" in briefing).toBe(true);
     expect("stale_npcs" in briefing).toBe(true);
     expect(Array.isArray(briefing["stale_npcs"])).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// get_npc — retrieval-discipline grounding hint (v1 #6)
+// ---------------------------------------------------------------------------
+
+function allText(result: unknown): string {
+  const blocks = (result as { content: Array<{ type: string; text: string }> }).content;
+  return blocks.map((b) => b.text).join("\n");
+}
+
+describe("get_npc — grounding hint (#6)", () => {
+  it("appends a grounding reminder when the NPC exists", async () => {
+    await upsertNpc(campaignDir, "Lona", "A healer in Caldren.", "Wary");
+    const result = await client.callTool({ name: "get_npc", arguments: { name: "Lona" } });
+    expect(result.isError).not.toBe(true);
+
+    const blocks = (result as { content: Array<{ type: string; text: string }> }).content;
+    // Primary block unchanged — the NPC markdown.
+    expect(blocks[0]!.text).toContain("Lona");
+    // A grounding hint is appended pointing at recall.
+    const joined = allText(result);
+    expect(joined).toContain('recall("Lona")');
+    expect(joined.toLowerCase()).toContain("before narrating");
+  });
+
+  it("does not append a grounding reminder when the NPC is not found", async () => {
+    const result = await client.callTool({ name: "get_npc", arguments: { name: "Nobody" } });
+    expect(allText(result)).not.toContain("Grounding reminder");
   });
 });

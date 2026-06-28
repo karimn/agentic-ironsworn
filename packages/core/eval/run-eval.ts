@@ -6,6 +6,16 @@
 //   ANTHROPIC_API_KEY=... bun run eval:extraction
 //   EVAL_RUNS=3 ANTHROPIC_API_KEY=... bun run eval:extraction
 //
+// Modes (EVAL_MODE):
+//   primary  (default) — extraction reconstructs the whole graph from prose.
+//                        The legacy quality lever; relation recall caps here.
+//   backfill           — seed the graph with the golden canon (simulating
+//                        point-of-entry recording), then run extraction as
+//                        backfill on top and report whether it FRAGMENTED a
+//                        recorded entity. This matches the v1 reality where
+//                        record_beat is primary and extraction is the fallback.
+//                          ANTHROPIC_API_KEY=... bun run eval:backfill
+//
 // Accepting a change: copy the printed aggregate JSON into baseline.json and commit.
 
 import { mkdtemp, readFile } from "node:fs/promises";
@@ -17,8 +27,10 @@ import { parse } from "yaml";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AnthropicLike } from "../src/rag/communities.js";
 import { recordScene } from "../src/rag/scenes.js";
+import { recordBeatCanon, type BeatEntity, type BeatRelation } from "../src/rag/beat-canon.js";
 import { extractLoreFromScene, _makeDefaultExtractor } from "../src/rag/extraction.js";
-import { exportLore } from "../src/rag/lore.js";
+import { exportLore, type LoreType } from "../src/rag/lore.js";
+import { backfillGuardFromGraph, type BackfillGuardReport } from "./backfill.js";
 import { getWorldEmbedding } from "../src/rag/world-db.js";
 import { scoreExtraction, matchEntities, type ActualState, type GoldenSet, type Scorecard } from "./score.js";
 import { aggregateScorecards, type AggregateScorecard, type MetricStats } from "./aggregate.js";
@@ -57,10 +69,35 @@ function fmt(n: number): string {
   return n.toFixed(2);
 }
 
+// "primary" = extraction reconstructs the whole graph from prose (the legacy
+// quality lever). "backfill" = the v1 reality: seed the graph with recorded
+// canon (point-of-entry recording), then run extraction as backfill on top and
+// measure whether it fragments or pollutes the recorded graph.
+type EvalMode = "primary" | "backfill";
+
+// Seed the graph with the golden canon as if the GM had recorded it on the beat
+// (recordBeatCanon). Returns the seeded canonical names for the backfill guard.
+async function seedRecordedCanon(dir: string, golden: GoldenSet): Promise<string[]> {
+  const seedSceneId = await recordScene(dir, "Seed scene for point-of-entry canon.", "scene");
+  const entities: BeatEntity[] = golden.entities.map((e) => ({
+    canonical: e.canonical,
+    type: e.type as LoreType,
+    summary: `${e.canonical} (recorded canon)`,
+    aliases: e.aliases,
+  }));
+  // Seed only currently-valid relations — the "as of point of entry" truth.
+  const relations: BeatRelation[] = golden.relations
+    .filter((r) => !r.invalidated)
+    .map((r) => ({ from: r.from, to: r.to, label: r.label }));
+  await recordBeatCanon(dir, seedSceneId, entities, relations);
+  return golden.entities.map((e) => e.canonical);
+}
+
 async function runOnce(
   scenes: SerializedScene[],
   golden: GoldenSet,
   extractor: ReturnType<typeof _makeDefaultExtractor>,
+  mode: EvalMode = "primary",
 ): Promise<{
   card: Scorecard;
   drops: RelationDropBreakdown;
@@ -68,8 +105,12 @@ async function runOnce(
   missedGolden: string[];
   nearDuplicates: string[];
   falsePositives: string[];
+  backfill?: BackfillGuardReport;
 }> {
   const dir = await mkdtemp(join(tmpdir(), "eval-run-"));
+
+  // Backfill mode: lay down the recorded canon before extraction runs.
+  const seedNames = mode === "backfill" ? await seedRecordedCanon(dir, golden) : [];
 
   // Capture every relation the extractor EMITTED (raw, pre-filter) so we can
   // classify what production then dropped. Wrap per-run for a fresh tally.
@@ -125,7 +166,10 @@ async function runOnce(
   const falsePositives = matching.falsePositives.map((e) => `${e.canonical} (${e.type})`);
 
   const card = await scoreExtraction(actual, golden, getWorldEmbedding);
-  return { card, drops, typeRecall, missedGolden, nearDuplicates, falsePositives };
+  // Backfill guard: did extraction fragment a recorded entity or pollute the graph?
+  const backfill =
+    mode === "backfill" ? backfillGuardFromGraph(seedNames, actual.entities) : undefined;
+  return { card, drops, typeRecall, missedGolden, nearDuplicates, falsePositives, backfill };
 }
 
 function band(s: MetricStats): string {
@@ -186,6 +230,26 @@ function printEntityRecallByType(rows: TypeRecall[], missed: string[]): void {
   }
 }
 
+// Backfill guard (final run). The headline is `fragmentedSeeds`: clusters where
+// extraction split a recorded entity into a name variant — the regression this
+// whole pivot exists to prevent. Zero is the goal; any cluster is a backfill
+// fragmentation bug. netNewEntities are nodes extraction added beyond the seed
+// (genuinely-missed canon recovered, or false positives — inspect the names).
+function printBackfillGuard(b: BackfillGuardReport): void {
+  console.log("");
+  console.log("Backfill guard (final run) — extraction run on a recorded-canon graph");
+  console.log(`  seeded (recorded canon)    ${b.seeded}`);
+  console.log(`  final entities             ${b.finalEntities}`);
+  console.log(`  net new (added by backfill) ${b.netNewEntities}`);
+  console.log(`  fragmented seeds           ${b.fragmentedSeeds.length}  (target: 0)`);
+  for (const c of b.fragmentedSeeds) {
+    console.log(`    [${c.type}] ${c.names.join("  |  ")}`);
+  }
+  if (b.fragmentedSeeds.length === 0 && b.clusters.length > 0) {
+    console.log(`  (${b.clusters.length} backfill-internal cluster(s) among new entities — not seed corruption)`);
+  }
+}
+
 async function main(): Promise<void> {
   if (!process.env["ANTHROPIC_API_KEY"]) {
     console.error("Eval needs ANTHROPIC_API_KEY (the shipping extractor calls the real LLM).");
@@ -208,6 +272,12 @@ async function main(): Promise<void> {
   const golden = parse(await readFile(join(FIXTURES, "golden.yaml"), "utf8")) as GoldenSet;
 
   const RUNS = Number(process.env["EVAL_RUNS"] ?? "5");
+  const mode: EvalMode = process.env["EVAL_MODE"] === "backfill" ? "backfill" : "primary";
+  console.log(
+    mode === "backfill"
+      ? "Mode: BACKFILL — seed recorded canon, then measure extraction as backfill (v1 #3)."
+      : "Mode: PRIMARY — extraction reconstructs the graph from prose (legacy lever).",
+  );
   const extractor = _makeDefaultExtractor(
     new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] }) as unknown as AnthropicLike,
     { temperature: 0 },
@@ -219,26 +289,34 @@ async function main(): Promise<void> {
   let lastMissed: string[] = [];
   let lastNearDup: string[] = [];
   let lastFalsePos: string[] = [];
+  let lastBackfill: BackfillGuardReport | undefined;
   for (let i = 0; i < RUNS; i++) {
     console.log(`--- run ${i + 1}/${RUNS} ---`);
-    const { card, drops: d, typeRecall, missedGolden, nearDuplicates, falsePositives } = await runOnce(scenes, golden, extractor);
+    const { card, drops: d, typeRecall, missedGolden, nearDuplicates, falsePositives, backfill } = await runOnce(scenes, golden, extractor, mode);
     console.log(
       `  entity F1 ${fmt(card.entity.f1)}  recall ${fmt(card.entity.recall)}  dedup ${fmt(card.dedup.score)}  temporal ${card.temporal.correct}/${card.temporal.total}`,
     );
     console.log(
       `  relations: ${d.emitted} emitted → ${d.survived} survived, ${d.droppedLowConfidence} low-conf, ${d.droppedEndpointUnresolved} unresolved`,
     );
+    if (backfill) {
+      console.log(
+        `  backfill: ${backfill.seeded} seeded → ${backfill.finalEntities} final (+${backfill.netNewEntities}), ${backfill.fragmentedSeeds.length} fragmented seed(s)`,
+      );
+    }
     cards.push(card);
     drops.push(d);
     lastTypeRecall = typeRecall;
     lastMissed = missedGolden;
     lastNearDup = nearDuplicates;
     lastFalsePos = falsePositives;
+    lastBackfill = backfill;
   }
 
   printAggregate(aggregateScorecards(cards));
   printRelationDrops(aggregateRelationDrops(drops), RUNS);
   printEntityRecallByType(lastTypeRecall, lastMissed);
+  if (lastBackfill) printBackfillGuard(lastBackfill);
   if (lastNearDup.length > 0) {
     console.log("");
     console.log(`Near-duplicate entities (final run, ${lastNearDup.length}) — collapsed onto`);
