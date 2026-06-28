@@ -142,6 +142,36 @@ jobs:
           fi
           exit $failed
 
+  pack-smoke:
+    name: Pack plugin smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run pack-plugin.sh
+        run: bash plugins/ironsworn/scripts/pack-plugin.sh /tmp/ironsworn-packed
+
+      - name: Verify workspace dep is resolved
+        run: |
+          dep=$(node -e "const p=require('/tmp/ironsworn-packed/scribe/package.json'); console.log(p.dependencies['@agentic-rpg/core'])")
+          echo "resolved dep: $dep"
+          if echo "$dep" | grep -q 'workspace:'; then
+            echo "ERROR: workspace:* still present in packed artifact" >&2
+            exit 1
+          fi
+
+      - name: Verify vendor-core exists
+        run: test -d /tmp/ironsworn-packed/scribe/vendor-core
+
+      - name: Verify node_modules are installed
+        run: |
+          test -d /tmp/ironsworn-packed/scribe/node_modules/@duckdb/node-api || { echo "ERROR: @duckdb/node-api not installed" >&2; exit 1; }
+          test -d /tmp/ironsworn-packed/scribe/node_modules/zod-to-json-schema || { echo "ERROR: zod-to-json-schema not installed" >&2; exit 1; }
+
   version-bump:
     name: Plugin version bump
     runs-on: ubuntu-latest

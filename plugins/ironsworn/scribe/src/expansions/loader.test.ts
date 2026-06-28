@@ -36,6 +36,15 @@ describe("discoverExpansions", () => {
     return pluginsJson;
   }
 
+  // --- installedPluginsPath ---
+
+  it("installedPluginsPath falls back to default when SCRIBE_PLUGINS_JSON is empty string", async () => {
+    process.env["SCRIBE_PLUGINS_JSON"] = "";
+    const { installedPluginsPath } = await import(`./loader.ts?t=${Date.now()}`);
+    expect(installedPluginsPath()).toContain("installed_plugins.json");
+    expect(installedPluginsPath()).not.toBe("");
+  });
+
   // --- Original tests (regression) ---
 
   it("returns empty when SCRIBE_EXPANSIONS is unset", async () => {

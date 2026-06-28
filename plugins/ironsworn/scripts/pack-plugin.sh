@@ -24,18 +24,17 @@ echo "[pack] Copying plugin sources..."
 # Copy everything except scribe/node_modules (re-installed below)
 rsync -a --exclude='scribe/node_modules' "$PLUGIN_SRC/" "$OUTPUT_DIR/"
 
-echo "[pack] Copying @agentic-rpg/core into scribe/node_modules..."
-CORE_DEST="$OUTPUT_DIR/scribe/node_modules/@agentic-rpg/core"
-mkdir -p "$(dirname "$CORE_DEST")"
+echo "[pack] Copying @agentic-rpg/core into scribe/vendor-core..."
+CORE_DEST="$OUTPUT_DIR/scribe/vendor-core"
 rsync -a --exclude='node_modules' "$CORE_SRC/" "$CORE_DEST/"
 
 echo "[pack] Rewriting workspace:* dep in scribe/package.json..."
 cd "$OUTPUT_DIR/scribe"
-# Replace workspace:* reference with the bundled local copy
+# Replace workspace:* reference with the vendored local copy
 node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-pkg.dependencies['@agentic-rpg/core'] = 'file:node_modules/@agentic-rpg/core';
+pkg.dependencies['@agentic-rpg/core'] = 'file:vendor-core';
 fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 
