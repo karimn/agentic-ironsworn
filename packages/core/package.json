@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "eval:extraction": "bun run eval/run-eval.ts"
+    "eval:extraction": "bun run eval/run-eval.ts",
+    "eval:backfill": "EVAL_MODE=backfill bun run eval/run-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

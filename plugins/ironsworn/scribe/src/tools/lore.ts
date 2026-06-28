@@ -38,6 +38,7 @@ import {
   listContradictions,
   resolveContradiction,
 } from "@agentic-rpg/core";
+import { groundingHint } from "@agentic-rpg/core";
 
 export function register(server: McpServer, campaignPath: string): void {
   const provenanceSchema = z
@@ -200,9 +201,16 @@ export function register(server: McpServer, campaignPath: string): void {
     async ({ identifier, include_sibling_campaigns }) => {
       try {
         const entity = await getLore(campaignPath, identifier, { includeSiblings: include_sibling_campaigns ?? false });
-        return {
-          content: [{ type: "text", text: JSON.stringify(entity) }],
-        };
+        // Retrieval discipline (#6): a direct entity read returns the stored
+        // record only — nudge the agent to recall before narrating. Only when
+        // an entity was actually found (no nudge on a miss).
+        const content: Array<{ type: "text"; text: string }> = [
+          { type: "text", text: JSON.stringify(entity) },
+        ];
+        if (entity !== null) {
+          content.push({ type: "text", text: groundingHint(entity.canonical) });
+        }
+        return { content };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],

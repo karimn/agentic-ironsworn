@@ -161,11 +161,12 @@ pattern: rules are commodity data plus pure functions.
 
 ### v1 priorities, in order
 
-> **Status (as of 2026-06-27):** #1 ✅ done · #2 ✅ done ·
-> #3 ❌ not started · #4 🟡 substantially done · #5 ❌ not started ·
-> #6 ❌ not started · #7 ❌ deferred by design. Point-of-entry structured
-> recording (#2) is the active completed item; the DuckDB substrate is locked.
-> Next pickup: #3 (extraction evaluation as backfill-quality measurement).
+> **Status (as of 2026-06-28):** #1 ✅ done · #2 ✅ done ·
+> #3 ✅ done · #4 🟡 substantially done · #5 ✅ done · #6 ✅ done ·
+> #7 ❌ deferred by design. Coherence work (#1–#6) is complete; only #4's
+> arbitrary "as-of `<timestamp>`" historical reads remain as a refinement.
+> The DuckDB substrate is locked. Next pickup: #7 (platform work) — or #4's
+> historical-read refinement if coherence depth is preferred first.
 
 1. **Graphiti spike (gating decision).** ✅ **Resolved (2026-06-16): Path B.**
    Promote OQ1 from open question
@@ -185,11 +186,20 @@ pattern: rules are commodity data plus pure functions.
    and `relations` payloads; the GM records canon on the beat using exact grounded
    names. Extraction is demoted to optional backfill. See
    `docs/superpowers/specs/2026-06-27-point-of-entry-recording-design.md`.
-3. **Extraction evaluation (backfill-quality measurement).** Build a fixed set
-   of Zura scenes with known-correct entities and relations, scored on every
-   prompt or model change. *This is no longer the primary quality lever* —
-   point-of-entry recording is. The harness measures backfill quality and guards
-   against regressions in the fallback path.
+3. **Extraction evaluation (backfill-quality measurement).** 🟡 **Harness
+   built (#187); reframed to backfill quality.** A fixed set of Zura scenes
+   with known-correct entities and relations, scored on every prompt or model
+   change, lives in `packages/core/eval/` (scorer, aggregation, diagnostics).
+   *This is no longer the primary quality lever* — point-of-entry recording is.
+   **Done:** the harness gained a **backfill mode** (`EVAL_MODE=backfill`,
+   `bun run eval:backfill`). It seeds the graph with the golden canon via
+   `recordBeatCanon` (simulating point-of-entry recording), runs extraction as
+   backfill on top, and reports the headline regression signal — *fragmented
+   seeds*: clusters where extraction coined a name variant of a recorded
+   entity (target: 0), distinguished from golden-baseline clusters and
+   backfill-internal noise (`eval/backfill.ts`, `backfillGuard`). The legacy
+   primary mode remains as the fallback-path reference and a guard against
+   breaking extraction outright.
 4. **Temporal truth.** 🟡 **Substantially done (landed 2026-06; spike
    Phases 1–2, preserved through the Path B rollback).** Reverse the
    bi-temporal deferral in `knowledge-graph.md`. If the Graphiti spike
@@ -203,16 +213,28 @@ pattern: rules are commodity data plus pure functions.
    **Remaining:** arbitrary historical "as-of `<timestamp>`" reads —
    reads currently filter to *current* facts only, not a queryable past
    state.
-5. **Write-time contradiction surfacing.** On `upsert_entity` /
-   `link`, run a similarity check against existing canon and flag
-   apparent contradictions (different summary for an existing alias;
+5. **Write-time contradiction surfacing.** ✅ **Done (#190, v0.34.0).** On
+   `upsert_entity` / `link`, run a similarity check against existing canon and
+   flag apparent contradictions (different summary for an existing alias;
    a relation that conflicts with one already on the graph) for the
-   canonize ritual to adjudicate. Don't reject — surface.
-6. **Retrieval discipline.** Tighten the fiction-grounding protocol
-   into a hard tool-use pattern, not a prompt convention. Read tools
-   return entity refs plus *what the agent should re-read before
-   narrating* (e.g., "you fetched X but didn't fetch X's recent
-   scenes — call recall first").
+   canonize ritual to adjudicate — surfaced, never rejected.
+   `checkEntityContradiction` / `checkRelationContradiction`
+   (`rag/contradictions.ts`) are wired into `upsertLore` and `linkLore`
+   (`rag/lore.ts`), return a `contradiction` flag on the write result, and
+   persist to a `contradictions` table (`rag/world-db.ts`); `list_contradictions`
+   / `resolve_contradiction` expose the adjudication queue.
+6. **Retrieval discipline.** ✅ **Done (`recall` #191, v0.35.0; grounding hint
+   this pass).** Tighten the fiction-grounding protocol into a hard tool-use
+   pattern, not a prompt convention. **Done:** `recall(query, kind?, near?,
+   limit?)` (`rag/recall.ts`) returns a single grounding dossier — matching
+   entities, their recent scenes, and relevant community summaries — replacing
+   the two-call `search_lore` + `search_lore_global` pattern. The enforcement
+   half now ships too: the direct entity reads (`get_npc`, `get_lore`) append a
+   **grounding reminder** (`rag/grounding.ts`, `groundingHint`) telling the
+   agent the read returned the stored record only and to `recall(<subject>)`
+   before narrating; the GM prompt instructs the agent to heed it. The reads
+   themselves now surface what the agent should re-read, rather than relying on
+   the agent to remember.
 7. **Then the platform work.** System / setting / craft package
    splits, npm distribution, paid stacks, alt-frontend candidates,
    future-proofing extension points. Keep the boundaries the doc

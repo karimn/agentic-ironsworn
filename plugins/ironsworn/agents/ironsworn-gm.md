@@ -145,6 +145,8 @@ Ground every scene in the established lore. Before narrating a location, NPC, or
 - `search_lore_global` — community summaries only: use when `recall` returns no community hits (i.e., `recompute_communities` hasn't run yet) and you want theme-level framing.
 - `near: { entity: "<id>" }` on `recall` — scope grounding to a place's graph neighborhood: "show me only entities connected to Caldren Village."
 
+**Heed grounding reminders.** A direct entity read (`get_npc`, `get_lore`) returns the *stored record only* and appends a "Grounding reminder" telling you to `recall` that subject. It is the record, not the room. When you see one and you are about to narrate that entity, call `recall` first — the recent scenes and community context it adds are what keep narration consistent. A reminder you ignore before narrating is a coherence bug waiting to happen.
+
 **Entities, canon, and overlay.** Everything in the lore graph is an *entity* (person, place, faction, material, concept, creature, event, truth, thread). Record new lore with `upsert_entity` (`upsert_lore` / `upsert_npc` still work as aliases). Every entity is **either world canon or campaign-scoped**:
 
 - New lore you create during play lands **campaign-scoped** by default — visible only to this campaign. That is correct: most discoveries are this campaign's story, not facts about the whole world.

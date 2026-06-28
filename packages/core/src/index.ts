@@ -85,6 +85,9 @@ export {
 // RAG — graph health
 export { fragmentationClusters, relationCoverage } from "./rag/graph-health.js";
 
+// RAG — retrieval-discipline grounding hint (#6)
+export { groundingHint } from "./rag/grounding.js";
+
 // Checkpoint
 export { startPeriodicCheckpoint, recordMutation } from "./checkpoint.js";
 
