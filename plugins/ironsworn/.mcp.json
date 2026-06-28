@@ -10,8 +10,7 @@
         "OLLAMA_BASE_URL": "http://localhost:11434",
         "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
         "SCRIBE_SUMMARY_MODEL": "claude-haiku-4-5-20251001",
-        "SCRIBE_EXPANSIONS": "",
-        "SCRIBE_PLUGINS_JSON": ""
+        "SCRIBE_EXPANSIONS": ""
       }
     }
   }

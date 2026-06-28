@@ -55,7 +55,7 @@ let _active: LoadedExpansion[] | null = null;
 
 export function installedPluginsPath(): string {
   return (
-    process.env["SCRIBE_PLUGINS_JSON"] ??
+    process.env["SCRIBE_PLUGINS_JSON"] ||
     join(homedir(), ".claude", "plugins", "installed_plugins.json")
   );
 }
