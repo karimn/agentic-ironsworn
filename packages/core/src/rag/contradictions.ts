@@ -182,6 +182,69 @@ export async function listContradictions(
   }
 }
 
+/**
+ * An open contradiction enriched with the display names of the entities it
+ * touches, for surfacing into the live GM session context. `names` powers both
+ * scene-relevance prioritization (does a named entity appear in recent scenes?)
+ * and human-readable rendering.
+ */
+export interface OpenContradiction {
+  id: string;
+  kind: ContradictionFlag["kind"];
+  names: string[];
+  existing_value: string;
+  incoming_value: string;
+  created_at: string;
+}
+
+/**
+ * Fetch unresolved contradictions for the active campaign, joined to the
+ * entities/relations they reference so each carries the display name(s) of the
+ * entities involved. Ordered newest-first. Used by the context builder to
+ * surface open conflicts during play.
+ */
+export async function listOpenContradictions(
+  campaignPath: string,
+  limit = 20,
+): Promise<OpenContradiction[]> {
+  const ctx = await resolveWorldContext(campaignPath);
+  const instance = await getWorldDb(ctx);
+  const conn = await instance.connect();
+  try {
+    const result = await conn.runAndReadAll(
+      `SELECT c.id, c.kind, c.existing_value, c.incoming_value, c.created_at,
+              e.canonical   AS entity_name,
+              rf.canonical  AS rel_from_name,
+              rt.canonical  AS rel_to_name
+       FROM contradictions c
+       LEFT JOIN entities  e  ON e.id = c.entity_id
+       LEFT JOIN relations r  ON r.id = c.relation_id
+       LEFT JOIN entities  rf ON rf.id = r.from_entity
+       LEFT JOIN entities  rt ON rt.id = r.to_entity
+       WHERE (c.campaign_id = ? OR c.campaign_id IS NULL)
+         AND c.resolved_at IS NULL
+       ORDER BY c.created_at DESC
+       LIMIT ?`,
+      [ctx.campaignId, limit],
+    );
+    return (result.getRowObjectsJS() as Record<string, unknown>[]).map((row) => {
+      const names = [row["entity_name"], row["rel_from_name"], row["rel_to_name"]]
+        .filter((n) => n != null)
+        .map((n) => String(n));
+      return {
+        id: String(row["id"]),
+        kind: String(row["kind"]) as ContradictionFlag["kind"],
+        names,
+        existing_value: String(row["existing_value"]),
+        incoming_value: String(row["incoming_value"]),
+        created_at: String(row["created_at"]),
+      };
+    });
+  } finally {
+    conn.closeSync();
+  }
+}
+
 export async function resolveContradiction(
   campaignPath: string,
   id: string,

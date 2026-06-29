@@ -49,10 +49,11 @@ export {
   checkEntityContradiction,
   checkRelationContradiction,
   listContradictions,
+  listOpenContradictions,
   resolveContradiction,
   ENTITY_CONTRADICTION_THRESHOLD,
 } from "./rag/contradictions.js";
-export type { ContradictionFlag } from "./rag/contradictions.js";
+export type { ContradictionFlag, OpenContradiction } from "./rag/contradictions.js";
 
 // RAG — scenes
 export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs, exportSceneEntityRefs } from "./rag/scenes.js";

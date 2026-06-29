@@ -8,6 +8,7 @@ import {
   checkEntityContradiction,
   checkRelationContradiction,
   listContradictions,
+  listOpenContradictions,
   resolveContradiction,
   type ContradictionFlag,
 } from "./contradictions.js";
@@ -265,6 +266,76 @@ describe("listContradictions + resolveContradiction", () => {
 
     const allFlags = await listContradictions(campaignDir, { includeResolved: true });
     expect(allFlags.length).toBe(2);
+  });
+
+  it("listOpenContradictions enriches entity_summary_divergence with the entity's display name", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    const entityId = crypto.randomUUID();
+    const flagId = crypto.randomUUID();
+    try {
+      await insertEntity(conn, ctx.campaignId, {
+        id: entityId,
+        summary: "The keeper of the river bridge",
+        embeddingFirstVal: 1.0,
+        slug: "bridgekeeper",
+      });
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO contradictions
+           (id, kind, entity_id, existing_value, incoming_value, campaign_id, created_at)
+         VALUES (?, 'entity_summary_divergence', ?, 'guards the bridge', 'burned the bridge', ?, ?)`,
+        [flagId, entityId, ctx.campaignId, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const open = await listOpenContradictions(campaignDir);
+    expect(open.length).toBe(1);
+    expect(open[0].id).toBe(flagId);
+    expect(open[0].kind).toBe("entity_summary_divergence");
+    expect(open[0].names).toContain("Test Entity");
+    expect(open[0].existing_value).toBe("guards the bridge");
+    expect(open[0].incoming_value).toBe("burned the bridge");
+  });
+
+  it("listOpenContradictions enriches relation_label_conflict with both endpoint names and excludes resolved", async () => {
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    const fromId = crypto.randomUUID();
+    const toId = crypto.randomUUID();
+    const relId = crypto.randomUUID();
+    const openFlagId = crypto.randomUUID();
+    const resolvedFlagId = crypto.randomUUID();
+    try {
+      await insertStubEntities(conn, ctx.campaignId, [[fromId, "kira"], [toId, "warden"]]);
+      await insertRelation(conn, {
+        id: relId, fromId, toId, label: "ALLY_OF", campaignId: ctx.campaignId,
+      });
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO contradictions
+           (id, kind, relation_id, existing_value, incoming_value, campaign_id, created_at)
+         VALUES (?, 'relation_label_conflict', ?, 'ENEMY_OF', 'ALLY_OF', ?, ?)`,
+        [openFlagId, relId, ctx.campaignId, now],
+      );
+      await conn.run(
+        `INSERT INTO contradictions
+           (id, kind, relation_id, existing_value, incoming_value, campaign_id, created_at, resolved_at)
+         VALUES (?, 'relation_label_conflict', ?, 'X', 'Y', ?, ?, ?)`,
+        [resolvedFlagId, relId, ctx.campaignId, now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const open = await listOpenContradictions(campaignDir);
+    expect(open.length).toBe(1);
+    expect(open[0].id).toBe(openFlagId);
+    expect(open[0].names).toEqual(expect.arrayContaining(["kira", "warden"]));
   });
 
   it("resolveContradiction sets resolved_at and resolution on the row", async () => {
