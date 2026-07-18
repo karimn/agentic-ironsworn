@@ -43,6 +43,47 @@ bun install
      the world truths.
    - On subsequent runs it resumes from `campaigns/default/`.
 
+## Starting a new story in an existing world
+
+A world's canon (places, factions, truths blessed via `/canonize`) is meant to
+outlive any one campaign. To start a **second story in the same world** —
+inheriting its established canon but none of the first campaign's private
+scenes, threads, or party-local NPCs — run `/ironsworn-init` again with
+`--in-world`:
+
+```bash
+# From a fresh folder next to your existing world:
+mkdir my-ironsworn-sandbox && cd my-ironsworn-sandbox
+/ironsworn-init --in-world ../my-ironsworn sandbox "Sandbox"
+```
+
+- `../my-ironsworn` is the path to the **existing** world root (the folder
+  with `world.json`/`world.duckdb` — i.e. wherever you first ran
+  `/ironsworn-init`). It is never modified: no new database, no new
+  `world.json`.
+- `sandbox` / `"Sandbox"` are the new campaign's id/name (both optional —
+  derived from the current folder name if omitted).
+- This folder becomes a small satellite project: its own `CLAUDE.md`,
+  `.claude/settings.json`, and a `.mcp.json` that points the scribe server at
+  `../my-ironsworn/campaigns/sandbox`.
+
+If you'd rather create the new campaign's folder directly under the existing
+world (instead of a separate satellite project), that also works without any
+flag — `ironsworn-init` auto-detects it:
+
+```bash
+cd my-ironsworn
+mkdir campaigns/sandbox && cd campaigns/sandbox
+/ironsworn-init
+```
+
+Either way, invoke the GM as usual (`@ironsworn-gm`). On the very first
+session — before any scene has been recorded for this campaign — it presents
+a **canon briefing**: the world's established entities, relations, and
+community summaries, so you can situate the new character in inherited
+fiction rather than starting from nothing. See `docs/design/world-db.md` for
+the full visibility model this rests on.
+
 ## Environment variables
 
 | Variable | Default | Purpose |

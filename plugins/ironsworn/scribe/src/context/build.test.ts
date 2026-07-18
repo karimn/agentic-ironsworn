@@ -4,9 +4,9 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildContext, buildContradictionsSection } from "./build.js";
+import { buildContext, buildContradictionsSection, buildCanonBriefingSection } from "./build.js";
 import { saveCharacter, DEBILITIES } from "../state/character.js";
-import type { OpenContradiction } from "@agentic-rpg/core";
+import type { OpenContradiction, CanonBriefing } from "@agentic-rpg/core";
 
 const SAMPLE_CHAR = {
   name: "Kira",
@@ -106,6 +106,65 @@ describe("buildContext", () => {
     expect(result.userPrefix).toContain("Bridgekeeper");
   });
 
+  it("emits a Canon Briefing section on a fresh sibling campaign's first session (zero scenes, world canon exists)", async () => {
+    const { resolveWorldContext, getWorldDb, openWorldWriteConn } = await import("@agentic-rpg/core");
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    try {
+      const entityId = crypto.randomUUID();
+      const emb = `[${[1.0, ...Array(767).fill(0.0)].join(",")}]::FLOAT[768]`;
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO entities
+           (id, slug, canonical, aliases, type, summary, content, metadata, embedding,
+            campaign_id, created_in_campaign, created_at, updated_at)
+         VALUES (?, 'zura', 'Zura', [], 'place', 'a fungal-iron delta', '{}', '{}', ${emb}, NULL, 'origin-campaign', ?, ?)`,
+        [entityId, now, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const result = await buildContext(campaignDir, "I step off the boat.");
+    expect(result.userPrefix).toContain("## Canon Briefing — Entering an Established World");
+    expect(result.userPrefix).toContain("Zura");
+  });
+
+  it("omits the Canon Briefing section once the campaign has recorded a scene", async () => {
+    const { resolveWorldContext, getWorldDb, openWorldWriteConn } = await import("@agentic-rpg/core");
+    const ctx = await resolveWorldContext(campaignDir);
+    const instance = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(instance);
+    try {
+      const entityId = crypto.randomUUID();
+      const emb = `[${[1.0, ...Array(767).fill(0.0)].join(",")}]::FLOAT[768]`;
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO entities
+           (id, slug, canonical, aliases, type, summary, content, metadata, embedding,
+            campaign_id, created_in_campaign, created_at, updated_at)
+         VALUES (?, 'zura', 'Zura', [], 'place', 'a fungal-iron delta', '{}', '{}', ${emb}, NULL, 'origin-campaign', ?, ?)`,
+        [entityId, now, now],
+      );
+      await conn.run(
+        `INSERT INTO scenes (id, campaign_id, place_entity, text, embedding, kind, timestamp)
+         VALUES (?, ?, NULL, 'We made landfall.', ${emb}, 'scene', ?)`,
+        [crypto.randomUUID(), ctx.campaignId, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const result = await buildContext(campaignDir, "I step off the boat.");
+    expect(result.userPrefix).not.toContain("## Canon Briefing");
+  });
+
+  it("omits the Canon Briefing section for a brand-new world with no canon yet, even at zero scenes", async () => {
+    const result = await buildContext(campaignDir, "test");
+    expect(result.userPrefix).not.toContain("## Canon Briefing");
+  });
+
   it("buildExpansionSections includes agentBriefing and section.ts output for active expansions", async () => {
     const { buildExpansionSections } = await import("./build.js");
     const stubDir = resolve(dirname(fileURLToPath(import.meta.url)), "../expansions/stub");
@@ -167,5 +226,66 @@ describe("buildContradictionsSection", () => {
     const section = buildContradictionsSection(items, ["The Bridgekeeper bars our path."], 5);
     // On-stage entity must survive the cap despite being oldest, by relevance.
     expect(section).toContain("Bridgekeeper");
+  });
+});
+
+describe("buildCanonBriefingSection", () => {
+  function emptyBriefing(): CanonBriefing {
+    return { entities: [], relations: [], communities: [] };
+  }
+
+  it("returns an empty string when sceneCount > 0, even with canon available", () => {
+    const briefing: CanonBriefing = {
+      entities: [{ id: "e1", name: "Zura", type: "place", summary: "a delta", relation_degree: 0 }],
+      relations: [],
+      communities: [],
+    };
+    expect(buildCanonBriefingSection(1, briefing)).toBe("");
+  });
+
+  it("returns an empty string at sceneCount 0 when there is no canon at all", () => {
+    expect(buildCanonBriefingSection(0, emptyBriefing())).toBe("");
+  });
+
+  it("renders a header plus entities, relations, and communities when all three are present", () => {
+    const briefing: CanonBriefing = {
+      entities: [{ id: "e1", name: "Zura", type: "place", summary: "a fungal-iron delta", relation_degree: 2 }],
+      relations: [{ id: "r1", label: "RULES", from_id: "e2", from_name: "The Warden", to_id: "e1", to_name: "Zura" }],
+      communities: [{ id: "c1", level: 1, member_count: 12, summary: "The fungal-iron network spans the delta." }],
+    };
+    const section = buildCanonBriefingSection(0, briefing);
+    expect(section).toContain("## Canon Briefing — Entering an Established World");
+    expect(section).toContain("Zura");
+    expect(section).toContain("The Warden");
+    expect(section).toContain("fungal-iron network");
+  });
+
+  it("caps entities, relations, and communities independently", () => {
+    const entities = Array.from({ length: 12 }, (_, i) => ({
+      id: `e${i}`, name: `Entity${i}`, type: "person", summary: "s", relation_degree: 0,
+    }));
+    const relations = Array.from({ length: 12 }, (_, i) => ({
+      id: `r${i}`, label: "KNOWS", from_id: `a${i}`, from_name: `A${i}`, to_id: `b${i}`, to_name: `B${i}`,
+    }));
+    const communities = Array.from({ length: 12 }, (_, i) => ({
+      id: `c${i}`, level: 0, member_count: i, summary: `Community ${i}.`,
+    }));
+    const section = buildCanonBriefingSection(0, { entities, relations, communities });
+    const entityBullets = section.split("\n").filter((l) => l.includes("Entity")).length;
+    const communityBullets = section.split("\n").filter((l) => l.includes("Community")).length;
+    expect(entityBullets).toBeLessThanOrEqual(8);
+    expect(communityBullets).toBeLessThanOrEqual(3);
+  });
+
+  it("omits a bucket's heading entirely when that bucket is empty", () => {
+    const briefing: CanonBriefing = {
+      entities: [{ id: "e1", name: "Zura", type: "place", summary: "a delta", relation_degree: 0 }],
+      relations: [],
+      communities: [],
+    };
+    const section = buildCanonBriefingSection(0, briefing);
+    expect(section).not.toContain("Known relations:");
+    expect(section).not.toContain("Established themes:");
+    expect(section).toContain("Known entities:");
   });
 });

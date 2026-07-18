@@ -94,6 +94,56 @@ campaign-scoped overlay, and the GM (or player) deliberately **canonizes** it
 when it becomes true for the whole world. A freshly initialized sibling campaign
 then sees it immediately, with no export/import.
 
+## Fiction onramp: starting a new story in an existing world (FW3, #198)
+
+The visibility model above was built specifically so a **second campaign in
+the same world** is cheap: a new `campaign_id`, same `world.duckdb`, and every
+read's `campaign_id IS NULL OR campaign_id = :current` predicate does the rest.
+What was missing was the *workflow* for actually creating that second
+campaign — this section is that workflow, user-facing docs live in
+`plugins/ironsworn/README.md`'s "Starting a new story in an existing world".
+
+**Scaffolding.** `ironsworn-init.sh` detects whether the current directory is
+already inside an established world in one of two ways:
+
+- **Auto-detect** — walking up from cwd (bounded, mirrors
+  `resolveWorldContext`'s walk-up in `world.ts`) looking for
+  `world.json`/`world.duckdb`. A match at cwd itself means cwd already IS a
+  world root (the existing idempotent re-run case); a match at a strict
+  ancestor means cwd is nested inside one (e.g. the user `mkdir`'d
+  `campaigns/<id>` under an existing world root and `cd`'d in) — that's a new
+  sibling campaign.
+- **Explicit `--in-world <path>`** — for a satellite project folder that
+  isn't nested under the world root at all. The script computes the relative
+  path from cwd to `<path>/campaigns/<id>` and writes it as `SCRIBE_CAMPAIGN`
+  in a project-level `.mcp.json` at cwd, so a session opened there points its
+  scribe server at the right campaign without ever touching `<path>`'s
+  `world.json`/`world.duckdb`.
+
+Either path creates `<world-root>/campaigns/<new-id>/campaign.json` and
+**never** writes a second `world.json` or `world.duckdb` — one database,
+every sibling campaign. The walk-up/slugify/relative-path algorithm this
+implements natively in bash is unit-tested as pure TypeScript in
+`packages/core/src/onramp.ts` (`findEnclosingWorldRoot`, `decideInitMode`,
+`planCampaignOnramp`); an end-to-end integration test exercising the actual
+script lives at `plugins/ironsworn/scripts/test-ironsworn-init-onramp.sh`.
+
+**Canon briefing.** A fresh sibling campaign's first GM session — detected as
+zero rows in `scenes` for the active `campaign_id`, combined with non-empty
+world canon (so a genuinely brand-new world, which also has zero scenes on
+session one, produces an empty briefing and nothing renders) — gets a
+**Canon Briefing** context section: world-scoped (`campaign_id IS NULL`)
+entities ranked by relation degree, their active relations, and the broadest
+community summaries from `recomputeCommunities`. `getCanonBriefing()` in
+`packages/core/src/rag/canon-briefing.ts` fetches the data;
+`buildCanonBriefingSection()` in `scribe/src/context/build.ts` is the pure
+trigger-plus-render half, following the same DB-fetch/pure-render split
+`buildContradictionsSection` established for FW1. It's also exposed directly
+as the `get_canon_briefing` MCP tool, for re-checking later in the same
+campaign. This is the natural complement to the canonize ritual (FW2, #197):
+what one campaign blesses into canon is exactly what the next campaign
+started in the same world is briefed on.
+
 ## Schema (essentials)
 
 ```sql

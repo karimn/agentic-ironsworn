@@ -24,6 +24,16 @@ export { getLoreDb, openLoreWriteConn, getLoreEmbedding, peekLoreDb } from "./ra
 export { getWorldDb, peekWorldDb, openWorldWriteConn, getWorldEmbedding } from "./rag/world-db.js";
 export type { WorldContext } from "./rag/world-db.js";
 
+// New-campaign-in-existing-world onramp (FW3, #198)
+export {
+  findEnclosingWorldRoot,
+  slugifyCampaignId,
+  titleCaseFromSlug,
+  planCampaignOnramp,
+  decideInitMode,
+} from "./onramp.js";
+export type { WorldRootDetection, CampaignOnrampPlan, InitMode } from "./onramp.js";
+
 // World context + world.json helpers
 export {
   resolveWorldContext,
@@ -69,6 +79,10 @@ export type {
   EntityCandidateInput,
   RelationCandidateInput,
 } from "./rag/canonize.js";
+
+// RAG — canon briefing (FW3, #198): world-scoped canon for a fresh sibling campaign's first session
+export { getCanonBriefing, campaignSceneCount } from "./rag/canon-briefing.js";
+export type { CanonBriefing, CanonBriefingEntity, CanonBriefingRelation, CanonBriefingCommunity } from "./rag/canon-briefing.js";
 
 // RAG — scenes
 export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs, exportSceneEntityRefs } from "./rag/scenes.js";
