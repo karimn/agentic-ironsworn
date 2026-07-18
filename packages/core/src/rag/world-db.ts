@@ -295,6 +295,29 @@ async function initDb(ctx: WorldContext): Promise<DuckDBInstance> {
     `);
 
     // -----------------------------------------------------------------------
+    // observations — runtime-observability sink (referee + watcher, #211)
+    // -----------------------------------------------------------------------
+    await conn.run(`
+      CREATE TABLE IF NOT EXISTS observations (
+        id          TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        source      TEXT NOT NULL,
+        severity    TEXT NOT NULL,
+        kind        TEXT NOT NULL,
+        detail      TEXT NOT NULL,
+        turn_ref    TEXT,
+        blocked     BOOLEAN NOT NULL DEFAULT FALSE,
+        resolved_at TEXT,
+        resolution  TEXT
+      )
+    `);
+    await conn.run(`
+      CREATE INDEX IF NOT EXISTS observations_campaign_id_idx
+      ON observations (campaign_id)
+    `);
+
+    // -----------------------------------------------------------------------
     // Run any post-baseline migrations
     // -----------------------------------------------------------------------
     await runDbMigrations(conn, WORLD_MIGRATIONS, "");
