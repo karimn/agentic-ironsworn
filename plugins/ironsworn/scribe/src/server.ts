@@ -7,6 +7,7 @@ import * as narrativeTools from "./tools/narrative.js";
 import * as loreTools from "./tools/lore.js";
 import * as campaignTools from "./tools/campaign.js";
 import { loadExpansions } from "./expansions/loader.js";
+import { instrumentServer } from "./ledger.js";
 import { checkpointLore, checkpointScenes, startPeriodicCheckpoint, replayFailures, shutdown as drainBeatQueue } from "@agentic-rpg/core";
 
 const CAMPAIGN_PATH = process.env.SCRIBE_CAMPAIGN ?? "campaigns/default";
@@ -15,6 +16,10 @@ const server = new McpServer({
   name: "scribe",
   version: "0.0.1",
 });
+
+// Must precede all register(...) calls and loadExpansions so every tool —
+// core and expansion alike — writes to the session ledger (#211).
+instrumentServer(server, CAMPAIGN_PATH);
 
 readTools.register(server, CAMPAIGN_PATH);
 mechanicsTools.register(server, CAMPAIGN_PATH);
