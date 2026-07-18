@@ -39,6 +39,7 @@ import {
   resolveContradiction,
 } from "@agentic-rpg/core";
 import { listCanonizeCandidates } from "@agentic-rpg/core";
+import { getCanonBriefing } from "@agentic-rpg/core";
 import { groundingHint } from "@agentic-rpg/core";
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -644,6 +645,34 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         const candidates = await listCanonizeCandidates(campaignPath, { limit: limit ?? 20 });
         return { content: [{ type: "text", text: JSON.stringify(candidates) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "get_canon_briefing",
+    "The new-campaign-in-existing-world onramp's canon briefing (FW3, #198): world-scoped (campaign_id IS NULL) entities ranked by relation degree, their active relations, and the broadest community summaries — the 'what's already true here' a PC entering an established world could plausibly know or discover. This is the same data buildContext auto-injects into a fresh sibling campaign's first session (before any scenes are recorded); call it directly to re-fetch or show the briefing again later in the same campaign. Pairs with the canonize ritual (/canonize, FW2) — canon blessed in a prior campaign is exactly what shows up here.",
+    {
+      entity_limit: z.coerce.number().int().min(1).max(50).optional()
+        .describe("Max entities to return (default 15)"),
+      relation_limit: z.coerce.number().int().min(1).max(50).optional()
+        .describe("Max relations to return (default 15)"),
+      community_limit: z.coerce.number().int().min(1).max(20).optional()
+        .describe("Max community summaries to return (default 5)"),
+    },
+    async ({ entity_limit, relation_limit, community_limit }) => {
+      try {
+        const briefing = await getCanonBriefing(campaignPath, {
+          entityLimit: entity_limit,
+          relationLimit: relation_limit,
+          communityLimit: community_limit,
+        });
+        return { content: [{ type: "text", text: JSON.stringify(briefing) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],

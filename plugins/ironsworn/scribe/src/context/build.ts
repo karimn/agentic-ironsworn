@@ -8,6 +8,9 @@ import {
   listNpcs,
   listOpenContradictions,
   type OpenContradiction,
+  getCanonBriefing,
+  campaignSceneCount,
+  type CanonBriefing,
 } from "@agentic-rpg/core";
 import { listThreads } from "../state/threads.js";
 import { getActiveExpansions, type LoadedExpansion } from "../expansions/loader.js";
@@ -193,6 +196,60 @@ export function buildContradictionsSection(
   );
 }
 
+const CANON_BRIEFING_ENTITY_CAP = 8;
+const CANON_BRIEFING_RELATION_CAP = 8;
+const CANON_BRIEFING_COMMUNITY_CAP = 3;
+
+/**
+ * Render the "here is what is already true here" canon briefing for a PC
+ * entering an established world (FW3, #198). Only fires when `sceneCount`
+ * is zero (this campaign hasn't played a scene yet — the "first session"
+ * signal) AND the world actually has canon to brief on (a brand-new fresh
+ * world also has zero scenes on session one, but `briefing` comes back
+ * empty in that case, so nothing renders — no flag or campaign.json
+ * bookkeeping needed to distinguish the two). Pure — no DB access — so the
+ * trigger condition and rendering are testable without a world.duckdb
+ * fixture, mirroring `buildContradictionsSection`'s split.
+ */
+export function buildCanonBriefingSection(sceneCount: number, briefing: CanonBriefing): string {
+  if (sceneCount > 0) return "";
+  const { entities, relations, communities } = briefing;
+  if (entities.length === 0 && relations.length === 0 && communities.length === 0) return "";
+
+  const parts: string[] = [];
+  if (communities.length > 0) {
+    const bullets = communities
+      .slice(0, CANON_BRIEFING_COMMUNITY_CAP)
+      .map((c) => `- ${c.summary}`)
+      .join("\n");
+    parts.push(`**Established themes:**\n${bullets}`);
+  }
+  if (entities.length > 0) {
+    const bullets = entities
+      .slice(0, CANON_BRIEFING_ENTITY_CAP)
+      .map((e) => `- **${e.name}** (${e.type}) — ${e.summary}`)
+      .join("\n");
+    parts.push(`**Known entities:**\n${bullets}`);
+  }
+  if (relations.length > 0) {
+    const bullets = relations
+      .slice(0, CANON_BRIEFING_RELATION_CAP)
+      .map((r) => `- ${r.from_name} —[${r.label}]→ ${r.to_name}`)
+      .join("\n");
+    parts.push(`**Known relations:**\n${bullets}`);
+  }
+
+  return (
+    "## Canon Briefing — Entering an Established World\n" +
+    "This is this campaign's first session, and the world already has established " +
+    "canon from prior stories. Use this to situate the new character: where they " +
+    "start, which of these factions/places/people are plausibly in reach, and an " +
+    "inciting vow grounded in what's already true. This is what the new PC could " +
+    "plausibly know or discover — narrate it in, don't dump it verbatim.\n\n" +
+    parts.join("\n\n")
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main exports
 // ---------------------------------------------------------------------------
@@ -292,6 +349,18 @@ export async function buildContext(
     if (section) sections.push(section);
   } catch {
     // omit if contradictions store unavailable (e.g. no world.duckdb yet)
+  }
+
+  // Canon briefing — a fresh sibling campaign's first-session "what's already true here" (FW3, #198)
+  try {
+    const [sceneCount, briefing] = await Promise.all([
+      campaignSceneCount(campaignPath),
+      getCanonBriefing(campaignPath),
+    ]);
+    const section = buildCanonBriefingSection(sceneCount, briefing);
+    if (section) sections.push(section);
+  } catch {
+    // omit if world.duckdb is unavailable
   }
 
   // Expansion context sections

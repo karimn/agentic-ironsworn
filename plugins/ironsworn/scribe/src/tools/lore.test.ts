@@ -720,3 +720,54 @@ describe("list_canonize_candidates tool", () => {
     expect(candidates.length).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// get_canon_briefing — the new-campaign-in-existing-world onramp's canon briefing (FW3, #198)
+// ---------------------------------------------------------------------------
+
+describe("get_canon_briefing tool", () => {
+  it("surfaces world-canon entities, excluding this campaign's own overlay", async () => {
+    if (!dbReady) return;
+    const ctx = await resolveWorldContext(campaignDir);
+    const canonId = await seedEntity(campaignDir, { canonical: "Zura", type: "place", campaignId: null });
+    await seedEntity(campaignDir, { canonical: "Local Only", type: "person", campaignId: ctx.campaignId });
+
+    const result = await client.callTool({ name: "get_canon_briefing", arguments: {} });
+    expect(result.isError).not.toBe(true);
+    const briefing = parseToolText<{ entities: Array<{ id: string; name: string }> }>(result);
+    const ids = briefing.entities.map((e) => e.id);
+    expect(ids).toContain(canonId);
+    expect(ids.length).toBe(1);
+  });
+
+  it("surfaces world-canon relations with resolved endpoint names", async () => {
+    if (!dbReady) return;
+    const fromId = await seedEntity(campaignDir, { canonical: "Kira", type: "person", campaignId: null });
+    const toId = await seedEntity(campaignDir, { canonical: "Warden", type: "person", campaignId: null });
+    await seedRelation(campaignDir, { fromId, toId, label: "ALLY_OF", campaignId: null });
+
+    const result = await client.callTool({ name: "get_canon_briefing", arguments: {} });
+    const briefing = parseToolText<{ relations: Array<{ from_name: string; to_name: string; label: string }> }>(result);
+    expect(briefing.relations.length).toBe(1);
+    expect(briefing.relations[0]!.from_name).toBe("Kira");
+    expect(briefing.relations[0]!.to_name).toBe("Warden");
+    expect(briefing.relations[0]!.label).toBe("ALLY_OF");
+  });
+
+  it("respects entity_limit / relation_limit / community_limit arguments", async () => {
+    if (!dbReady) return;
+    for (let i = 0; i < 4; i++) {
+      await seedEntity(campaignDir, { canonical: `Canon Entity ${i}`, type: "person", campaignId: null });
+    }
+    const result = await client.callTool({ name: "get_canon_briefing", arguments: { entity_limit: 2 } });
+    const briefing = parseToolText<{ entities: unknown[] }>(result);
+    expect(briefing.entities.length).toBe(2);
+  });
+
+  it("returns empty arrays when the world has no canon yet", async () => {
+    if (!dbReady) return;
+    const result = await client.callTool({ name: "get_canon_briefing", arguments: {} });
+    const briefing = parseToolText<{ entities: unknown[]; relations: unknown[]; communities: unknown[] }>(result);
+    expect(briefing).toEqual({ entities: [], relations: [], communities: [] });
+  });
+});
