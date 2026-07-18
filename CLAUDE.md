@@ -34,7 +34,7 @@ This repo ships a single Claude Code plugin: the **Ironsworn solo GM companion**
 - **`.mcp.json`** — wires the scribe server; key env vars:
   - `SCRIBE_CAMPAIGN` — campaign directory
   - `OLLAMA_BASE_URL` — Ollama endpoint for embeddings
-  - `ANTHROPIC_API_KEY` — required for `recompute_communities` (Claude writes the cluster summaries)
+  - `SCRIBE_ANTHROPIC_API_KEY` — sourced into the subprocess's `ANTHROPIC_API_KEY`; required for `recompute_communities` (Claude writes the cluster summaries). Named `SCRIBE_*` rather than the bare `ANTHROPIC_API_KEY` so it doesn't collide with the Claude Code CLI's own auth env var in Claude Code on the web environments
   - `SCRIBE_SUMMARY_MODEL` — optional model override for community summaries (default: `claude-haiku-4-5-20251001`)
 
 ### Scribe MCP server (`plugins/ironsworn/scribe/src/`)
