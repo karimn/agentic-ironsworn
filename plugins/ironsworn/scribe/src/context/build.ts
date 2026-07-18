@@ -2,7 +2,13 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { loadCharacter } from "../state/character.js";
-import { searchScenes, getRecentScenesChronological, listNpcs } from "@agentic-rpg/core";
+import {
+  searchScenes,
+  getRecentScenesChronological,
+  listNpcs,
+  listOpenContradictions,
+  type OpenContradiction,
+} from "@agentic-rpg/core";
 import { listThreads } from "../state/threads.js";
 import { getActiveExpansions, type LoadedExpansion } from "../expansions/loader.js";
 
@@ -128,6 +134,65 @@ async function buildThreadsSection(campaignPath: string): Promise<string> {
   return `## Open Threads\n${items}`;
 }
 
+const CONTRADICTION_CAP = 5;
+const CONTRADICTION_VALUE_MAX = 120;
+
+function truncateValue(value: string, max = CONTRADICTION_VALUE_MAX): string {
+  const trimmed = value.trim();
+  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1).trimEnd()}…`;
+}
+
+function formatContradiction(item: OpenContradiction): string {
+  const existing = truncateValue(item.existing_value);
+  const incoming = truncateValue(item.incoming_value);
+  if (item.kind === "relation_label_conflict") {
+    const pair = item.names.length >= 2 ? item.names.join(" → ") : item.names[0] ?? "an entity";
+    return `- **${pair}** — established \`${existing}\`, but a newer claim says \`${incoming}\``;
+  }
+  const subject = item.names[0] ?? "An entity";
+  return `- **${subject}** — canon says “${existing}”, but a recent claim says “${incoming}”`;
+}
+
+/**
+ * Render open contradictions as a capped, scene-prioritized GM context section.
+ * Contradictions whose named entities appear in recent scene text float to the
+ * top (so what's on stage surfaces first); the rest keep newest-first order.
+ * Pure so cap/relevance/format are testable without a DB.
+ */
+export function buildContradictionsSection(
+  items: OpenContradiction[],
+  sceneTexts: string[],
+  cap = CONTRADICTION_CAP,
+): string {
+  if (items.length === 0) return "";
+
+  const haystack = sceneTexts.join(" ").toLowerCase();
+  const isRelevant = (item: OpenContradiction): boolean =>
+    item.names.some((name) => name.length > 0 && haystack.includes(name.toLowerCase()));
+
+  // Stable: scene-relevant first, otherwise preserve the incoming (newest-first) order.
+  const ordered = items
+    .map((item, index) => ({ item, index, relevant: isRelevant(item) }))
+    .sort((a, b) => Number(b.relevant) - Number(a.relevant) || a.index - b.index)
+    .map((entry) => entry.item);
+
+  const top = ordered.slice(0, cap);
+  const bullets = top.map(formatContradiction).join("\n");
+  const omitted = ordered.length - top.length;
+  const footer = omitted > 0
+    ? `\n\n_(+${omitted} more open — call \`list_contradictions\` for the full queue.)_`
+    : "";
+
+  return (
+    "## Open Contradictions\n" +
+    "These facts conflict in the world record. Reconcile them in the fiction — " +
+    "choose a truth, weave the tension into the scene, or call `resolve_contradiction` " +
+    "once settled. Don't narrate over them.\n" +
+    bullets +
+    footer
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main exports
 // ---------------------------------------------------------------------------
@@ -218,6 +283,15 @@ export async function buildContext(
     if (threadSection) sections.push(threadSection);
   } catch {
     // omit if threads unavailable
+  }
+
+  // Open contradictions — surface unresolved world-record conflicts into play
+  try {
+    const contradictions = await listOpenContradictions(campaignPath);
+    const section = buildContradictionsSection(contradictions, allSceneTexts);
+    if (section) sections.push(section);
+  } catch {
+    // omit if contradictions store unavailable (e.g. no world.duckdb yet)
   }
 
   // Expansion context sections
