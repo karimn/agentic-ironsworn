@@ -263,8 +263,8 @@ Tracked under umbrella **#201**, sequenced by leverage:
 
 | Item | Gap | Issue |
 |---|---|---|
-| **FW1** | Contradictions are detected and queued (#190) but **not surfaced into live play** — `context/build.ts` doesn't inject them; the agent only sees them if it calls `list_contradictions` at canonize time. Cheapest, highest immediate value: one context-builder change turns a dev tool into a live storytelling aid. | #196 |
-| **FW2** | The **canonize ritual has no moment** — tools (`canonize_*`) + a GM-prompt paragraph, but no trigger, no candidate surfacing, no command. Depends on the agent remembering mid-narration. Resolves **OQ5**. The signature primitive of the design, least operationalized. | #197 |
+| **FW1** ✅ | Contradictions are detected and queued (#190) but **not surfaced into live play** — `context/build.ts` doesn't inject them; the agent only sees them if it calls `list_contradictions` at canonize time. Cheapest, highest immediate value: one context-builder change turns a dev tool into a live storytelling aid. | #196 |
+| **FW2** ✅ | The **canonize ritual has no moment** — tools (`canonize_*`) + a GM-prompt paragraph, but no trigger, no candidate surfacing, no command. Depends on the agent remembering mid-narration. Resolves **OQ5**. The signature primitive of the design, least operationalized. | #197 |
 | **FW3** | **"New campaign in the same world" has no fiction onramp** — the original #166 motivation. The visibility filter supports it; `ironsworn-init` only scaffolds a *fresh* campaign; there's no GM canon briefing for a PC entering an established world. Pairs with FW2 (what one campaign blesses is what the next inherits). | #198 |
 | **FW4** | **Setting-seed unbuilt** — `world-truths` Q&A establishes truths for a *new* world ✅, but inheriting a *published* setting's canon (migration step #4) is not started. Straddles platform; the fiction-facing half is the undone part. | #199 |
 | **FW5** | **Narration quality is unmeasured** (frontier) — the eval measures *capture* (does the KG reflect play); nothing measures whether grounding makes narration *better*. Scope as a research spike, don't block v1 on it. | #200 |
@@ -1536,10 +1536,13 @@ not started.
   Character state shape would need to be pluralized. Tracked
   separately if pursued.
 - **OQ5** A canonize ritual UX: slash command, end-of-session prompt,
-  or implicit on high-confidence extraction. Probably explicit slash
-  command. **Now tracked as fiction-workflow item FW2 (#197)** — to be
-  resolved when implemented; recommended lean is an explicit `/canonize`
-  command that surfaces ranked candidates.
+  or implicit on high-confidence extraction. **Resolved (FW2, #197):
+  explicit `/canonize` slash command.** It surfaces campaign-scoped
+  candidates ranked by scene-spread + relation degree, gates each on
+  `list_contradictions` (a candidate touched by an open conflict can't
+  be blessed until resolved), and walks bless (`canonize_entity` /
+  `canonize_relation`) / keep-campaign-scoped / discard per candidate.
+  Works ad hoc or at session end — no "right moment" is assumed.
 - ~~**OQ6** Should overlay-state relations anchor on the PC entity or on
   a synthetic `party` entity?~~ **Resolved (#169):** anchors on the PC
   entity. A `party` generalization is deferred with multi-PC support

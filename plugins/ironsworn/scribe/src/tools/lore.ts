@@ -38,6 +38,7 @@ import {
   listContradictions,
   resolveContradiction,
 } from "@agentic-rpg/core";
+import { listCanonizeCandidates } from "@agentic-rpg/core";
 import { groundingHint } from "@agentic-rpg/core";
 
 export function register(server: McpServer, campaignPath: string): void {
@@ -623,6 +624,26 @@ export function register(server: McpServer, campaignPath: string): void {
       try {
         await resolveContradiction(campaignPath, id, resolution);
         return { content: [{ type: "text", text: JSON.stringify({ ok: true, id }) }] };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "list_canonize_candidates",
+    "The canonize ritual's candidate surfacing (FW2, resolves OQ5): ranked campaign-scoped entities and relations that have stabilized into the story this pass, backing the /canonize command. Ranked by scene-spread (distinct scenes referencing the entity, or the lesser of a relation's two endpoints) and relation degree — recurrence and centrality signals already tracked elsewhere. Each candidate carries `blocked`/`blocked_reason`: true when an unresolved contradiction touches it, per `list_contradictions` — a blocked candidate must NOT be passed to canonize_entity/canonize_relation until resolve_contradiction runs. Distinct from list_contradictions (which lists conflicts) and search_lore (which finds by meaning) — this ranks what's eligible to bless.",
+    {
+      limit: z.coerce.number().int().min(1).max(100).optional()
+        .describe("Max results 1–100 (default 20)"),
+    },
+    async ({ limit }) => {
+      try {
+        const candidates = await listCanonizeCandidates(campaignPath, { limit: limit ?? 20 });
+        return { content: [{ type: "text", text: JSON.stringify(candidates) }] };
       } catch (e) {
         return {
           content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
