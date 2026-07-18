@@ -84,6 +84,41 @@ community summaries, so you can situate the new character in inherited
 fiction rather than starting from nothing. See `docs/design/world-db.md` for
 the full visibility model this rests on.
 
+## Publishing and seeding a world from a setting
+
+A mature world's canon can be packaged as a portable **setting seed** — a
+JSON file of its world-canon entities, relations, and community summaries —
+and used to start a brand-new world with that canon already in place.
+
+**Publish** the current world as a setting (ask the GM to run
+`export_setting_seed`, or call it directly):
+
+```
+export_setting_seed(output_path: "/path/to/my-setting/canon.json")
+```
+
+This only ever includes world canon (`campaign_id IS NULL` — what's been
+blessed via `/canonize`); no campaign's private scenes, threads, or overlay
+state is included.
+
+**Seed** a fresh world from a setting file with `--from-setting` at init
+time:
+
+```bash
+mkdir my-new-world && cd my-new-world
+/ironsworn-init --from-setting /path/to/my-setting/canon.json
+```
+
+The setting's canon is staged at the new world root and imported
+automatically — as world canon, visible to every campaign in this world — the
+first time the GM builds session context. No extra step: invoke the GM as
+usual (`@ironsworn-gm`) and it presents the seeded canon as a **canon
+briefing**, exactly like entering an existing world above. `--from-setting`
+only applies to a fresh world and cannot be combined with `--in-world`. To
+merge a setting into a world that's already underway instead, call
+`import_setting_seed` directly. See "Setting seed" in
+`docs/design/world-db.md` for the full model.
+
 ## Environment variables
 
 | Variable | Default | Purpose |

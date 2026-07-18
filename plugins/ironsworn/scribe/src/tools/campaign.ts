@@ -9,6 +9,7 @@ import { exportLore, exportProvenance, upsertLore, linkLore, checkpointLore, rep
 import { exportProximity, linkProximity, type ProximityDimension, type CompassPoint, type OrderKind } from "@agentic-rpg/core";
 import { exportScenes, importScene, checkpointScenes, exportSceneEntityRefs, setSceneEntityRefs, type BeatExport, type SceneEntityRefExport } from "@agentic-rpg/core";
 import { shutdown as drainBeatQueue } from "@agentic-rpg/core";
+import { exportSettingSeed, importSettingSeed, type SettingSeed } from "@agentic-rpg/core";
 
 interface CampaignExport {
   version: 3;
@@ -289,6 +290,67 @@ export function register(server: McpServer, campaignPath: string): void {
           content: [{
             type: "text",
             text: JSON.stringify({ ok: true, imported: counts }),
+          }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "export_setting_seed",
+    "Package this world's canon (campaign_id IS NULL entities, relations, and community summaries) as a portable setting-seed JSON file — the \"publish this world as a setting\" pathway (FW4, #199). Excludes all campaign-scoped scenes, threads, and overlay state.",
+    {
+      output_path: z.string().describe("Absolute path where the setting-seed JSON will be written"),
+    },
+    async ({ output_path }) => {
+      try {
+        const seed = await exportSettingSeed(campaignPath);
+        await mkdir(dirname(output_path), { recursive: true });
+        await writeFile(output_path, JSON.stringify(seed, null, 2), "utf-8");
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              ok: true,
+              output_path,
+              source_world: seed.sourceWorld,
+              counts: {
+                entities: seed.entities.length,
+                relations: seed.relations.length,
+                communities: seed.communities.length,
+              },
+            }),
+          }],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : String(e)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "import_setting_seed",
+    "Load a setting-seed JSON file (from export_setting_seed) into this world as canon (campaign_id NULL), visible to every campaign in the world. Idempotent — re-importing preserves entity ids. This is normally done automatically at world-init via `ironsworn-init.sh --from-setting`; call this directly to merge a setting into an already-established world instead. Requires Ollama for embedding regeneration.",
+    {
+      input_path: z.string().describe("Absolute path to a setting-seed JSON file"),
+    },
+    async ({ input_path }) => {
+      try {
+        const raw = await readFile(input_path, "utf-8");
+        const seed = JSON.parse(raw) as SettingSeed;
+        const counts = await importSettingSeed(campaignPath, seed);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ ok: true, source_world: seed.sourceWorld, imported: counts }),
           }],
         };
       } catch (e) {

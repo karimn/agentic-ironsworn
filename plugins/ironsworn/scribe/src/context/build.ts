@@ -11,6 +11,7 @@ import {
   getCanonBriefing,
   campaignSceneCount,
   type CanonBriefing,
+  maybeImportPendingSettingSeed,
 } from "@agentic-rpg/core";
 import { listThreads } from "../state/threads.js";
 import { getActiveExpansions, type LoadedExpansion } from "../expansions/loader.js";
@@ -349,6 +350,16 @@ export async function buildContext(
     if (section) sections.push(section);
   } catch {
     // omit if contradictions store unavailable (e.g. no world.duckdb yet)
+  }
+
+  // Setting-seed import — land a pending setting seed as world canon on the
+  // world's first context build, so `ironsworn-init.sh --from-setting` needs
+  // no separate step for the player or GM to remember (FW4, #199). A no-op
+  // once the pending file is imported (renamed away) or if none exists.
+  try {
+    await maybeImportPendingSettingSeed(campaignPath);
+  } catch {
+    // omit if world.duckdb is unavailable or the pending seed file is malformed
   }
 
   // Canon briefing — a fresh sibling campaign's first-session "what's already true here" (FW3, #198)
