@@ -637,3 +637,86 @@ describe("get_lore — grounding hint (#6)", () => {
     expect(allText(result)).not.toContain("Grounding reminder");
   });
 });
+
+// ---------------------------------------------------------------------------
+// list_canonize_candidates — the canonize ritual's candidate surfacing (FW2, OQ5)
+// ---------------------------------------------------------------------------
+
+describe("list_canonize_candidates tool", () => {
+  it("surfaces campaign-scoped entities, respects limit, and excludes canon/sibling rows", async () => {
+    if (!dbReady) return;
+    const ctx = await resolveWorldContext(campaignDir);
+    const local = await seedEntity(campaignDir, { canonical: "Local Only", type: "person", campaignId: ctx.campaignId });
+    await seedEntity(campaignDir, { canonical: "Already Canon", type: "person", campaignId: null });
+    await seedEntity(campaignDir, { canonical: "Sibling's", type: "person", campaignId: "other-campaign" });
+
+    const result = await client.callTool({ name: "list_canonize_candidates", arguments: {} });
+    expect(result.isError).not.toBe(true);
+    const candidates = parseToolText<Array<{ id: string; kind: string }>>(result);
+    const ids = candidates.map((c) => c.id);
+    expect(ids).toContain(local);
+    expect(ids.length).toBe(1);
+  });
+
+  it("blocks a candidate touched by an open contradiction, and it clears after resolve_contradiction", async () => {
+    if (!dbReady) return;
+    const ctx = await resolveWorldContext(campaignDir);
+    const entityId = await seedEntity(campaignDir, { canonical: "Disputed One", type: "person", campaignId: ctx.campaignId });
+
+    const inst = await getWorldDb(ctx);
+    const conn = await openWorldWriteConn(inst);
+    const flagId = crypto.randomUUID();
+    try {
+      const now = new Date().toISOString();
+      await conn.run(
+        `INSERT INTO contradictions (id, kind, entity_id, existing_value, incoming_value, campaign_id, created_at)
+         VALUES (?, 'entity_summary_divergence', ?, 'old', 'new', ?, ?)`,
+        [flagId, entityId, ctx.campaignId, now],
+      );
+    } finally {
+      conn.closeSync();
+    }
+
+    const blockedResult = await client.callTool({ name: "list_canonize_candidates", arguments: {} });
+    const blockedCandidates = parseToolText<Array<{ id: string; blocked: boolean; blocked_reason?: string }>>(blockedResult);
+    const disputed = blockedCandidates.find((c) => c.id === entityId);
+    expect(disputed).toBeDefined();
+    expect(disputed!.blocked).toBe(true);
+
+    await client.callTool({ name: "resolve_contradiction", arguments: { id: flagId, resolution: "adjudicated in fiction" } });
+
+    const clearedResult = await client.callTool({ name: "list_canonize_candidates", arguments: {} });
+    const clearedCandidates = parseToolText<Array<{ id: string; blocked: boolean }>>(clearedResult);
+    const clearedDisputed = clearedCandidates.find((c) => c.id === entityId);
+    expect(clearedDisputed).toBeDefined();
+    expect(clearedDisputed!.blocked).toBe(false);
+  });
+
+  it("surfaces a campaign-scoped relation with endpoint names", async () => {
+    if (!dbReady) return;
+    const ctx = await resolveWorldContext(campaignDir);
+    const fromId = await seedEntity(campaignDir, { canonical: "Kira", type: "person", campaignId: ctx.campaignId });
+    const toId = await seedEntity(campaignDir, { canonical: "Warden", type: "person", campaignId: ctx.campaignId });
+    const relId = await seedRelation(campaignDir, { fromId, toId, label: "ALLY_OF", campaignId: ctx.campaignId });
+
+    const result = await client.callTool({ name: "list_canonize_candidates", arguments: {} });
+    const candidates = parseToolText<Array<{ id: string; kind: string; from_name?: string; to_name?: string; label?: string }>>(result);
+    const relCandidate = candidates.find((c) => c.id === relId);
+    expect(relCandidate).toBeDefined();
+    expect(relCandidate!.kind).toBe("relation");
+    expect(relCandidate!.from_name).toBe("Kira");
+    expect(relCandidate!.to_name).toBe("Warden");
+    expect(relCandidate!.label).toBe("ALLY_OF");
+  });
+
+  it("respects the limit argument", async () => {
+    if (!dbReady) return;
+    const ctx = await resolveWorldContext(campaignDir);
+    for (let i = 0; i < 4; i++) {
+      await seedEntity(campaignDir, { canonical: `Entity ${i}`, type: "person", campaignId: ctx.campaignId });
+    }
+    const result = await client.callTool({ name: "list_canonize_candidates", arguments: { limit: 2 } });
+    const candidates = parseToolText<unknown[]>(result);
+    expect(candidates.length).toBe(2);
+  });
+});

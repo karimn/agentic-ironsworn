@@ -55,6 +55,21 @@ export {
 } from "./rag/contradictions.js";
 export type { ContradictionFlag, OpenContradiction } from "./rag/contradictions.js";
 
+// RAG — canonize ritual (FW2, resolves OQ5)
+export {
+  rankCanonizeCandidates,
+  listCanonizeCandidates,
+  SCENE_SPREAD_WEIGHT,
+  RELATION_DEGREE_WEIGHT,
+} from "./rag/canonize.js";
+export type {
+  CanonizeCandidate,
+  EntityCanonizeCandidate,
+  RelationCanonizeCandidate,
+  EntityCandidateInput,
+  RelationCandidateInput,
+} from "./rag/canonize.js";
+
 // RAG — scenes
 export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs, exportSceneEntityRefs } from "./rag/scenes.js";
 export type { Scene, BeatInput, Beat, BeatSearchResult, BeatExport, SceneExport, RecentSceneSummary, ComplicationScene, BeatKind, SceneEntityRefExport } from "./rag/scenes.js";
