@@ -1,0 +1,3 @@
+- [Fiction-workflow track status](project_fiction_workflow_track.md) — which of FW1-FW5 (umbrella #201) are done and by which PR.
+- [FW-PR pattern conventions](feedback_fw_pattern_conventions.md) — DB-fetch/pure-render split, export/wiring/testing/docs checklist each FW PR follows.
+- [Bash script testing + known bug](feedback_bash_script_testing.md) — no bun-test for .sh files, use integration test scripts; pre-existing jq re-run bug in ironsworn-init.sh.
