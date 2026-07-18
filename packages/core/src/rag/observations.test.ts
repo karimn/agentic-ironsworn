@@ -2,10 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { writeFile as writeSpill } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import {
   recordObservation,
   listObservations,
   resolveObservation,
+  replayObservationSpill,
+  OBSERVATION_SPILL_FILENAME,
 } from "./observations.js";
 
 let campaignDir: string;
@@ -127,6 +131,50 @@ describe("listObservations", () => {
     } finally {
       await rm(worldRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe("replayObservationSpill", () => {
+  it("imports spilled rows with their original timestamps and removes the file", async () => {
+    const spillPath = join(campaignDir, OBSERVATION_SPILL_FILENAME);
+    const ts = "2026-07-18T12:00:00.000Z";
+    await writeSpill(
+      spillPath,
+      [
+        JSON.stringify({
+          ts,
+          source: "referee",
+          severity: "hard",
+          kind: "state_drift",
+          detail: "spilled while server held the lock",
+          turnRef: "s1:12",
+          blocked: true,
+        }),
+        "{corrupt line",
+        JSON.stringify({
+          ts,
+          source: "referee",
+          severity: "soft",
+          kind: "milestone_skip",
+          detail: "second entry",
+        }),
+      ].join("\n") + "\n",
+    );
+
+    const replayed = await replayObservationSpill(campaignDir);
+    expect(replayed).toBe(2);
+    expect(existsSync(spillPath)).toBe(false);
+
+    const listed = await listObservations(campaignDir);
+    expect(listed).toHaveLength(2);
+    const drift = listed.find((o) => o.kind === "state_drift");
+    expect(drift!.created_at).toBe(ts);
+    expect(drift!.blocked).toBe(true);
+    expect(drift!.turn_ref).toBe("s1:12");
+  });
+
+  it("is a no-op without a spill file", async () => {
+    expect(await replayObservationSpill(campaignDir)).toBe(0);
   });
 });
 

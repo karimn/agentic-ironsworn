@@ -70,6 +70,8 @@ export {
   recordObservation,
   listObservations,
   resolveObservation,
+  replayObservationSpill,
+  OBSERVATION_SPILL_FILENAME,
 } from "./rag/observations.js";
 export type {
   Observation,

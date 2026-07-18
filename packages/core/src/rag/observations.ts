@@ -1,3 +1,5 @@
+import { readFile, unlink } from "node:fs/promises";
+import { join } from "node:path";
 import { resolveWorldContext } from "../world.js";
 import { getWorldDb, openWorldWriteConn } from "./world-db.js";
 
@@ -30,6 +32,8 @@ export interface ObservationInput {
   detail: string;
   turnRef?: string;
   blocked?: boolean;
+  /** Original event time — used by spill replay; defaults to now. */
+  createdAt?: string;
 }
 
 function rowToObservation(row: Record<string, unknown>): Observation {
@@ -57,7 +61,7 @@ export async function recordObservation(
   const conn = await openWorldWriteConn(instance);
   try {
     const id = crypto.randomUUID();
-    const now = new Date().toISOString();
+    const now = input.createdAt ?? new Date().toISOString();
     await conn.run(
       `INSERT INTO observations
          (id, campaign_id, created_at, source, severity, kind, detail, turn_ref, blocked)
@@ -128,6 +132,50 @@ export async function listObservations(
   } finally {
     conn.closeSync();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Spill replay
+// ---------------------------------------------------------------------------
+// The referee hook runs while the scribe server holds the world.duckdb write
+// lock, so it cannot insert observations directly. It appends them to
+// <campaign>/observations-spill.jsonl instead (one ObservationInput + ts per
+// line — the format contract is mirrored in scribe/src/referee/cli.ts), and
+// the scribe replays the file into the observations table at startup, next
+// to the beat-queue replay.
+
+export const OBSERVATION_SPILL_FILENAME = "observations-spill.jsonl";
+
+export async function replayObservationSpill(campaignPath: string): Promise<number> {
+  const spillPath = join(campaignPath, OBSERVATION_SPILL_FILENAME);
+  let raw: string;
+  try {
+    raw = await readFile(spillPath, "utf-8");
+  } catch {
+    return 0; // no spill — the common case
+  }
+  let replayed = 0;
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    try {
+      const entry = JSON.parse(trimmed) as ObservationInput & { ts?: string };
+      await recordObservation(campaignPath, {
+        source: entry.source,
+        severity: entry.severity,
+        kind: entry.kind,
+        detail: entry.detail,
+        turnRef: entry.turnRef,
+        blocked: entry.blocked,
+        createdAt: entry.createdAt ?? entry.ts,
+      });
+      replayed++;
+    } catch {
+      // skip corrupt lines; better to lose one observation than the batch
+    }
+  }
+  await unlink(spillPath).catch(() => {});
+  return replayed;
 }
 
 export async function resolveObservation(

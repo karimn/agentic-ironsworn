@@ -13,7 +13,7 @@ import {
   assistantToolUse,
   toolResult,
   transcript,
-} from "./transcript.test.js";
+} from "./fixtures.js";
 
 const SCRIBE = "mcp__plugin_ironsworn_scribe__";
 

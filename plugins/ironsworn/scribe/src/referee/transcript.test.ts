@@ -1,43 +1,13 @@
 import { describe, it, expect } from "bun:test";
 import { extractLastTurn, normalizeToolName } from "./transcript.js";
-
-// --- transcript builder helpers (shared shape with checks.test.ts) ---------
-
-export function userMsg(text: string): object {
-  return { type: "user", message: { role: "user", content: [{ type: "text", text }] } };
-}
-
-export function userMsgString(text: string): object {
-  return { type: "user", message: { role: "user", content: text } };
-}
-
-export function assistantText(text: string): object {
-  return { type: "assistant", message: { role: "assistant", content: [{ type: "text", text }] } };
-}
-
-export function assistantToolUse(id: string, name: string, input: object): object {
-  return {
-    type: "assistant",
-    message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] },
-  };
-}
-
-export function toolResult(id: string, payload: object | string): object {
-  const text = typeof payload === "string" ? payload : JSON.stringify(payload);
-  return {
-    type: "user",
-    message: {
-      role: "user",
-      content: [{ type: "tool_result", tool_use_id: id, content: [{ type: "text", text }] }],
-    },
-  };
-}
-
-export function transcript(...entries: object[]): string {
-  return entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
-}
-
-// ---------------------------------------------------------------------------
+import {
+  userMsg,
+  userMsgString,
+  assistantText,
+  assistantToolUse,
+  toolResult,
+  transcript,
+} from "./fixtures.js";
 
 describe("normalizeToolName", () => {
   it("strips the MCP server prefix", () => {
