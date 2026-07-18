@@ -12,9 +12,16 @@
 #   (no flags, auto-detected)      Same as --in-world, but the existing world is found by walking
 #                                   up from CWD — the common case when you mkdir'd campaigns/<id>
 #                                   yourself under an existing world root and cd'd into it.
+#   --from-setting <seed.json>     Fresh-world mode only (FW4, #199): stages a setting-seed JSON
+#                                   file (from the export_setting_seed MCP tool) at the new world
+#                                   root as setting-seed.pending.json. The scribe server imports it
+#                                   as world canon (campaign_id NULL) automatically on the world's
+#                                   first context build — no separate step needed. Mutually
+#                                   exclusive with --in-world (a setting seeds a NEW world; an
+#                                   existing world already has its own canon).
 #
-# See "Starting a new campaign in an existing world" in plugins/ironsworn/README.md
-# and the "Fiction onramp" section of docs/design/world-db.md.
+# See "Starting a new campaign in an existing world" in plugins/ironsworn/README.md,
+# the "Fiction onramp" and "Setting seed" sections of docs/design/world-db.md.
 set -euo pipefail
 
 CWD="$(pwd)"
@@ -52,6 +59,7 @@ safe_mkdir() {
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
 IN_WORLD_PATH=""
+FROM_SETTING_PATH=""
 POSITIONAL=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -63,6 +71,14 @@ while [ $# -gt 0 ]; do
       IN_WORLD_PATH="${1#*=}"
       shift
       ;;
+    --from-setting)
+      FROM_SETTING_PATH="${2:-}"
+      shift 2
+      ;;
+    --from-setting=*)
+      FROM_SETTING_PATH="${1#*=}"
+      shift
+      ;;
     *)
       POSITIONAL+=("$1")
       shift
@@ -71,6 +87,23 @@ while [ $# -gt 0 ]; do
 done
 CAMPAIGN_ID_ARG="${POSITIONAL[0]:-}"
 CAMPAIGN_NAME_ARG="${POSITIONAL[1]:-}"
+
+# ── Setting-seed validation (FW4, #199) ────────────────────────────────────────
+if [ -n "$FROM_SETTING_PATH" ]; then
+  if [ -n "$IN_WORLD_PATH" ]; then
+    echo "✗ --from-setting cannot be combined with --in-world — a setting seeds a NEW world; an existing world already has its own canon." >&2
+    exit 1
+  fi
+  if [ ! -f "$FROM_SETTING_PATH" ]; then
+    echo "✗ --from-setting path '$FROM_SETTING_PATH' does not exist or is not a file." >&2
+    exit 1
+  fi
+  if ! jq -e '.schemaVersion and (.entities | type == "array")' "$FROM_SETTING_PATH" >/dev/null 2>&1; then
+    echo "✗ --from-setting path '$FROM_SETTING_PATH' does not look like a setting-seed JSON file (expected schemaVersion + entities[])." >&2
+    exit 1
+  fi
+  FROM_SETTING_PATH="$(cd "$(dirname "$FROM_SETTING_PATH")" && pwd)/$(basename "$FROM_SETTING_PATH")"
+fi
 
 # ── New-campaign-in-existing-world detection (FW3, #198) ──────────────────────
 # Mirrors resolveWorldContext's walk-up (packages/core/src/world.ts) and its
@@ -124,6 +157,11 @@ fi
 NEW_CAMPAIGN_MODE="false"
 if [ -n "$WORLD_ROOT" ] && { [ -n "$IN_WORLD_PATH" ] || [ "$IS_SELF" != "true" ]; }; then
   NEW_CAMPAIGN_MODE="true"
+fi
+
+if [ -n "$FROM_SETTING_PATH" ] && [ "$NEW_CAMPAIGN_MODE" = "true" ]; then
+  echo "✗ --from-setting cannot be used here — this folder auto-detected as a new campaign in the existing world at $WORLD_ROOT, which already has its own canon." >&2
+  exit 1
 fi
 
 # Compute a relative path from $1 (absolute base dir) to $2 (absolute target
@@ -392,6 +430,14 @@ Update this section as the campaign evolves.
   CAMPAIGN_JSON_CONTENT='{ "id": "default", "name": "Default Campaign" }'
   safe_write "$CWD/campaigns/default/campaign.json" "$CAMPAIGN_JSON_CONTENT"
 
+  # Setting-seed staging (FW4, #199): stage the seed file at the world root as
+  # setting-seed.pending.json. The scribe server (buildContext,
+  # maybeImportPendingSettingSeed) imports it as world canon on the world's
+  # first context build and renames it to setting-seed.imported.json.
+  if [ -n "$FROM_SETTING_PATH" ]; then
+    safe_write "$CWD/setting-seed.pending.json" "$(cat "$FROM_SETTING_PATH")"
+  fi
+
   # .gitignore
   GITIGNORE_CONTENT='node_modules/
 *.duckdb-wal
@@ -462,6 +508,10 @@ if [ "$NEW_CAMPAIGN_MODE" = "true" ]; then
   echo "This project's .mcp.json points its scribe server at SCRIBE_CAMPAIGN=$SCRIBE_CAMPAIGN_VALUE."
   echo "Start the GM with @ironsworn-gm — it will present a canon briefing for what's"
   echo "already true in this world before your first scene."
+elif [ -n "$FROM_SETTING_PATH" ]; then
+  echo "Campaign folder ready, seeded from setting '$FROM_SETTING_PATH'."
+  echo "Start the GM with @ironsworn-gm — it will import the setting's canon and present it"
+  echo "as a canon briefing before your first scene."
 else
   echo "Campaign folder ready. Start the GM with @ironsworn-gm"
 fi

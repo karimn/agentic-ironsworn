@@ -702,3 +702,66 @@ describe("import_campaign", () => {
     }
   });
 });
+
+describe("export_setting_seed / import_setting_seed", () => {
+  async function ollamaAvailable(): Promise<boolean> {
+    const ollamaUrl = process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+    try {
+      const res = await fetch(`${ollamaUrl}/api/embed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "nomic-embed-text", input: "test" }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  it("exports only world-canon (campaign_id NULL) entities and relations, then imports them as canon into a fresh world", async () => {
+    if (!(await ollamaAvailable())) return;
+
+    const { upsertLore, linkLore, canonizeEntity } = await import("@agentic-rpg/core");
+
+    const hold = await upsertLore(campaignDir, { canonical: "The Sundered Hold", type: "place", summary: "a ruined fortress" });
+    const warden = await upsertLore(campaignDir, { canonical: "Warden Kess", type: "person", summary: "keeps the hold" });
+    await canonizeEntity(campaignDir, hold.id);
+    await canonizeEntity(campaignDir, warden.id);
+    await linkLore(campaignDir, { from: hold.id, to: warden.id, relation: "GUARDED_BY" });
+    // Campaign-scoped noise — must not leak into the setting seed.
+    await upsertLore(campaignDir, { canonical: "Private Note", type: "concept", summary: "not canon" });
+
+    const seedPath = join(exportDir, "setting-seed.json");
+    const exportResult = await client.callTool({
+      name: "export_setting_seed",
+      arguments: { output_path: seedPath },
+    });
+    expect(exportResult.isError).not.toBe(true);
+    const exportPayload = parseText<{ counts: { entities: number; relations: number; communities: number } }>(exportResult);
+    expect(exportPayload.counts.entities).toBe(2);
+    expect(exportPayload.counts.relations).toBe(1);
+
+    const seedFile = JSON.parse(await readFile(seedPath, "utf-8")) as { entities: Array<{ canonical: string }> };
+    expect(seedFile.entities.map((e) => e.canonical).sort()).toEqual(["The Sundered Hold", "Warden Kess"]);
+
+    const freshWorldDir = await mkdtemp(join(tmpdir(), "scribe-setting-seed-target-"));
+    try {
+      const freshServer = new McpServer({ name: "test-seed-target", version: "0.0.1" });
+      register(freshServer, freshWorldDir);
+      const freshClient = new Client({ name: "seed-target-client", version: "0.0.1" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await freshServer.connect(st);
+      await freshClient.connect(ct);
+
+      const importResult = await freshClient.callTool({
+        name: "import_setting_seed",
+        arguments: { input_path: seedPath },
+      });
+      expect(importResult.isError).not.toBe(true);
+      const importPayload = parseText<{ imported: { entities: number; relations: number; communities: number } }>(importResult);
+      expect(importPayload.imported).toEqual({ entities: 2, relations: 1, communities: 0 });
+    } finally {
+      await rm(freshWorldDir, { recursive: true, force: true });
+    }
+  });
+});

@@ -84,6 +84,23 @@ export type {
 export { getCanonBriefing, campaignSceneCount } from "./rag/canon-briefing.js";
 export type { CanonBriefing, CanonBriefingEntity, CanonBriefingRelation, CanonBriefingCommunity } from "./rag/canon-briefing.js";
 
+// RAG — setting seed (FW4, #199): export/import a published setting's canon as a world seed
+export {
+  exportSettingSeed,
+  importSettingSeed,
+  maybeImportPendingSettingSeed,
+  SETTING_SEED_SCHEMA_VERSION,
+  SETTING_SEED_PENDING_FILENAME,
+  SETTING_SEED_IMPORTED_FILENAME,
+} from "./rag/setting-seed.js";
+export type {
+  SettingSeed,
+  SettingSeedEntity,
+  SettingSeedRelation,
+  SettingSeedCommunity,
+  SettingSeedImportCounts,
+} from "./rag/setting-seed.js";
+
 // RAG — scenes
 export { recordScene, getScene, updateScene, deleteScene, recordBeat, recordBeats, getBeats, searchBeats, exportScenes, importScene, checkpointScenes, searchScenes, getRecentScenesChronological, countScenesMentioningNpc, getRecentComplications, setSceneEntityRefs, getSceneEntityRefs, exportSceneEntityRefs } from "./rag/scenes.js";
 export type { Scene, BeatInput, Beat, BeatSearchResult, BeatExport, SceneExport, RecentSceneSummary, ComplicationScene, BeatKind, SceneEntityRefExport } from "./rag/scenes.js";

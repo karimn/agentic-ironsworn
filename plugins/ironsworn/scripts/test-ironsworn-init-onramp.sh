@@ -110,6 +110,45 @@ assert "--in-world against a non-world path prints an explanatory error" \
   bash -c "grep -qi 'not an existing world root' /tmp/onramp-guard-out.$$"
 rm -f "/tmp/onramp-guard-out.$$"
 
+# ---------------------------------------------------------------------------
+# --from-setting (FW4, #199): stages a setting-seed JSON at the new world root.
+# ---------------------------------------------------------------------------
+echo "== --from-setting stages a pending setting seed in fresh-world mode =="
+SEED_JSON="$SCRATCH/setting-seed.json"
+cat > "$SEED_JSON" <<'SEEDEOF'
+{"schemaVersion":1,"sourceWorld":"Zura","exportedAt":"2026-01-01T00:00:00Z","entities":[{"id":"11111111-1111-1111-1111-111111111111","canonical":"The Sundered Hold","type":"place","summary":"a ruined fortress","content":{},"metadata":{},"aliases":[]}],"relations":[],"communities":[]}
+SEEDEOF
+mkdir -p "$SCRATCH/seeded-world"
+(cd "$SCRATCH/seeded-world" && CLAUDE_PLUGIN_ROOT="" bash "$INIT_SH" --from-setting "$SEED_JSON" >/dev/null 2>&1)
+
+assert "setting-seed.pending.json staged at the new world root" \
+  test -f "$SCRATCH/seeded-world/setting-seed.pending.json"
+assert "staged seed content matches the source file (mod trailing newline)" \
+  bash -c "[ \"\$(cat '$SEED_JSON')\" = \"\$(cat '$SCRATCH/seeded-world/setting-seed.pending.json')\" ]"
+assert "re-running init does not clobber the staged seed (safe_write idempotency)" \
+  bash -c "(cd '$SCRATCH/seeded-world' && CLAUDE_PLUGIN_ROOT='' bash '$INIT_SH' >/dev/null 2>&1); [ \"\$(cat '$SEED_JSON')\" = \"\$(cat '$SCRATCH/seeded-world/setting-seed.pending.json')\" ]"
+
+echo "== --from-setting guards =="
+mkdir -p "$SCRATCH/from-setting-guard-1"
+set +e
+(cd "$SCRATCH/from-setting-guard-1" && CLAUDE_PLUGIN_ROOT="" bash "$INIT_SH" --in-world "../zura-world" --from-setting "$SEED_JSON" >/tmp/from-setting-guard-1.$$ 2>&1)
+guard1_exit=$?
+set -e
+assert "--from-setting + --in-world exits non-zero" bash -c "[ $guard1_exit -ne 0 ]"
+assert "--from-setting + --in-world prints an explanatory error" \
+  bash -c "grep -qi 'cannot be combined with --in-world' /tmp/from-setting-guard-1.$$"
+rm -f "/tmp/from-setting-guard-1.$$"
+
+mkdir -p "$SCRATCH/from-setting-guard-2"
+set +e
+(cd "$SCRATCH/from-setting-guard-2" && CLAUDE_PLUGIN_ROOT="" bash "$INIT_SH" --from-setting "$SCRATCH/not-a-real-seed.json" >/tmp/from-setting-guard-2.$$ 2>&1)
+guard2_exit=$?
+set -e
+assert "--from-setting against a nonexistent file exits non-zero" bash -c "[ $guard2_exit -ne 0 ]"
+assert "--from-setting against a nonexistent file prints an explanatory error" \
+  bash -c "grep -qi 'does not exist' /tmp/from-setting-guard-2.$$"
+rm -f "/tmp/from-setting-guard-2.$$"
+
 echo ""
 echo "─────────────────────────────────────────"
 echo "$pass_count passed, $fail_count failed"

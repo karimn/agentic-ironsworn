@@ -144,6 +144,60 @@ campaign. This is the natural complement to the canonize ritual (FW2, #197):
 what one campaign blesses into canon is exactly what the next campaign
 started in the same world is briefed on.
 
+## Setting seed: inheriting a published setting's canon (FW4, #199)
+
+The onramp above covers *a second campaign in a world you already have*.
+"Setting as world seed" (`docs/design/agentic-rpg-v1.md`, "The bridge:
+setting as world seed") covers the other direction: packaging a world's
+canon as a portable, reusable seed and starting a **brand-new** world from
+it. This section is the fiction-facing implementation; the full
+npm-installable "setting package" contract (`agenticRpg.kind: "setting"`,
+`peerDependencies` on a system) is deferred to the platform work (#7) — the
+seed here is a plain JSON file, not a distributable package.
+
+**Format.** A setting seed is `{ schemaVersion, sourceWorld, exportedAt,
+entities[], relations[], communities[] }` — the world's `campaign_id IS
+NULL` rows, with embeddings and per-campaign columns (`campaign_id`,
+`created_in_campaign`, timestamps) stripped since they're re-derived or
+irrelevant on import. `packages/core/src/rag/setting-seed.ts` defines the
+type and the export/import functions; `SETTING_SEED_SCHEMA_VERSION` gates
+compatibility the same way `world.json.schemaVersion` does.
+
+**Export.** `exportSettingSeed()` filters `entities`, `relations` (excluding
+invalidated ones), and `lore_communities` to `campaign_id IS NULL` and
+serializes them. Exposed as the `export_setting_seed` MCP tool
+(`output_path`) — "publish this world as a setting."
+
+**Import.** `importSettingSeed()` reuses the existing per-campaign write
+path rather than inserting rows directly: each entity goes through
+`upsertLore` (which needs an active campaign context) and is immediately
+promoted with `canonizeEntity` — the same primitive the canonize ritual
+(FW2) uses. Once both endpoints of a relation are canon, `linkLore` already
+resolves the relation's `campaign_id` to `NULL` on its own (its "both
+endpoints canon" check), so relations need no separate canonize step. Only
+`lore_communities` rows are inserted directly with `campaign_id = NULL`,
+since community summaries have no per-campaign write path to reuse. Entity
+and community ids are preserved from the seed — safe because this is meant
+to run against a freshly-scaffolded, still-empty world. Exposed as the
+`import_setting_seed` MCP tool (`input_path`) for merging a setting into an
+already-established world on demand.
+
+**World-init round trip.** `ironsworn-init.sh --from-setting <seed.json>`
+(fresh-world mode only — mutually exclusive with `--in-world`, since an
+existing world already has its own canon) stages the seed file at
+`<world-root>/setting-seed.pending.json`. The scribe server has no chance to
+run TypeScript at scaffold time (the bash script never touches
+`world.duckdb` — it's lazily created on first DB access, same as every other
+`ironsworn-init` path), so the actual import happens the first time
+`buildContext()` runs: `maybeImportPendingSettingSeed()` in
+`scribe/src/context/build.ts` checks for the pending file, imports it, and
+renames it to `setting-seed.imported.json` so it runs exactly once. No
+separate step for the player or GM to remember — and because the import
+lands canon before `getCanonBriefing`/`campaignSceneCount` run in the same
+`buildContext` call, a world seeded this way gets the FW3 **Canon Briefing**
+on its very first session for free, with no changes needed to that trigger
+(`campaignSceneCount === 0` and non-empty canon already covers it).
+
 ## Schema (essentials)
 
 ```sql
@@ -295,3 +349,4 @@ it does not yet build overlay-producing features. Multi-PC parties are deferred.
 | `search_lore` / `search_lore_global` / `get_lore` / `get_lore_graph` (and other grounding reads) | Apply the visibility filter; accept `include_sibling_campaigns`. |
 | `record_scene` | Resolves names to entity UUIDs, auto-stubs unknowns as campaign-scoped entities, writes `scene_entity_refs`. |
 | `recompute_communities` | Clusters the **visible** subgraph and stamps results with the active `campaign_id`. |
+| `export_setting_seed` / `import_setting_seed` | **New (FW4, #199).** Round-trip `campaign_id IS NULL` canon as a portable JSON setting seed. See "Setting seed" above. |

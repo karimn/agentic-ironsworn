@@ -165,6 +165,35 @@ describe("buildContext", () => {
     expect(result.userPrefix).not.toContain("## Canon Briefing");
   });
 
+  it("auto-imports a pending setting seed and presents it as the Canon Briefing (FW4, #199)", async () => {
+    const { resolveWorldContext, SETTING_SEED_SCHEMA_VERSION, SETTING_SEED_PENDING_FILENAME, SETTING_SEED_IMPORTED_FILENAME } =
+      await import("@agentic-rpg/core");
+    const ctx = await resolveWorldContext(campaignDir);
+    const seed = {
+      schemaVersion: SETTING_SEED_SCHEMA_VERSION,
+      sourceWorld: "Zura",
+      exportedAt: new Date().toISOString(),
+      entities: [
+        { id: crypto.randomUUID(), canonical: "The Sundered Hold", type: "place", summary: "a ruined fortress", content: {}, metadata: {}, aliases: [] },
+      ],
+      relations: [],
+      communities: [],
+    };
+    await mkdir(ctx.worldRoot, { recursive: true });
+    await writeFile(join(ctx.worldRoot, SETTING_SEED_PENDING_FILENAME), JSON.stringify(seed));
+
+    const result = await buildContext(campaignDir, "test");
+    expect(result.userPrefix).toContain("## Canon Briefing — Entering an Established World");
+    expect(result.userPrefix).toContain("The Sundered Hold");
+
+    // Imported exactly once — pending file is gone, renamed to the imported marker.
+    const { access } = await import("node:fs/promises");
+    const pendingStillExists = await access(join(ctx.worldRoot, SETTING_SEED_PENDING_FILENAME)).then(() => true).catch(() => false);
+    const importedExists = await access(join(ctx.worldRoot, SETTING_SEED_IMPORTED_FILENAME)).then(() => true).catch(() => false);
+    expect(pendingStillExists).toBe(false);
+    expect(importedExists).toBe(true);
+  });
+
   it("buildExpansionSections includes agentBriefing and section.ts output for active expansions", async () => {
     const { buildExpansionSections } = await import("./build.js");
     const stubDir = resolve(dirname(fileURLToPath(import.meta.url)), "../expansions/stub");
