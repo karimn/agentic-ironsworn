@@ -63,6 +63,9 @@ Supporting modules (in `@agentic-rpg/core` unless noted):
 - `rag/proximity.ts` — weighted spatial/temporal proximity edges with Dijkstra distance + radius queries
 - `rag/extraction.ts` — LLM-driven entity/relation extraction from scenes into the lore graph
 - `rag/query.ts` (in `scribe/`) — hybrid BM25 + vector search with Reciprocal Rank Fusion
+- `rag/observations.ts` — the runtime-observability sink (#211): campaign-scoped observation rows in `world.duckdb` + the spill-file replay the referee hook writes through
+- `ledger.ts` (in `scribe/`) — turn ledger: instruments every MCP tool call into `<campaign>/session-ledger.jsonl`
+- `referee/` (in `scribe/`) — deterministic referee behind the plugin's Stop hook (`hooks/hooks.json` → `scripts/referee-hook.sh`): parses the just-finished turn from the transcript and checks protocol invariants (burn gate, state drift, phantom rolls + soft heuristics); `SCRIBE_REFEREE_MODE` gates `off`/`log`/`enforce` (default `log`). See `docs/design/runtime-observability.md`
 - `migrations/world-migrate.ts` — one-time legacy → `world.duckdb` migration (CLI: `scribe/src/migrate.ts`); see `docs/design/world-db.md`
 - `rules/` — pure Ironsworn logic (dice, moves, progress, assets, momentum, oracles)
 - `state/` — JSON-backed persistence for character; NPCs and threads are now `entities` rows (`type='person'` / `type='thread'`)

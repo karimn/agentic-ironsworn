@@ -1,6 +1,6 @@
 # Runtime Observability — Turn Ledger + Deterministic Referee (Spec & Plan)
 
-**Status:** Spec — approved design pending implementation
+**Status:** Implemented (Phase A — `log` mode default; see §8 for the enforce flip)
 **Issue:** #211 (layer 1 of the runtime-observability track, umbrella #214)
 **Related:** #212 (LLM watcher), #213 (/session-report), #200 (narration-quality spike)
 
@@ -134,12 +134,19 @@ CREATE TABLE IF NOT EXISTS observations (
 
 ### API (`packages/core/src/rag/observations.ts`)
 
-- `recordObservation(campaignPath, obs)` — insert; used by the referee CLI and
-  later by the watcher.
+- `recordObservation(campaignPath, obs)` — insert; used by the spill replay
+  and later by the watcher.
 - `listObservations(campaignPath, { unresolvedOnly, kind, since })` — #213's
   read path; built now so the store is queryable from day one.
 - `resolveObservation(campaignPath, id, note)` — mirrors
   `resolve_contradiction`; the MCP tool wrapper ships with #213.
+- `replayObservationSpill(campaignPath)` — imports
+  `<campaign>/observations-spill.jsonl` into the table and removes the file.
+  **Why a spill file exists:** the referee hook runs while the scribe server
+  holds the `world.duckdb` write lock, so the CLI cannot insert rows
+  directly. It appends JSONL instead, and `server.ts` replays the file at
+  startup — the same pattern as the beat-queue replay. (This supersedes the
+  spec's original "CLI records observations directly" wording.)
 
 Campaign visibility follows the standard filter (rows carry `campaign_id`;
 observations never cross campaigns — there is no canon/overlay concept here).
@@ -155,7 +162,11 @@ observations never cross campaigns — there is no canon/overlay concept here).
   - `checks.ts` — pure functions `(turn: ParsedTurn) => Violation[]`; each
     check is data-driven and individually testable.
   - `cli.ts` — reads hook JSON from stdin, loads the transcript, runs checks,
-    records observations, emits the block decision or exits 0.
+    spills observations (see §5), emits the block decision or exits 0. It
+    deliberately imports only `transcript.ts`/`checks.ts` — no core barrel,
+    no DuckDB bindings — so hook startup stays fast. The campaign is found
+    via `SCRIBE_CAMPAIGN` or, since the hook doesn't inherit the MCP
+    server's env, by reading it out of `.mcp.json` in the session cwd.
 - `scripts/referee-hook.sh` — thin shell: `bun run .../referee/cli.ts`, with a
   hard `timeout` and unconditional `exit 0` on any script-level error
   (fail-open is enforced at the shell layer, not trusted to the TS code).
