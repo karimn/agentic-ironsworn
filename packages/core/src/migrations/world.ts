@@ -45,4 +45,28 @@ export const WORLD_MIGRATIONS: DbMigration[] = [
       );
     },
   },
+  {
+    version: 3,
+    description: "add observations table for the runtime-observability track (referee + watcher sink)",
+    async up(conn) {
+      await conn.run(`
+        CREATE TABLE IF NOT EXISTS observations (
+          id          TEXT PRIMARY KEY,
+          campaign_id TEXT NOT NULL,
+          created_at  TEXT NOT NULL,
+          source      TEXT NOT NULL,
+          severity    TEXT NOT NULL,
+          kind        TEXT NOT NULL,
+          detail      TEXT NOT NULL,
+          turn_ref    TEXT,
+          blocked     BOOLEAN NOT NULL DEFAULT FALSE,
+          resolved_at TEXT,
+          resolution  TEXT
+        )
+      `);
+      await conn.run(
+        `CREATE INDEX IF NOT EXISTS observations_campaign_id_idx ON observations (campaign_id)`,
+      );
+    },
+  },
 ];

@@ -65,6 +65,21 @@ export {
 } from "./rag/contradictions.js";
 export type { ContradictionFlag, OpenContradiction } from "./rag/contradictions.js";
 
+// RAG — observations (runtime-observability sink, #211)
+export {
+  recordObservation,
+  listObservations,
+  resolveObservation,
+  replayObservationSpill,
+  OBSERVATION_SPILL_FILENAME,
+} from "./rag/observations.js";
+export type {
+  Observation,
+  ObservationInput,
+  ObservationSource,
+  ObservationSeverity,
+} from "./rag/observations.js";
+
 // RAG — canonize ritual (FW2, resolves OQ5)
 export {
   rankCanonizeCandidates,

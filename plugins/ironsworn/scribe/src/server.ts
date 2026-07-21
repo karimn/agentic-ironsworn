@@ -7,7 +7,8 @@ import * as narrativeTools from "./tools/narrative.js";
 import * as loreTools from "./tools/lore.js";
 import * as campaignTools from "./tools/campaign.js";
 import { loadExpansions } from "./expansions/loader.js";
-import { checkpointLore, checkpointScenes, startPeriodicCheckpoint, replayFailures, shutdown as drainBeatQueue } from "@agentic-rpg/core";
+import { instrumentServer } from "./ledger.js";
+import { checkpointLore, checkpointScenes, startPeriodicCheckpoint, replayFailures, replayObservationSpill, shutdown as drainBeatQueue } from "@agentic-rpg/core";
 
 const CAMPAIGN_PATH = process.env.SCRIBE_CAMPAIGN ?? "campaigns/default";
 
@@ -15,6 +16,10 @@ const server = new McpServer({
   name: "scribe",
   version: "0.0.1",
 });
+
+// Must precede all register(...) calls and loadExpansions so every tool —
+// core and expansion alike — writes to the session ledger (#211).
+instrumentServer(server, CAMPAIGN_PATH);
 
 readTools.register(server, CAMPAIGN_PATH);
 mechanicsTools.register(server, CAMPAIGN_PATH);
@@ -28,6 +33,11 @@ await loadExpansions(server, CAMPAIGN_PATH);
 // Replay any beats that failed to persist in a previous session
 await replayFailures(CAMPAIGN_PATH).catch((e: unknown) => {
   process.stderr.write(`[scribe] beat replay failed: ${e}\n`);
+});
+
+// Import referee observations spilled while this server held the DB lock (#211)
+await replayObservationSpill(CAMPAIGN_PATH).catch((e: unknown) => {
+  process.stderr.write(`[scribe] observation spill replay failed: ${e}\n`);
 });
 
 // ---------------------------------------------------------------------------
